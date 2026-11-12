@@ -17,7 +17,22 @@ internal static class ProductScreenshotSmoke
         var outputIndex = Array.IndexOf(args, "--preview-dir");
         if (outputIndex < 0 || outputIndex + 1 >= args.Length) throw new ArgumentException("Product screenshots require --preview-dir.");
         var output = Path.GetFullPath(args[outputIndex + 1]); Directory.CreateDirectory(output);
-        Application.Current.Windows.OfType<GuideWindow>().Single().Dismiss();
+        var guide = Application.Current.Windows.OfType<GuideWindow>().Single();
+        if (args.Contains("--guide-only"))
+        {
+            foreach (var language in new[] { "zh-CN", "en" })
+            {
+                Method("SetGuideLanguage").Invoke(main, [language]);
+                foreach (var (page, name) in new[] { (0, "quota"), (1, "accounts"), (2, "status") })
+                {
+                    guide.ShowPage(page); await Settle(guide);
+                    Capture(guide, output, "guide-" + name + (language == "en" ? "-en" : "") + ".png");
+                }
+            }
+            Console.WriteLine("PASS bilingual guide screenshots use live quota connection and status chapters");
+            return;
+        }
+        guide.Dismiss();
         var settings = (WidgetSettings)Field("settings").GetValue(main)!;
         settings.Compact = true; settings.Width = 400; settings.Height = 464;
         Method("SetSimplifiedMode").Invoke(main, [false]);
@@ -73,7 +88,7 @@ internal static class ProductScreenshotSmoke
     private static FieldInfo Field(string name) => typeof(MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static MethodInfo Method(string name) => typeof(MainWindow).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static async Task Settle(Window window) { await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); window.UpdateLayout(); await Task.Delay(250); }
-    private static void Capture(FrameworkElement surface, string output, string name, FrameworkElement? root = null)
+    internal static void Capture(FrameworkElement surface, string output, string name, FrameworkElement? root = null)
     {
         var width = (int)Math.Ceiling(surface.ActualWidth * 2); var height = (int)Math.Ceiling(surface.ActualHeight * 2);
         Check(width > 0 && height > 0, "screenshot surface has a rendered size");

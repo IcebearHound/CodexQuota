@@ -246,5 +246,13 @@
   "圆环模式": "Ring",
   "状态条模式": "Status bar",
   "主面板精简布局": "Main compact layout",
-  "开机启动": "Start with Windows"
+  "开机启动": "Start with Windows",
+  "调色板": "Color palette",
+  "薄荷": "Mint",
+  "海蓝": "Ocean",
+  "紫罗兰": "Violet",
+  "琥珀": "Amber",
+  "面板材质": "Panel material",
+  "纯色面板": "Solid",
+  "液态玻璃": "Liquid glass"
 }

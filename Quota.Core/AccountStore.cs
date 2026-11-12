@@ -38,6 +38,8 @@ public sealed class AccountStore
             if (settings.Width == 460 && settings.Height == 720) { settings.Width = 400; settings.Height = 442; }
         }
         if (settings.Theme is not ("system" or "dark" or "light")) settings.Theme = "system";
+        if (settings.Palette is not ("mint" or "ocean" or "violet" or "amber")) settings.Palette = "mint";
+        if (settings.Material is not ("solid" or "glass")) settings.Material = "solid";
         if (settings.Language is not ("zh-CN" or "en")) settings.Language = "zh-CN";
         if (settings.TaskbarPlacement is not ("auto" or "left" or "right")) settings.TaskbarPlacement = "auto";
         settings.GuideVersion = Math.Max(0, settings.GuideVersion);

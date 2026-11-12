@@ -58,6 +58,7 @@ internal static class GuideSmoke
                     if (args.Contains("--switching")) await SwitchingSmoke.Run((MainWindow)app.MainWindow, store);
                     else if (args.Contains("--external-host-recovery")) await ExternalHostSmoke.Run(app);
                     else if (args.Contains("--desktop-recovery")) await NativeWindowSmoke.CheckMainRecovery(app);
+                    else if (args.Contains("--appearance-smoke")) await AppearanceSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--screenshots") && demo) await ProductScreenshotSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (demo) await CheckLayouts(guide, args);

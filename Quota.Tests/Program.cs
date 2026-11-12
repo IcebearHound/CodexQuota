@@ -498,6 +498,18 @@ await Test("removed desktop widget migrates to independent main and taskbar layo
     settings = store.LoadSettings(); Check(settings.DetailedTaskbar && settings.SimplifiedLayout == "ring");
     return Task.CompletedTask;
 });
+await Test("palette and panel material migrate safely and persist independently", () =>
+{
+    var store = new AccountStore(Path.Combine(testRoot, "appearance-settings"));
+    File.WriteAllText(Path.Combine(store.Root, "settings.json"), """{"Theme":"light","Palette":"old-theme","Material":"unknown"}""");
+    var settings = store.LoadSettings(); Check(settings.Theme == "light" && settings.Palette == "mint" && settings.Material == "solid");
+    foreach (var palette in new[] { "mint", "ocean", "violet", "amber" })
+    {
+        settings.Palette = palette; settings.Material = "glass"; store.SaveSettings(settings);
+        var saved = store.LoadSettings(); Check(saved.Palette == palette && saved.Material == "glass" && saved.Theme == "light");
+    }
+    return Task.CompletedTask;
+});
 await Test("new settings and old settings default to compact with persisted normal dimensions", () =>
 {
     var store = new AccountStore(Path.Combine(testRoot, "compact-settings"));

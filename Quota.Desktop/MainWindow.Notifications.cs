@@ -14,6 +14,7 @@ public partial class MainWindow
     {
         desktopModeNotice = UpdateRecoveryNotice(desktopHost.Apply(this, settings.DesktopOnly),
             L.F("桌面显示模式应用失败，请重新选择窗口位置，或切换为普通窗口后重试。", "Desktop placement could not be applied. Select a window mode again, or switch to Normal and retry."), desktopModeNotice);
+        WindowSurface.ApplyMaterial(this);
     }
     private string? UpdateRecoveryNotice(bool healthy, string message, string? previous)
     {

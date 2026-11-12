@@ -1,73 +1,79 @@
 # CodexQuota
 
-Windows 上的 Codex 多账号额度监控工具，提供完整与精简主面板、任务栏小组件、实时状态灯及异常会话列表。
+**简体中文** · [English](README.en.md)
 
-A Windows desktop app for monitoring Codex account quotas, reset timers and session status, with compact views and a taskbar widget.
+Windows 上的 Codex 多账号额度监控工具。通过交互式导览连接账号、查看额度与重置时间，支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-[下载最新版本](https://github.com/IcebearHound/CodexQuota/releases) · [更新记录](CHANGELOG.md)
+[下载 2.0 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0) · [更新记录](CHANGELOG.md)
 
-## 界面预览
+## 跟随导览开始
 
-界面图使用演示账号。
+下载 Windows x64 便携版 ZIP，解压后运行 `CodexQuota.exe`。便携版已包含 .NET 运行时，额度查询使用本机已安装的 Codex 程序。
 
-### 主面板
+首次运行会打开交互式导览，章节可自由切换。之后可从「设置 → 通用 → 使用导览与说明书」再次打开。以下界面图使用演示账号。
 
-<img src="docs/images/main.png" alt="CodexQuota 完整主面板" width="400">
+### 连接账号
 
-### 精简模式
+- **CC Switch 一键导入**。选择「从 CC Switch 导入」，扫描本机已有的 Codex 账号，确认后同步认证和原始名称。
+- **原生登录**。选择「原生登录」，通过 Codex 官方浏览器页面完成认证。每个账号独立保存认证，可重复添加多个账号。
 
-| 圆环模式 | 状态条模式 |
+导入、重新同步及账号管理也可在「设置 → 账号」完成。
+
+<img src="docs/images/guide-accounts.png" alt="导览中的 CC Switch 导入与 Codex 原生登录入口" width="680">
+
+### 看懂额度与重置时间
+
+导览用交互式示例展示剩余额度和已用额度。短期与每周窗口分别计时，主圆环突出当前受限窗口。同邮箱账号自动合并显示，各工作区的额度继续独立呈现。
+
+<img src="docs/images/guide-quota.png" alt="额度导览中的圆环、额度条与独立重置窗口" width="560">
+
+### 识别任务状态
+
+点击状态示例查看执行、完成、等待输入、低额度、耗尽、错误、中断及离线状态。运行时点击异常状态灯可打开异常会话列表，支持单条忽略和全部忽略，已归档会话退出统计。
+
+<img src="docs/images/guide-status.png" alt="状态灯导览与可交互状态示例" width="540">
+
+### 放到任务栏
+
+在导览的小组件章节开启任务栏显示。单击小组件常驻展开账号面板，再次单击收起，悬停可临时预览。右键菜单可切换圆环或状态条，任务栏与主面板的布局分别保存。
+
+<img src="docs/images/taskbar-bar.png" alt="任务栏状态条与重置倒计时" width="200">
+
+## 日常使用
+
+主面板集中显示账号、额度和重置时间。点击精简模式按钮可缩小面板，双击、按 Esc 或通过右键菜单返回完整界面。
+
+<img src="docs/images/main.png" alt="完整主面板" width="300">
+
+| 精简圆环 | 精简状态条 |
 | --- | --- |
-| <img src="docs/images/compact-ring.png" alt="精简圆环布局" width="252"> | <img src="docs/images/compact-bar.png" alt="精简状态条布局" width="252"> |
+| <img src="docs/images/compact-ring.png" alt="精简圆环模式" width="176"> | <img src="docs/images/compact-bar.png" alt="精简状态条模式" width="176"> |
 
-### 设置与开机启动
+## 配色与液态玻璃
 
-<img src="docs/images/settings.png" alt="外观与布局设置" width="860">
+「设置 → 外观」提供薄荷、海蓝、紫罗兰和琥珀四种预设配色，可搭配跟随系统、深色或浅色主题。液态玻璃使用 Windows 11 系统背景模糊、半透明层次和柔光描边，主面板、导览和浮窗会即时切换。
 
-<img src="docs/images/startup.png" alt="通用设置中的开机启动开关" width="640">
+系统背景不可用或使用桌面嵌入模式时，面板采用相应的纯色配色。
 
-### 任务栏小组件
+<details>
+<summary>查看外观设置与常用选项</summary>
 
-<img src="docs/images/taskbar-bar.png" alt="任务栏状态条布局" width="300">
+<img src="docs/images/settings.png" alt="调色板与面板材质设置" width="380">
 
-<img src="docs/images/taskbar-menu.png" alt="任务栏右键菜单与布局切换" width="220">
+「设置 → 通用 → 窗口行为」可开启开机启动，登录 Windows 后在托盘后台运行。支持额度与重置卡通知、中英文、账号名称编辑和隐私显示。
 
-## 开始使用
+<img src="docs/images/startup.png" alt="开机启动选项" width="360">
 
-1. 从 Releases 下载 Windows x64 便携版 ZIP，解压后运行 `CodexQuota.exe`。便携版已包含 .NET 运行时。
-2. 首次启动可通过导览连接当前 Codex 账号、从 CC Switch 导入认证，或使用 Codex 原生浏览器登录。
-3. 在设置中选择已安装的 Codex 程序，并调整刷新频率、显示方式和通知。
-4. 在「设置 → 通用 → 窗口行为」开启「开机启动」，登录 Windows 后程序会自动在托盘中运行。开关同步当前用户的系统启动项状态。
+<img src="docs/images/taskbar-menu.png" alt="任务栏右键菜单" width="176">
 
-升级时先退出旧版额度监控，再运行新版。账号和设置保存在 `%LOCALAPPDATA%\CodexQuotaWidget`。用量查询通过本机已安装的 Codex app-server 完成，独立账号使用各自的认证目录。
+</details>
 
-## 界面与布局
+## 数据与升级
 
-- 完整主面板支持账号圆环卡片及圆环搭配账号条。
-- 主窗口的精简模式隐藏操作按钮，仅显示账号名、额度和重置时间。双击、按 Esc 或使用右键菜单返回完整界面，并恢复原有尺寸。
-- 精简主面板与任务栏小组件均支持圆环和状态条，布局分别保存。状态条将带图标的重置时间放在百分比左侧。
-- 右键任务栏小组件可直接选择「任务栏 · 圆环模式」或「任务栏 · 状态条模式」。也可在设置的小组件页面调整。
-- 单击任务栏小组件常驻展开账号面板，再次单击收起。悬停提供临时预览，浮窗支持淡入淡出。
-- 设置与导览跟随主面板的置顶设置，已打开的窗口即时同步。
-- 支持当前用户开机启动，后台启动沿用原有账号、布局及任务栏设置。更新后正常运行新版会同步已注册的程序路径。
-- 支持深浅主题、中英文、账号名称编辑和隐私显示。
+账号和设置保存在 `%LOCALAPPDATA%\CodexQuotaWidget`，用量通过本机 Codex app-server 查询。升级前退出旧版额度监控，再运行新版。
 
-## 状态与提醒
-
-状态灯显示执行、等待输入、完成、低额度、耗尽、错误、中断及离线状态。点击异常状态灯或菜单中的「异常会话」可打开列表，逐条忽略或全部忽略。归档会话退出异常统计，同一会话的新异常会再次提醒。
-
-支持低额度、额度重置和重置卡到期通知。同邮箱账号合并显示，并保留不同工作区的额度窗口。
-
-## RC30 性能改进
-
-- 将任务栏透明区域的逐像素桌面读取改为批量采样，减少 DWM 同步造成的 UI 阻塞。
-- 在空闲时准备浮窗的窗口、模板与布局，减少首次单击的同步初始化。
-- 弹出菜单使用独立的中文 UI 字体，覆盖从任务栏打开菜单时的字体继承。
-- 合并重复的前台窗口对齐请求，减少账号属性变更时的重复状态计算。
-
-本机隔离测试中，底色采样从约 131 毫秒降至约 12–15 毫秒，预备后的首次展开处理约 16–28 毫秒，后续展开约 8–22 毫秒。结果受设备与桌面负载影响。
-
-## 构建与验证
+<details>
+<summary>构建与验证</summary>
 
 需要 Windows 和 .NET 10 SDK。`global.json` 指定 SDK 10.0.100，并允许同系列较新功能版本。
 
@@ -77,18 +83,11 @@ dotnet run --project Quota.Tests -c Release
 dotnet run --project Quota.Presentation.Tests -c Release
 ```
 
-实窗回归使用隔离数据目录。运行时应有可交互的 Windows 桌面。
+实窗回归使用可交互的 Windows 桌面与独立数据目录。
 
 ```powershell
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('CodexQuota-' + [guid]::NewGuid().ToString('N'))
 dotnet run --project Quota.Presentation.Tests -c Release -- --guide-smoke --demo --guide --data-dir $fixture
-```
-
-任务栏性能与资源释放回归使用独立的新目录。
-
-```powershell
-$fixture = Join-Path ([IO.Path]::GetTempPath()) ('CodexQuotaPerformance-' + [guid]::NewGuid().ToString('N'))
-dotnet run --project Quota.Presentation.Tests -c Release -- --guide-smoke --demo --guide --taskbar-performance --data-dir $fixture
 ```
 
 发布自包含单文件版本。
@@ -97,8 +96,10 @@ dotnet run --project Quota.Presentation.Tests -c Release -- --guide-smoke --demo
 dotnet publish Quota.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o artifacts/win-x64
 ```
 
-源码包含 `Quota.WidgetProvider` Windows Widgets Board 提供程序及 `Publish-Widgets.ps1`。它使用独立的 MSIX 注册流程，任务栏小组件随主程序运行。
+源码包含 `Quota.WidgetProvider` Windows Widgets Board 提供程序及 `Publish-Widgets.ps1`，采用独立的 MSIX 注册流程。
+
+</details>
 
 ## 许可
 
-项目使用 MIT License。Lucide 图标许可位于 `Quota.Desktop/Assets/lucide/LICENSE`。便携版包含 .NET 运行时许可及第三方声明。
+[MIT License](LICENSE)。Lucide 图标许可位于 [Assets/lucide/LICENSE](Quota.Desktop/Assets/lucide/LICENSE)，便携版附带 .NET 运行时许可及第三方声明。

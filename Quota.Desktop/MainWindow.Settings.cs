@@ -112,6 +112,7 @@ public partial class MainWindow
     private void BuildAppearanceSettings(Panel body)
     {
         SettingChoices(body, "主题", "palette", ["跟随系统", "深色", "浅色"], ["system", "dark", "light"], ["monitor", "moon", "sun"], settings.Theme, value => settings.Theme = value);
+        BuildPaletteSettings(body);
         SettingChoices(body, "显示模式", "layout-grid", ["紧凑圆环", "圆环 + 账号条"], ["compact", "normal"], ["layout-grid", "activity"], settings.Compact ? "compact" : "normal", value =>
         {
             settings.Compact = value == "compact";

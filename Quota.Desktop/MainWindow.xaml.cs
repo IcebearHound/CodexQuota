@@ -128,7 +128,7 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         WindowViewModel.AlertThreshold = settings.LowQuotaThreshold;
-        ThemeService.Apply(settings.Theme);
+        ThemeService.ApplyAppearance(settings.Theme, settings.Palette, settings.Material);
         Topmost = settings.Topmost && !settings.DesktopOnly;
         if (settingsWindow is { } preferences) preferences.Topmost = Topmost;
         if (guideWindow is { } guide) guide.Topmost = Topmost;

@@ -113,6 +113,8 @@ public sealed class WidgetSettings
     public string SimplifiedLayout { get; set; } = "ring";
     public int LayoutVersion { get; set; }
     public string Theme { get; set; } = "system";
+    public string Palette { get; set; } = "mint";
+    public string Material { get; set; } = "solid";
     public string Language { get; set; } = "zh-CN";
     public bool CcSwitchPromptShown { get; set; }
     public int GuideVersion { get; set; }
