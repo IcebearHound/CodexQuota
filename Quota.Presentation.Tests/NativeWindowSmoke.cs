@@ -192,6 +192,17 @@ internal static class NativeWindowSmoke
             Check(Descendants<TextBlock>(settingsWindow).Any(text => text.Text == L.T("打开 Windows 任务栏设置"))
                 && !Descendants<CheckBox>(settingsWindow).Any(box => Equals(box.Content, L.T("显示系统小组件（天气）"))), "system widgets use the supported settings entry");
             Console.WriteLine("PASS system widget controls expose the Windows settings entry and explain the restricted switch");
+            Descendants<RadioButton>(settingsWindow).Single(button => button.GroupName == "settings-pages" && AutomationProperties.GetName(button) == L.T("通用")).IsChecked = true;
+            await Settle(settingsWindow);
+            var startupToggle = Descendants<CheckBox>(settingsWindow).Single(box => AutomationProperties.GetName(box) == L.T("开机启动"));
+            Check(startupToggle.Content is Grid startupLabel && Descendants<AppIcon>(startupLabel).Single().Kind == "power", "startup setting has its power icon and localized accessible name");
+            if (args.Contains("--demo"))
+            {
+                startupToggle.IsChecked = true; await Settle(settingsWindow);
+                Check(Descendants<TextBlock>(settingsWindow).Any(text => text.Text == L.F("演示模式，开机启动设置仅供预览。", "Demo mode. Startup changes are previewed here.")), "demo startup option previews its change");
+                startupToggle.IsChecked = false;
+            }
+            Console.WriteLine("PASS startup option is accessible in General settings and supports isolated demo preview");
             Descendants<RadioButton>(settingsWindow).Single(button => button.GroupName == "settings-pages" && AutomationProperties.GetName(button) == L.T("通知")).IsChecked = true;
             await Settle(settingsWindow);
             var input = Descendants<TextBox>(settingsWindow).Single(box => AutomationProperties.GetName(box) == L.T("低额度阈值 (%)"));

@@ -245,5 +245,6 @@
   "返回完整界面": "Restore full interface",
   "圆环模式": "Ring",
   "状态条模式": "Status bar",
-  "主面板精简布局": "Main compact layout"
+  "主面板精简布局": "Main compact layout",
+  "开机启动": "Start with Windows"
 }

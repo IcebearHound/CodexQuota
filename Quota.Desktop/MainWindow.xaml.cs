@@ -58,6 +58,7 @@ public partial class MainWindow : Window
         Width = settings.Width; Height = settings.Height;
         if (settings.Left is { } l && settings.Top is { } t) { WindowStartupLocation = WindowStartupLocation.Manual; Left = l; Top = t; }
         L.Apply(settings.Language);
+        RefreshStartupRegistration();
         accounts.Add(new(new() { Id = "current", Name = settings.CurrentAccountName ?? L.T("当前 Codex 账号"), CustomName = settings.CurrentAccountName is not null }));
         if (!demo) foreach (var record in store.LoadAccounts()) accounts.Add(new(record));
         if (!demo) RestoreImportedNames();
@@ -76,6 +77,7 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             WindowPlacementGuard.EnsureVisible(this); ApplySettings();
+            if (startupNotice is { } startupMessage) ShowNotice(startupMessage);
             if (demo) { LoadDemo(); if (Array.IndexOf(arguments, "--guide") >= 0) ShowUserGuide(); }
             else
             {

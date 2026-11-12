@@ -41,6 +41,7 @@ public partial class MainWindow
         dialog.Activated += (_, _) =>
         {
             if (settingsPage == "小组件") { QueueSettingsRender(); taskbarWidget?.RefreshPlacement(); }
+            else if (settingsPage == "通用") QueueSettingsRender();
         };
         RenderSettings(); dialog.Show();
     }
@@ -211,6 +212,7 @@ public partial class MainWindow
         });
         var behavior = SettingsControls.Section(body, L.F("窗口行为", "Window behavior"), "layout-grid");
         SettingsControls.Toggle(behavior, "关闭窗口时收起到托盘", "minus", settings.CloseToTray, value => { settings.CloseToTray = value; CommitSettings(); });
+        BuildStartupSetting(behavior);
         var cli = SettingsControls.Section(body, "Codex 程序", "folder-search");
         cli.Children.Add(DialogLayout.Text(Quota.Core.CliLocator.Find(settings.CodexPath) ?? L.T("未找到程序，请手动选择。"), 11, true));
         var actions = new WrapPanel();

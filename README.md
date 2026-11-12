@@ -6,11 +6,38 @@ A Windows desktop app for monitoring Codex account quotas, reset timers and sess
 
 [下载最新版本](https://github.com/IcebearHound/CodexQuota/releases) · [更新记录](CHANGELOG.md)
 
+## 界面预览
+
+界面图使用演示账号。
+
+### 主面板
+
+<img src="docs/images/main.png" alt="CodexQuota 完整主面板" width="400">
+
+### 精简模式
+
+| 圆环模式 | 状态条模式 |
+| --- | --- |
+| <img src="docs/images/compact-ring.png" alt="精简圆环布局" width="252"> | <img src="docs/images/compact-bar.png" alt="精简状态条布局" width="252"> |
+
+### 设置与开机启动
+
+<img src="docs/images/settings.png" alt="外观与布局设置" width="860">
+
+<img src="docs/images/startup.png" alt="通用设置中的开机启动开关" width="640">
+
+### 任务栏小组件
+
+<img src="docs/images/taskbar-bar.png" alt="任务栏状态条布局" width="300">
+
+<img src="docs/images/taskbar-menu.png" alt="任务栏右键菜单与布局切换" width="220">
+
 ## 开始使用
 
 1. 从 Releases 下载 Windows x64 便携版 ZIP，解压后运行 `CodexQuota.exe`。便携版已包含 .NET 运行时。
 2. 首次启动可通过导览连接当前 Codex 账号、从 CC Switch 导入认证，或使用 Codex 原生浏览器登录。
 3. 在设置中选择已安装的 Codex 程序，并调整刷新频率、显示方式和通知。
+4. 在「设置 → 通用 → 窗口行为」开启「开机启动」，登录 Windows 后程序会自动在托盘中运行。开关同步当前用户的系统启动项状态。
 
 升级时先退出旧版额度监控，再运行新版。账号和设置保存在 `%LOCALAPPDATA%\CodexQuotaWidget`。用量查询通过本机已安装的 Codex app-server 完成，独立账号使用各自的认证目录。
 
@@ -22,6 +49,7 @@ A Windows desktop app for monitoring Codex account quotas, reset timers and sess
 - 右键任务栏小组件可直接选择「任务栏 · 圆环模式」或「任务栏 · 状态条模式」。也可在设置的小组件页面调整。
 - 单击任务栏小组件常驻展开账号面板，再次单击收起。悬停提供临时预览，浮窗支持淡入淡出。
 - 设置与导览跟随主面板的置顶设置，已打开的窗口即时同步。
+- 支持当前用户开机启动，后台启动沿用原有账号、布局及任务栏设置。更新后正常运行新版会同步已注册的程序路径。
 - 支持深浅主题、中英文、账号名称编辑和隐私显示。
 
 ## 状态与提醒

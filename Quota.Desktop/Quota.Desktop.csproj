@@ -3,5 +3,5 @@
  <ItemGroup><ProjectReference Include="../Quota.Core/Quota.Core.csproj" /></ItemGroup>
  <ItemGroup><Resource Include="Assets/brand.png"/><Resource Include="Assets/app.ico"/></ItemGroup>
  <ItemGroup><EmbeddedResource Include="Strings.en.json" LogicalName="Quota.Desktop.Strings.en.json" WithCulture="false"/><Resource Include="Assets/lucide/*.svg"/><None Include="Assets/lucide/LICENSE" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
- <PropertyGroup><InformationalVersion>2.0.0-rc.30</InformationalVersion></PropertyGroup>
+ <PropertyGroup><InformationalVersion>2.0.0-rc.31</InformationalVersion></PropertyGroup>
 </Project>

@@ -39,7 +39,7 @@ internal static class GuideSmoke
         File.WriteAllText(fixtureMarker, "Quota.Presentation.Tests guide fixture");
         store.SaveSettings(new()
         {
-            LayoutVersion = 4, TaskbarVersion = 1, GuideVersion = 0, Language = "en", Theme = "dark",
+            LayoutVersion = 4, TaskbarVersion = 1, GuideVersion = 0, Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
             DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = false,
             NotifyLowQuota = false, NotifyExhausted = false, NotifyReset = false, NotifyCardExpiry = false,
             CodexPath = demo ? null : Path.GetFullPath(args[fakeIndex + 1])
@@ -59,6 +59,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--external-host-recovery")) await ExternalHostSmoke.Run(app);
                     else if (args.Contains("--desktop-recovery")) await NativeWindowSmoke.CheckMainRecovery(app);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
+                    else if (args.Contains("--screenshots") && demo) await ProductScreenshotSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (demo) await CheckLayouts(guide, args);
                     else await CheckCancel(app, guide, store);
                     result = 0;

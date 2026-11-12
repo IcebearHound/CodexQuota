@@ -8,6 +8,7 @@ if (args.FirstOrDefault() == "--guide-smoke") { Environment.ExitCode = GuideSmok
 var pass = 0;
 var cases = new (string Name, Action Verify)[]
 {
+    ("startup registration respects native state quoted paths upgrades and isolated cleanup", StartupRegistrationSmoke.Run),
     ("status read failures expose specific localized reasons and recover", () =>
     {
         var status = new CodexStatusViewModel(); var updates = new List<string?>(); status.PropertyChanged += (_, args) => updates.Add(args.PropertyName);
