@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings><AssemblyName>CodexQuota</AssemblyName><Version>2.0.0</Version><ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>Assets/app.ico</ApplicationIcon><Product>Codex Quota</Product><Description>Local multi-account Codex quota widget</Description></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../Quota.Core/Quota.Core.csproj" /></ItemGroup>
+ <ItemGroup><Resource Include="Assets/brand.png"/><Resource Include="Assets/app.ico"/></ItemGroup>
+ <ItemGroup><EmbeddedResource Include="Strings.en.json" LogicalName="Quota.Desktop.Strings.en.json" WithCulture="false"/><Resource Include="Assets/lucide/*.svg"/><None Include="Assets/lucide/LICENSE" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+ <PropertyGroup><InformationalVersion>2.0.0-rc.30</InformationalVersion></PropertyGroup>
+</Project>

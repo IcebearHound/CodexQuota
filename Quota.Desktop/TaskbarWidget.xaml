@@ -1,0 +1,35 @@
+<Window x:Class="Quota.Desktop.TaskbarWidget" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Quota.Desktop" Title="Codex Quota Taskbar" Width="44" Height="40" WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False" AllowsTransparency="True" Background="Transparent" Foreground="{DynamicResource Text}" FontFamily="{DynamicResource TaskbarFont}" FontSize="12" FontWeight="Normal" TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+ <Window.Resources>
+  <FontFamily x:Key="TaskbarFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+  <SolidColorBrush x:Key="TaskbarText" Color="White"/>
+  <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+   <Setter Property="FontFamily" Value="{DynamicResource TaskbarFont}"/>
+   <Setter Property="FontWeight" Value="Normal"/>
+   <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+  </Style>
+ </Window.Resources>
+ <Border x:Name="Bar" Margin="0,4" ClipToBounds="True" CornerRadius="6" Cursor="Hand" MouseEnter="BarEnter" MouseLeave="LeaveArea" MouseLeftButtonUp="ToggleFlyout" MouseWheel="CycleAccount">
+  <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="#01000000"/><Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#20808080"/></Trigger></Style.Triggers></Style></Border.Style>
+  <Grid>
+   <Grid x:Name="CompactPanel" Width="40" MaxHeight="40" HorizontalAlignment="Center" VerticalAlignment="Stretch">
+    <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="16"/></Grid.RowDefinitions>
+    <Viewbox MaxWidth="27" MaxHeight="27" Stretch="Uniform"><Grid Width="27" Height="27">
+     <local:QuotaRing x:Name="ProgressRing" StrokeThickness="2.2" Value="{Binding FocusWindow.Value,Mode=OneWay}" Foreground="{Binding FocusWindow.Color}" Track="{DynamicResource Track}"/>
+     <TextBlock x:Name="PercentText" Foreground="{DynamicResource TaskbarText}" Text="{Binding FocusWindow.Percent,FallbackValue=—,TargetNullValue=—}" FontSize="9.5" FontWeight="Normal" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Grid></Viewbox>
+    <TextBlock x:Name="ResetText" ToolTip="{Binding FocusWindow.ResetText}" Grid.Row="1" Text="{Binding FocusWindow.CompactResetText,FallbackValue=—,TargetNullValue=—}" FontSize="12" FontWeight="Normal" Foreground="{DynamicResource TaskbarText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
+    <local:StatusLamp x:Name="RuntimeLamp" Width="5" Height="5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,0,0"/>
+   </Grid>
+   <Grid x:Name="FullPanel" Margin="8,0" VerticalAlignment="Center" Visibility="Collapsed">
+    <Grid.RowDefinitions><RowDefinition Height="19"/><RowDefinition Height="7"/></Grid.RowDefinitions>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="9"/></Grid.ColumnDefinitions>
+     <TextBlock x:Name="FullNameText" Text="{Binding Name,FallbackValue=Codex,TargetNullValue=Codex}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TaskbarText}" VerticalAlignment="Center"/>
+     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,7,0" ToolTip="{Binding FocusWindow.ResetText}"><local:AppIcon Kind="rotate-cw" Width="11" Height="11" Foreground="{DynamicResource TaskbarText}"/><TextBlock x:Name="FullResetText" Text="{Binding FocusWindow.CompactResetText,FallbackValue=—,TargetNullValue=—}" FontSize="12" Foreground="{DynamicResource TaskbarText}" Margin="3,0,0,0" VerticalAlignment="Center"/></StackPanel>
+     <TextBlock x:Name="FullPercentText" Grid.Column="2" Text="{Binding FocusWindow.Percent,FallbackValue=—,TargetNullValue=—}" FontSize="12" Foreground="{DynamicResource TaskbarText}" VerticalAlignment="Center"/>
+     <local:StatusLamp x:Name="FullRuntimeLamp" Grid.Column="3" Width="5" Height="5" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+    </Grid>
+    <ProgressBar x:Name="StatusProgress" Grid.Row="1" Value="{Binding FocusWindow.Value,Mode=OneWay}" Foreground="{Binding Foreground,ElementName=ProgressRing}" Background="{Binding Track,ElementName=ProgressRing}" Height="3"/>
+   </Grid>
+  </Grid>
+ </Border>
+</Window>

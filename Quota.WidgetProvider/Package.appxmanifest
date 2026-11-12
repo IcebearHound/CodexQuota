@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap3 com rescap">
+ <Identity Name="CodexQuota.Widget" Publisher="CN=CodexQuota" Version="2.0.6.1" ProcessorArchitecture="x64"/>
+ <Properties><DisplayName>Codex Quota</DisplayName><PublisherDisplayName>Codex Quota</PublisherDisplayName><Logo>Assets\Logo44.png</Logo></Properties>
+ <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.28000.0"/></Dependencies>
+ <Resources><Resource Language="zh-CN"/><Resource Language="en-US"/></Resources>
+ <Applications>
+  <Application Id="WidgetProvider" Executable="CodexQuota.WidgetProvider.exe" EntryPoint="Windows.FullTrustApplication">
+   <uap:VisualElements DisplayName="Codex Quota Widgets" Description="Codex 多账号额度小组件" Square150x150Logo="Assets\Logo150.png" Square44x44Logo="Assets\Logo44.png" BackgroundColor="transparent"/>
+   <Extensions>
+    <com:Extension Category="windows.comServer"><com:ComServer><com:ExeServer Executable="CodexQuota.WidgetProvider.exe" DisplayName="Codex Quota Widget Provider"><com:Class Id="91133FB0-CE2D-4E2C-9A07-42F527EAE907" DisplayName="Codex Quota"/></com:ExeServer></com:ComServer></com:Extension>
+    <uap3:Extension Category="windows.appExtension"><uap3:AppExtension Name="com.microsoft.windows.widgets" DisplayName="Codex Quota" Id="CodexQuotaProvider" PublicFolder="Public"><uap3:Properties><WidgetProvider>
+     <ProviderIcons><Icon Path="Assets\Logo44.png"/></ProviderIcons>
+     <Activation><CreateInstance ClassId="91133FB0-CE2D-4E2C-9A07-42F527EAE907"/></Activation>
+     <Definitions><Definition Id="CodexQuotaAccounts" DisplayName="Codex 额度" Description="查看和切换多个 Codex 账号，显示用量和重置时间" AllowMultiple="true"><Capabilities><Capability><Size Name="small"/></Capability><Capability><Size Name="medium"/></Capability><Capability><Size Name="large"/></Capability></Capabilities><ThemeResources><Icons><Icon Path="Assets\Logo44.png"/></Icons><Screenshots><Screenshot Path="Assets\Preview.png" DisplayAltText="Codex 额度面板"/></Screenshots><DarkMode/><LightMode/></ThemeResources></Definition></Definitions>
+    </WidgetProvider></uap3:Properties></uap3:AppExtension></uap3:Extension>
+   </Extensions>
+  </Application>
+  <Application Id="Desktop" Executable="Desktop\CodexQuota.exe" EntryPoint="Windows.FullTrustApplication">
+   <uap:VisualElements DisplayName="Codex Quota" Description="Codex 多账号额度桌面面板" Square150x150Logo="Assets\Logo150.png" Square44x44Logo="Assets\Logo44.png" BackgroundColor="transparent"/>
+   <Extensions><uap:Extension Category="windows.protocol"><uap:Protocol Name="codexquota"><uap:DisplayName>Codex Quota</uap:DisplayName></uap:Protocol></uap:Extension></Extensions>
+  </Application>
+ </Applications>
+ <Capabilities><Capability Name="internetClient"/><rescap:Capability Name="runFullTrust"/></Capabilities>
+</Package>
