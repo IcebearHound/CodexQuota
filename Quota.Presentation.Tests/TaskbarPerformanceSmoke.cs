@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Quota.Core;
 using Quota.Desktop;
@@ -70,7 +72,19 @@ internal static class TaskbarPerformanceSmoke
             Check(opens.Max() < 100, "prepared click handlers complete within the responsiveness regression budget");
             Console.WriteLine($"MEASURE open handlers {string.Join(", ", opens.Select(value => value.ToString("0.0")))} ms");
             Console.WriteLine($"MEASURE dispatcher largest gap {gaps.Max():0.0} ms");
-            Console.WriteLine("PASS prepared native flyout reuse, both taskbar layouts, click latency and sampling resource lifetime");
+            var menu = (ContextMenu)typeof(MainWindow).GetMethod("CreateWidgetMenu", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
+            menu.PlacementTarget = widget; menu.IsOpen = true;
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            try
+            {
+                var captions = menu.Items.OfType<MenuItem>().Select(item => ((Grid)item.Header).Children.OfType<TextBlock>().Single()).ToArray();
+                Console.WriteLine("MEASURE taskbar menu font " + captions[0].FontFamily.Source);
+                Check(captions.All(caption => caption.FontFamily.Source == "Microsoft YaHei UI, Segoe UI"), "taskbar popup captions use the common Chinese UI font");
+                var typeface = new Typeface(new FontFamily("Microsoft YaHei UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+                Check(typeface.TryGetGlyphTypeface(out var glyphs) && glyphs.CharacterToGlyphMap.ContainsKey('额'), "the menu UI typeface contains Chinese glyphs");
+            }
+            finally { menu.IsOpen = false; }
+            Console.WriteLine("PASS prepared native flyout reuse, both taskbar layouts, click latency, sampling resource lifetime and popup fonts");
         }
         finally { settings.DetailedTaskbar = originalLayout; widget.Close(); }
     }
