@@ -6,11 +6,15 @@ Monitor Codex account quotas, reset timers and session issues from one Windows a
 
 **[Download the 2.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
+Screenshots use the light theme and demo data.
+
+| Compact widget (main window) | Taskbar widget and expanded panel |
+| --- | --- |
+| <img src="docs/images/compact-ring-en.png" alt="Complete compact ring view with quotas and reset timers for four accounts" width="252"> | <img src="docs/images/taskbar-preview-en.png" alt="Taskbar quota strip with its complete expanded four-account panel" width="380"> |
+
 - Track short-term and weekly reset windows independently, with same-email accounts grouped together.
 - Use compact mode in the main window, with separate ring and status-bar layouts for the main panel and taskbar.
 - Open an affected chat, ignore one occurrence or ignore all current session issues.
-
-Screenshots use the light theme and demo data.
 
 | Multi-account dashboard | Session issues |
 | --- | --- |

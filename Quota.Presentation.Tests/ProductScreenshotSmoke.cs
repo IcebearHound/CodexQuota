@@ -95,6 +95,14 @@ internal static class ProductScreenshotSmoke
             body.Background = new SolidColorBrush(Color.FromRgb(239, 243, 247));
             body.Measure(new Size(200, 48)); body.Arrange(new Rect(0, 0, 200, 48)); body.UpdateLayout();
             Capture(body, output, "taskbar-bar" + suffix + ".png");
+            var flyout = new TaskbarFlyout(widget, main, groups) { Topmost = false };
+            try
+            {
+                flyout.Show();
+                await Settle(flyout);
+                CaptureTaskbarPreview((Border)flyout.FindName("FlyoutBody"), body, output, suffix);
+            }
+            finally { flyout.Close(); }
             var menu = (ContextMenu)Method("CreateWidgetMenu").Invoke(main, null)!;
             menu.PlacementTarget = main; menu.IsOpen = true;
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); menu.UpdateLayout();
@@ -102,6 +110,30 @@ internal static class ProductScreenshotSmoke
             finally { menu.IsOpen = false; }
         }
         finally { widget.Close(); }
+    }
+
+    private static void CaptureTaskbarPreview(Border flyout, Border widget, string output, string suffix)
+    {
+        const double width = 380;
+        var taskbarTop = 24 + flyout.ActualHeight + 20;
+        var height = taskbarTop + 48;
+        var visual = new DrawingVisual();
+        using (var drawing = visual.RenderOpen())
+        {
+            drawing.DrawRectangle(new SolidColorBrush(Color.FromRgb(247, 249, 251)), null, new Rect(0, 0, width, height));
+            drawing.DrawRectangle(new SolidColorBrush(Color.FromRgb(239, 243, 247)), null, new Rect(0, taskbarTop, width, 48));
+            drawing.DrawLine(new Pen(new SolidColorBrush(Color.FromRgb(220, 228, 233)), 1), new Point(0, taskbarTop), new Point(width, taskbarTop));
+            drawing.DrawRectangle(new VisualBrush(flyout), null, new Rect(24, 24, flyout.ActualWidth, flyout.ActualHeight));
+            drawing.DrawRectangle(new VisualBrush(widget), null, new Rect((width - widget.ActualWidth) / 2, taskbarTop + 4, widget.ActualWidth, widget.ActualHeight));
+        }
+        var bitmap = new RenderTargetBitmap((int)(width * 2), (int)Math.Ceiling(height * 2), 192, 192, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        var name = "taskbar-preview" + suffix + ".png";
+        using var stream = File.Create(Path.Combine(output, name));
+        encoder.Save(stream);
+        Console.WriteLine($"SCREENSHOT {name} {bitmap.PixelWidth}x{bitmap.PixelHeight}");
     }
 
     private static async Task CaptureIssues(MainWindow main, string output, string suffix)
