@@ -2,69 +2,76 @@
 
 **简体中文** · [English](README.en.md)
 
-Windows 上的 Codex 多账号额度监控工具。通过交互式导览连接账号、查看额度与重置时间，支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
+在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-[下载 2.0 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0) · [更新记录](CHANGELOG.md)
+**[下载 2.0 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
-## 跟随导览开始
+- 短期与每周额度独立计时，同邮箱账号自动合并。
+- 主面板支持精简模式，主面板与任务栏可分别选择圆环或状态条。
+- 异常会话可直接打开、单条忽略或全部忽略。
 
-下载 Windows x64 便携版 ZIP，解压后运行 `CodexQuota.exe`。便携版已包含 .NET 运行时，额度查询使用本机已安装的 Codex 程序。
+以下截图使用浅色主题和演示数据。
 
-首次运行会打开交互式导览，章节可自由切换。之后可从「设置 → 通用 → 使用导览与说明书」再次打开。以下界面图使用演示账号。
+| 多账号主面板 | 异常会话列表 |
+| --- | --- |
+| <img src="docs/images/main.png" alt="浅色主面板中的多账号额度与重置时间" width="320"> | <img src="docs/images/session-issues.png" alt="浅色异常会话列表中的错误、中断和处理按钮" width="400"><br>查看会话名称、异常类型和发生时间。<br>右侧箭头打开会话，忽略图标处理本次异常。 |
 
-### 连接账号
+## 异常会话也有处理入口
 
-- **CC Switch 一键导入**。选择「从 CC Switch 导入」，扫描本机已有的 Codex 账号，确认后同步认证和原始名称。
-- **原生登录**。选择「原生登录」，通过 Codex 官方浏览器页面完成认证。每个账号独立保存认证，可重复添加多个账号。
+从主面板、状态灯或任务栏菜单打开异常列表，查看错误与中断记录。支持单条忽略和右上角的「全部忽略」。列表自动刷新并过滤已归档会话，同一会话出现新的异常时会再次提醒。
 
-导入、重新同步及账号管理也可在「设置 → 账号」完成。
+## 快速开始
 
-<img src="docs/images/guide-accounts.png" alt="导览中的 CC Switch 导入与 Codex 原生登录入口" width="680">
+1. 下载 Windows x64 便携版 ZIP，解压后运行 `CodexQuota.exe`。便携版内置 .NET 运行时，额度查询使用本机已安装的 Codex 程序。
+2. 在首次启动的交互式导览中连接账号，查看额度示例并开启任务栏小组件。
+3. 之后可从「设置 → 通用 → 使用导览与说明书」再次打开导览，章节可自由切换。
 
-### 看懂额度与重置时间
+### CC Switch 导入与原生登录
 
-导览用交互式示例展示剩余额度和已用额度。短期与每周窗口分别计时，主圆环突出当前受限窗口。同邮箱账号自动合并显示，各工作区的额度继续独立呈现。
+- 点击 **从 CC Switch 导入**，扫描本机已有的 Codex 账号，确认后同步认证和账号名称。
+- 点击 **原生登录**，通过 Codex 官方浏览器页面完成认证。添加的账号使用独立认证目录，可重复连接多个账号。
 
-<img src="docs/images/guide-quota.png" alt="额度导览中的圆环、额度条与独立重置窗口" width="560">
+<img src="docs/images/guide-accounts.png" alt="浅色导览中的 CC Switch 一键导入与原生登录" width="560">
 
-### 识别任务状态
+### 额度与状态导览
 
-点击状态示例查看执行、完成、等待输入、低额度、耗尽、错误、中断及离线状态。运行时点击异常状态灯可打开异常会话列表，支持单条忽略和全部忽略，已归档会话退出统计。
+额度示例可切换剩余与已用口径，展示各窗口的独立重置时间。状态章节可点击预览执行、完成、等待输入、低额度、耗尽、错误、中断和离线信号。
 
-<img src="docs/images/guide-status.png" alt="状态灯导览与可交互状态示例" width="540">
+<details>
+<summary>查看额度与状态导览界面</summary>
 
-### 放到任务栏
+<img src="docs/images/guide-quota.png" alt="浅色额度导览" width="500">
 
-在导览的小组件章节开启任务栏显示。单击小组件常驻展开账号面板，再次单击收起，悬停可临时预览。右键菜单可切换圆环或状态条，任务栏与主面板的布局分别保存。
+<img src="docs/images/guide-status.png" alt="浅色状态灯导览" width="500">
 
-<img src="docs/images/taskbar-bar.png" alt="任务栏状态条与重置倒计时" width="200">
+</details>
 
-## 日常使用
+## 任务栏与精简模式
 
-主面板集中显示账号、额度和重置时间。点击精简模式按钮可缩小面板，双击、按 Esc 或通过右键菜单返回完整界面。
+单击任务栏小组件可固定展开账号面板，再次单击收起。悬停提供临时预览，右键菜单可切换圆环和状态条。任务栏与主面板的布局分别保存。
 
-<img src="docs/images/main.png" alt="完整主面板" width="300">
+<img src="docs/images/taskbar-bar.png" alt="浅色任务栏状态条" width="200">
+
+主面板的精简模式只显示账号、额度与重置时间。双击、按 Esc 或使用右键菜单返回完整界面。
 
 | 精简圆环 | 精简状态条 |
 | --- | --- |
-| <img src="docs/images/compact-ring.png" alt="精简圆环模式" width="176"> | <img src="docs/images/compact-bar.png" alt="精简状态条模式" width="176"> |
+| <img src="docs/images/compact-ring.png" alt="浅色精简圆环" width="176"> | <img src="docs/images/compact-bar.png" alt="浅色精简状态条" width="176"> |
 
-## 配色与液态玻璃
+## 按习惯调整外观
 
-「设置 → 外观」提供薄荷、海蓝、紫罗兰和琥珀四种预设配色，可搭配跟随系统、深色或浅色主题。液态玻璃使用 Windows 11 系统背景模糊、半透明层次和柔光描边，主面板、导览和浮窗会即时切换。
-
-系统背景不可用或使用桌面嵌入模式时，面板采用相应的纯色配色。
+支持薄荷、海蓝、紫罗兰、琥珀四种配色，以及系统、深色和浅色主题。液态玻璃通过 Windows 11 系统背景模糊、半透明层次和柔光描边呈现，主面板、导览和浮窗可即时切换。系统背景不可用或桌面嵌入模式下采用纯色配色。
 
 <details>
-<summary>查看外观设置与常用选项</summary>
+<summary>外观、开机启动与其他选项</summary>
 
-<img src="docs/images/settings.png" alt="调色板与面板材质设置" width="380">
+<img src="docs/images/settings.png" alt="浅色调色板与面板材质设置" width="340">
 
-「设置 → 通用 → 窗口行为」可开启开机启动，登录 Windows 后在托盘后台运行。支持额度与重置卡通知、中英文、账号名称编辑和隐私显示。
+「设置 → 通用 → 窗口行为」可开启开机启动，登录 Windows 后在托盘后台运行。支持额度与重置卡提醒、中英文、账号重命名和隐私显示。
 
-<img src="docs/images/startup.png" alt="开机启动选项" width="360">
+<img src="docs/images/startup.png" alt="浅色开机启动设置" width="340">
 
-<img src="docs/images/taskbar-menu.png" alt="任务栏右键菜单" width="176">
+<img src="docs/images/taskbar-menu.png" alt="浅色任务栏右键菜单" width="176">
 
 </details>
 

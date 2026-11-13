@@ -17,6 +17,9 @@ internal static class ProductScreenshotSmoke
         var outputIndex = Array.IndexOf(args, "--preview-dir");
         if (outputIndex < 0 || outputIndex + 1 >= args.Length) throw new ArgumentException("Product screenshots require --preview-dir.");
         var output = Path.GetFullPath(args[outputIndex + 1]); Directory.CreateDirectory(output);
+        var settings = (WidgetSettings)Field("settings").GetValue(main)!;
+        settings.Theme = "light"; settings.Material = "solid";
+        Method("ApplySettings").Invoke(main, null);
         var guide = Application.Current.Windows.OfType<GuideWindow>().Single();
         if (args.Contains("--guide-only"))
         {
@@ -33,22 +36,37 @@ internal static class ProductScreenshotSmoke
             return;
         }
         guide.Dismiss();
+        var languages = args.Contains("--bilingual") ? new[] { "zh-CN", "en" } : new[] { L.Language };
+        foreach (var language in languages)
+        {
+            Method("SetGuideLanguage").Invoke(main, [language]);
+            var accounts = (ObservableCollection<AccountViewModel>)Field("accounts").GetValue(main)!;
+            var names = L.IsEnglish ? new[] { "Daily work", "Personal project", "Backup account", "Research" } : new[] { "日常工作", "个人项目", "备用账号", "研究任务" };
+            for (var index = 0; index < accounts.Count; index++) accounts[index].Rename(names[index]);
+            await CaptureProducts(main, output, language == "en" ? "-en" : "");
+        }
+        Console.WriteLine("PASS light product screenshots use isolated bilingual demo accounts and live issue-list controls");
+    }
+
+    private static async Task CaptureProducts(MainWindow main, string output, string suffix)
+    {
         var settings = (WidgetSettings)Field("settings").GetValue(main)!;
         settings.Compact = true; settings.Width = 400; settings.Height = 464;
         Method("SetSimplifiedMode").Invoke(main, [false]);
         main.Width = 400; main.Height = 464;
         Method("ApplySettings").Invoke(main, null);
-        await Settle(main); Capture(main, output, "main.png");
+        await Settle(main); Capture(main, output, "main" + suffix + ".png");
         Method("SetSimplifiedLayout").Invoke(main, ["ring"]);
         ((Button)main.FindName("SimplifiedModeButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await Settle(main); Capture(main, output, "compact-ring.png");
+        await Settle(main); Capture(main, output, "compact-ring" + suffix + ".png");
         Method("SetSimplifiedLayout").Invoke(main, ["bar"]);
-        await Settle(main); Capture(main, output, "compact-bar.png");
+        await Settle(main); Capture(main, output, "compact-bar" + suffix + ".png");
         Method("SetSimplifiedMode").Invoke(main, [false]);
+        await CaptureIssues(main, output, suffix);
         Field("settingsPage").SetValue(main, "外观");
         Method("SettingsClick").Invoke(main, [main, new RoutedEventArgs()]);
         var dialog = (Window)Field("settingsWindow").GetValue(main)!;
-        await Settle(dialog); Capture(dialog, output, "settings.png");
+        await Settle(dialog); Capture(dialog, output, "settings" + suffix + ".png");
         Field("settingsPage").SetValue(main, "通用");
         Method("RenderSettings").Invoke(main, null);
         await Settle(dialog);
@@ -59,10 +77,10 @@ internal static class ProductScreenshotSmoke
         while (section is not Border) section = VisualTreeHelper.GetParent(section);
         ((FrameworkElement)section).BringIntoView();
         await Settle(dialog);
-        Capture((FrameworkElement)section, output, "startup.png", dialog);
+        Capture((FrameworkElement)section, output, "startup" + suffix + ".png", dialog);
         startup.IsChecked = true;
         await Settle(dialog);
-        Check(startup.IsChecked == true && Descendants<TextBlock>(dialog).Any(text => text.Text.Contains("仅供预览")), "demo startup toggle previews state through its normal UI handler");
+        Check(startup.IsChecked == true && Descendants<TextBlock>(dialog).Any(text => text.Text == L.F("演示模式，开机启动设置仅供预览。", "Demo mode. Startup changes are previewed here.")), "demo startup toggle previews state through its normal UI handler");
         startup.IsChecked = false;
         dialog.Close();
         var groups = (ObservableCollection<AccountGroupViewModel>)Field("visibleAccounts").GetValue(main)!;
@@ -70,19 +88,54 @@ internal static class ProductScreenshotSmoke
         try
         {
             settings.DetailedTaskbar = true;
+            var host = typeof(TaskbarWidget).GetField("host", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(widget)!;
+            host.GetType().GetField("<BackgroundColor>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, new RgbColor(239, 243, 247));
             typeof(TaskbarWidget).GetMethod("UpdateStatus", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(widget, null);
             var body = (Border)widget.Content;
-            body.Background = new SolidColorBrush(Color.FromRgb(32, 35, 42));
+            body.Background = new SolidColorBrush(Color.FromRgb(239, 243, 247));
             body.Measure(new Size(200, 48)); body.Arrange(new Rect(0, 0, 200, 48)); body.UpdateLayout();
-            Capture(body, output, "taskbar-bar.png");
+            Capture(body, output, "taskbar-bar" + suffix + ".png");
             var menu = (ContextMenu)Method("CreateWidgetMenu").Invoke(main, null)!;
             menu.PlacementTarget = main; menu.IsOpen = true;
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); menu.UpdateLayout();
-            try { Capture(menu, output, "taskbar-menu.png"); }
+            try { Capture(menu, output, "taskbar-menu" + suffix + ".png"); }
             finally { menu.IsOpen = false; }
         }
         finally { widget.Close(); }
-        Console.WriteLine("PASS product screenshots use isolated demo accounts, live layouts, startup preview and themed taskbar controls");
+    }
+
+    private static async Task CaptureIssues(MainWindow main, string output, string suffix)
+    {
+        var store = (AccountStore)Field("store").GetValue(main)!;
+        var originalHome = Environment.GetEnvironmentVariable("CODEX_HOME");
+        var home = Path.Combine(store.Root, "screenshot-codex-home"); Directory.CreateDirectory(home);
+        var originalActivity = Field("activity").GetValue(main);
+        SessionIssuesWindow? dialog = null;
+        try
+        {
+            Environment.SetEnvironmentVariable("CODEX_HOME", home);
+            var time = new DateTimeOffset(2026, 11, 13, 10, 24, 0, TimeSpan.FromHours(8));
+            var titles = L.IsEnglish ? new[] { "Fix API integration", "Verify test results", "Prepare release notes" } : new[] { "修复接口集成问题", "核对测试结果", "整理发布说明" };
+            var issues = titles.Select((title, index) =>
+            {
+                var id = Guid.NewGuid().ToString("D");
+                return new CodexSessionIssue(id, id, index == 0 ? CodexActivityKind.Error : CodexActivityKind.Paused, time.AddMinutes(-index * 12), "demo", Title: title);
+            }).ToArray();
+            Field("activity").SetValue(main, new CodexActivitySnapshot(CodexActivityKind.Error, SessionIssues: issues));
+            Method("UpdateCodexStatus").Invoke(main, null);
+            ((Button)main.FindName("SessionIssuesButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            dialog = Application.Current.Windows.OfType<SessionIssuesWindow>().Single();
+            await Settle(dialog);
+            Check(Descendants<TextBlock>(dialog).Any(text => text.Text == titles[0]), "issue screenshot renders its synthetic session titles");
+            Capture(dialog, output, "session-issues" + suffix + ".png");
+        }
+        finally
+        {
+            dialog?.Close();
+            Field("activity").SetValue(main, originalActivity);
+            Method("UpdateCodexStatus").Invoke(main, null);
+            Environment.SetEnvironmentVariable("CODEX_HOME", originalHome);
+        }
     }
 
     private static FieldInfo Field(string name) => typeof(MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;

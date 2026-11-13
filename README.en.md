@@ -2,69 +2,76 @@
 
 [简体中文](README.md) · **English**
 
-A Windows desktop app for monitoring Codex account quotas and reset timers. The interactive guide supports **one-click account import from CC Switch** and **native Codex sign-in**.
+Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-[Download the 2.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0) · [Changelog](CHANGELOG.md)
+**[Download the 2.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
-## Start with the interactive guide
+- Track short-term and weekly reset windows independently, with same-email accounts grouped together.
+- Use compact mode in the main window, with separate ring and status-bar layouts for the main panel and taskbar.
+- Open an affected chat, ignore one occurrence or ignore all current session issues.
 
-Download the Windows x64 portable ZIP, extract it and run `CodexQuota.exe`. The portable build includes the .NET runtime and queries usage through your locally installed Codex application.
+Screenshots use the light theme and demo data.
 
-The guide opens on first launch. You can switch chapters freely and reopen it from **Settings → General → Guide and manual**. Screenshots use demo accounts.
+| Multi-account dashboard | Session issues |
+| --- | --- |
+| <img src="docs/images/main-en.png" alt="Light dashboard with account quotas and reset timers" width="320"> | <img src="docs/images/session-issues-en.png" alt="Light session list with errors, interruptions and actions" width="400"><br>See chat titles, issue types and timestamps.<br>Use the arrow to open a chat or the ignore icon to dismiss an occurrence. |
 
-### Connect your accounts
+## Act on session issues
 
-- **One-click CC Switch import**. Choose **Import from CC Switch** to scan local Codex accounts, then confirm to sync credentials and original names.
-- **Native sign-in**. Choose **Sign in with Codex** and authenticate through the official browser page. Credentials are stored separately for each account, and you can repeat the flow to add accounts.
+Open the issue list from the main window, a status light or the taskbar menu. Review errors and interruptions, ignore a single occurrence or choose **Ignore all**. The list refreshes automatically and filters out archived chats. A new issue in the same chat triggers a fresh alert.
 
-Import, resync and account management are also available in **Settings → Accounts**.
+## Quick start
 
-<img src="docs/images/guide-accounts-en.png" alt="Guide with CC Switch import and native Codex sign-in" width="680">
+1. Download the Windows x64 portable ZIP, extract it and run `CodexQuota.exe`. The .NET runtime is included. Usage is queried through your locally installed Codex application.
+2. Follow the first-run interactive guide to connect accounts, explore quota examples and enable the taskbar widget.
+3. Reopen the guide from **Settings → General → Guide and manual**. You can switch chapters freely.
 
-### Understand quotas and reset timers
+### CC Switch import and native sign-in
 
-Interactive examples explain remaining and used quota. Short-term and weekly windows reset independently, and the main ring highlights the limiting window. Accounts sharing an email are grouped with workspace quotas displayed individually.
+- Choose **Import from CC Switch** to scan existing local Codex accounts, then confirm to sync credentials and account names.
+- Choose **Sign in with Codex** to authenticate through the official browser page. Added accounts use separate credential directories, and you can repeat the flow to connect more accounts.
 
-<img src="docs/images/guide-quota-en.png" alt="Quota guide with rings, bars and independent reset windows" width="560">
+<img src="docs/images/guide-accounts-en.png" alt="Light guide with CC Switch import and native sign-in" width="560">
 
-### Read session status
+### Quota and status walkthrough
 
-Select a status example to explore working, completed, waiting for input, low quota, exhausted, error, interrupted and offline states. During normal use, click an issue indicator to open the session list. Ignore one occurrence or all current issues. Archived chats leave the issue count.
+The quota example switches between remaining and used quota and explains independent reset windows. Select a status example to explore working, completed, waiting for input, low quota, exhausted, error, interrupted and offline signals.
 
-<img src="docs/images/guide-status-en.png" alt="Interactive status-light guide" width="540">
+<details>
+<summary>View the quota and status guide</summary>
 
-### Place the taskbar widget
+<img src="docs/images/guide-quota-en.png" alt="Light quota guide" width="500">
 
-Enable the widget in the placement chapter. Click once to pin its account panel open and click again to close it. Hover for a temporary preview. The context menu switches between ring and status-bar layouts, with separate layout preferences for the taskbar and main window.
+<img src="docs/images/guide-status-en.png" alt="Light status-light guide" width="500">
 
-<img src="docs/images/taskbar-bar.png" alt="Taskbar status bar and reset countdown" width="200">
+</details>
 
-## Everyday use
+## Taskbar and compact views
 
-The main window shows accounts, quotas and reset timers. Its compact-mode button shrinks the panel. Double-click, press Esc or use the context menu to restore the full interface.
+Click the taskbar widget once to pin its account panel open and again to close it. Hover for a temporary preview. Its context menu switches between ring and status-bar layouts. The taskbar and main window save their layout preferences separately.
 
-<img src="docs/images/main.png" alt="Full main window with demo accounts" width="300">
+<img src="docs/images/taskbar-bar-en.png" alt="Light taskbar status bar" width="200">
+
+Compact mode shows account names, quotas and reset timers. Double-click, press Esc or use the context menu to restore the full interface.
 
 | Compact ring | Compact status bar |
 | --- | --- |
-| <img src="docs/images/compact-ring.png" alt="Compact ring layout" width="176"> | <img src="docs/images/compact-bar.png" alt="Compact status-bar layout" width="176"> |
+| <img src="docs/images/compact-ring-en.png" alt="Light compact ring" width="176"> | <img src="docs/images/compact-bar-en.png" alt="Light compact status bar" width="176"> |
 
-## Palettes and liquid glass
+## Make it fit your desktop
 
-**Settings → Appearance** offers Mint, Ocean, Violet and Amber palettes, with System, Dark and Light theme options. Liquid glass combines the Windows 11 backdrop blur, translucent layers and soft highlights. Changes apply immediately to the main window, guide and flyouts.
-
-Solid colors are used when the system backdrop is unavailable or the main window is embedded in the desktop.
+Choose Mint, Ocean, Violet or Amber, with System, Dark and Light theme options. Liquid glass uses Windows 11 backdrop blur, translucent layers and soft highlights, with live changes across the main window, guide and flyouts. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
 
 <details>
-<summary>Appearance and common options</summary>
+<summary>Appearance, startup and other options</summary>
 
-<img src="docs/images/settings.png" alt="Palette and panel-material settings" width="380">
+<img src="docs/images/settings-en.png" alt="Light palette and panel-material settings" width="340">
 
-Enable **Start with Windows** in **Settings → General → Window behavior** to launch in the tray after sign-in. Quota and reset-credit notifications, Chinese and English, account renaming and privacy display are supported.
+Enable **Start with Windows** in **Settings → General → Window behavior** to launch in the tray after sign-in. Quota and reset-credit alerts, Chinese and English, account renaming and privacy display are supported.
 
-<img src="docs/images/startup.png" alt="Start with Windows option" width="360">
+<img src="docs/images/startup-en.png" alt="Light startup setting" width="340">
 
-<img src="docs/images/taskbar-menu.png" alt="Taskbar context menu" width="176">
+<img src="docs/images/taskbar-menu-en.png" alt="Light taskbar context menu" width="176">
 
 </details>
 
