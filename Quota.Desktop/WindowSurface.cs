@@ -37,6 +37,12 @@ internal static class WindowSurface
         var round = 2; var noBorder = unchecked((int)0xFFFFFFFE);
         DwmSetWindowAttribute(handle, 33, ref round, sizeof(int));
         DwmSetWindowAttribute(handle, 34, ref noBorder, sizeof(int));
+        window.IsVisibleChanged += (_, _) =>
+        {
+            if (!window.IsVisible) return;
+            ApplyMaterial(window);
+            QueueBackdropBlur(window, handle);
+        };
         ApplyMaterial(window);
         Border? clipped = null; Size previous = default; int previousRadius = -1;
         void ClipContent()
@@ -59,7 +65,7 @@ internal static class WindowSurface
     }
     internal static void ApplyMaterial(Window window)
     {
-        if (!window.IsLoaded || window.AllowsTransparency || WindowChrome.GetWindowChrome(window) is not { } chrome) return;
+        if (!window.IsLoaded || !window.IsVisible || window.AllowsTransparency || WindowChrome.GetWindowChrome(window) is not { } chrome) return;
         var source = PresentationSource.FromVisual(window) as HwndSource;
         if (source?.CompositionTarget is null) return;
         var handle = source.Handle;
@@ -104,6 +110,7 @@ internal static class WindowSurface
         window.SetCurrentValue(Window.BackgroundProperty, topLevel ? Brushes.Transparent : ThemeService.OpaqueBackground);
         if (window.Content is Border { Background: null } border) border.SetResourceReference(Border.BackgroundProperty, "Background");
         if (window.Content is Border surface) UpdateHighlight(surface, glass, refresh: true);
+        DesktopWindowHost.SynchronizeVisibility(window, handle);
         if (nativeChanged || frameChanged) QueueBackdropBlur(window, handle);
     }
     private static void QueueBackdropBlur(Window window, nint handle)
@@ -115,10 +122,14 @@ internal static class WindowSurface
         {
             window.SetValue(BlurPendingProperty, false);
             if (HwndSource.FromHwnd(handle)?.CompositionTarget is null || window.Dispatcher.HasShutdownStarted) return;
+            // Native blur can reveal a hidden HWND without restoring WPF content.
+            // Startup and close-to-tray may hide the window before this callback runs.
+            if (!window.IsVisible) { DesktopWindowHost.SynchronizeVisibility(window, handle); return; }
             var topLevel = (GetWindowLongPtr(handle, -16).ToInt64() & 0x40000000L) == 0;
             var blurBehind = new BlurBehind { Flags = 1, Enable = topLevel };
             DwmEnableBlurBehindWindow(handle, ref blurBehind);
             if ((int)window.GetValue(NativeMaterialProperty) == 2) SetBackdropBlur(handle, true);
+            DesktopWindowHost.SynchronizeVisibility(window, handle);
         });
     }
     private static void UpdateHighlight(Border border, bool glass, bool refresh = false)

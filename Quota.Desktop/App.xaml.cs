@@ -37,8 +37,7 @@ public partial class App : System.Windows.Application
             if (shuttingDown || Dispatcher.HasShutdownStarted || MainWindow is MainWindow current && current != previous && current.IsLoaded) return;
             var showReplacement = show || showAfterDesktopRecovery; showAfterDesktopRecovery = false;
             var replacement = new MainWindow(demo); MainWindow = replacement;
-            if (!showReplacement) replacement.Loaded += (_, _) => replacement.Hide();
-            replacement.Show();
+            ShowMainWindow(replacement, !showReplacement);
         };
         recovery.Start();
     }
@@ -73,8 +72,18 @@ public partial class App : System.Windows.Application
             try { System.IO.Directory.CreateDirectory(dataDirectory); System.IO.File.WriteAllText(System.IO.Path.Combine(dataDirectory, "last-error.txt"), DateTimeOffset.Now.ToString("O") + "\n" + args.Exception.GetType().FullName + "\n" + args.Exception.StackTrace); } catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { }
             DialogLayout.Alert(MainWindow, "Codex Quota", L.T("应用遇到意外错误，需要重新启动。错误类型已保存在本机 last-error.txt。")); Shutdown(1);
         };
-        try { MainWindow = new MainWindow(demo); if (Array.IndexOf(e.Args, "--background") >= 0) MainWindow.Loaded += (_, _) => MainWindow.Hide(); MainWindow.Show(); }
+        try { MainWindow = new MainWindow(demo); ShowMainWindow(MainWindow, Array.IndexOf(e.Args, "--background") >= 0); }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { DialogLayout.Alert(null, "Codex Quota", L.T("无法读取本地数据目录，请检查当前用户的文件访问权限。")); Shutdown(1); }
+    }
+    private static void ShowMainWindow(Window window, bool background)
+    {
+        if (background)
+        {
+            RoutedEventHandler? hideOnce = null;
+            hideOnce = (_, _) => { window.Loaded -= hideOnce; window.Hide(); };
+            window.Loaded += hideOnce;
+        }
+        window.Show();
     }
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e) { base.OnSessionEnding(e); shuttingDown = !e.Cancel; if (shuttingDown) desktopRecovery?.Stop(); }
     protected override void OnExit(ExitEventArgs e) { shuttingDown = true; desktopRecovery?.Stop(); refreshRegistration?.Unregister(null); refresh?.Dispose(); wakeRegistration?.Unregister(null); wake?.Dispose(); instance?.Dispose(); base.OnExit(e); }

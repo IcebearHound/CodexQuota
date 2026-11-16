@@ -103,7 +103,7 @@ internal sealed class DesktopWindowHost
         SynchronizeVisibility(window, handle); return placed;
     }
 
-    private static void SynchronizeVisibility(Window window, nint handle)
+    internal static void SynchronizeVisibility(Window window, nint handle)
     {
         var visible = (GetWindowLongPtr(handle, -16).ToInt64() & 0x10000000L) != 0;
         var requested = window.Visibility == Visibility.Visible;

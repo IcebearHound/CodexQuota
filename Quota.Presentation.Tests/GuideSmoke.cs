@@ -40,7 +40,8 @@ internal static class GuideSmoke
         store.SaveSettings(new()
         {
             LayoutVersion = 4, TaskbarVersion = 1, GuideVersion = 0, Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
-            DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = false,
+            DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = args.Contains("--visibility-smoke"),
+            Material = args.Contains("--visibility-smoke") ? "glass" : "solid",
             NotifyLowQuota = false, NotifyExhausted = false, NotifyReset = false, NotifyCardExpiry = false,
             CodexPath = demo ? null : Path.GetFullPath(args[fakeIndex + 1])
         });
@@ -59,6 +60,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--external-host-recovery")) await ExternalHostSmoke.Run(app);
                     else if (args.Contains("--desktop-recovery")) await NativeWindowSmoke.CheckMainRecovery(app);
                     else if (args.Contains("--appearance-smoke")) await AppearanceSmoke.Run((MainWindow)app.MainWindow, args);
+                    else if (args.Contains("--visibility-smoke")) await WindowVisibilitySmoke.Run((MainWindow)app.MainWindow, args);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (args.Contains("--screenshots") && demo) await ProductScreenshotSmoke.Run((MainWindow)app.MainWindow, args);
