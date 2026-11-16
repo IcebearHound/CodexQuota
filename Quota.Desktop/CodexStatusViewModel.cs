@@ -9,6 +9,9 @@ public enum CodexSignal { Unknown, Offline, Paused, Error, Exhausted, Low, Compl
 public enum CodexLampAnimation { Steady, Breathing, Flashing }
 public sealed class CodexStatusViewModel : Observable
 {
+    internal const string ErrorColor = "#F04438";
+    internal const string WarningColor = "#F2B600";
+    internal const string SuccessColor = "#00C46A";
     private string language = L.Language;
     public CodexSignal Signal { get; private set; }
     public CodexActivityReadIssue ReadIssue { get; private set; }
@@ -29,9 +32,9 @@ public sealed class CodexStatusViewModel : Observable
     public bool NeedsInput { get; private set; }
     public string Color => Signal switch
     {
-        CodexSignal.Error or CodexSignal.Exhausted or CodexSignal.Paused => "#DB5267",
-        CodexSignal.Low or CodexSignal.NeedsInput => "#D5A13E",
-        CodexSignal.Completed or CodexSignal.Working or CodexSignal.Idle => "#35B582",
+        CodexSignal.Error or CodexSignal.Exhausted or CodexSignal.Paused => ErrorColor,
+        CodexSignal.Low or CodexSignal.NeedsInput => WarningColor,
+        CodexSignal.Completed or CodexSignal.Working or CodexSignal.Idle => SuccessColor,
         _ => "#82938D"
     };
     public string Message => Signal switch

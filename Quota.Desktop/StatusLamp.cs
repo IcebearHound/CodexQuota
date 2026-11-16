@@ -64,7 +64,7 @@ public sealed class StatusLamp : FrameworkElement
     {
         DoubleAnimationBase? animation = mode switch
         {
-            CodexLampAnimation.Breathing => new DoubleAnimation(0.28, 1, TimeSpan.FromMilliseconds(1100))
+            CodexLampAnimation.Breathing => new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(1100))
             {
                 AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
                 EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
@@ -89,7 +89,7 @@ public sealed class StatusLamp : FrameworkElement
         var color = (Color)ColorConverter.ConvertFromString(Status?.Color ?? "#82938D");
         if (ContrastBackground is { } background)
         {
-            var adjusted = ContrastColors.AccentOn(new(color.R, color.G, color.B), new(background.R, background.G, background.B), 4.5);
+            var adjusted = ContrastColors.AccentOn(new(color.R, color.G, color.B), new(background.R, background.G, background.B), 3);
             color = Color.FromRgb(adjusted.Red, adjusted.Green, adjusted.Blue);
         }
         drawing.DrawEllipse(new SolidColorBrush(color), null, new Point(ActualWidth / 2, ActualHeight / 2), ActualWidth / 2, ActualHeight / 2);

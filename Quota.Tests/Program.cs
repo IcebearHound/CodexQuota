@@ -792,6 +792,24 @@ await Test("Codex input approvals and rejected prompts recover without phantom w
     session.Apply(Json("""{"type":"response_item","payload":{"type":"function_call_output","call_id":"rejected","output":"{\"accepted\":false}"}}""")); Check(session.Kind == CodexActivityKind.Working);
     return Task.CompletedTask;
 });
+await Test("failed asynchronous questions do not survive as phantom input requests", () =>
+{
+    foreach (var output in new[] { "failed to parse function arguments: duplicate field `title`", "Error executing tool", "{}", "[]", "null", "{\"accepted\":false}" })
+    {
+        var session = new CodexSessionActivity();
+        session.Apply(Json("""{"type":"event_msg","payload":{"type":"task_started","turn_id":"one"}}"""));
+        session.Apply(Json("""{"type":"response_item","payload":{"type":"function_call","name":"request_user_input_async","call_id":"failed"}}"""));
+        session.Apply(Json(JsonSerializer.Serialize(new { type = "response_item", payload = new { type = "function_call_output", call_id = "failed", output } })));
+        session.Apply(Json("""{"type":"response_item","payload":{"type":"function_call","name":"request_user_input_async","call_id":"valid"}}"""));
+        session.Apply(Json("""{"type":"response_item","payload":{"type":"function_call_output","call_id":"valid","output":"{\"accepted\":true}"}}"""));
+        Check(CodexSessionActivity.Aggregate([session]).Waiting == 1);
+        session.Apply(Json("""{"type":"response_item","payload":{"type":"message","role":"user","content":[{"text":"<send_user_message_question_reply>valid</send_user_message_question_reply>"}]}}"""));
+        session.Apply(Json("""{"type":"event_msg","payload":{"type":"task_complete","turn_id":"one"}}"""));
+        var state = CodexSessionActivity.Aggregate([session]);
+        Check(state.Kind == CodexActivityKind.Completed && state.Waiting == 0 && state.AttentionToken.Length == 0, output);
+    }
+    return Task.CompletedTask;
+});
 await Test("Codex activity aggregates all tasks and gives waiting and errors priority", () =>
 {
     var done = new CodexSessionActivity(); done.Apply(Json("""{"type":"event_msg","payload":{"type":"task_complete"}}"""));

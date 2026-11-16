@@ -10,6 +10,14 @@ public partial class MainWindow
     private QuotaAlerts? alerts;
     private string? desktopModeNotice;
     private string? notificationNotice;
+    private AttentionNotificationWindow? attentionNotification;
+    private void ShowAttentionNotification(string key, string title, string detail, string glyph, string color)
+    {
+        if (exiting || !IsLoaded) return;
+        attentionNotification ??= new AttentionNotificationWindow();
+        var anchor = taskbarWidget is { DockVisible: true } widget ? (Window)widget : this;
+        attentionNotification.Present(key, title, detail, glyph, color, anchor, anchor is TaskbarWidget);
+    }
     private void ApplyDesktopWindowMode()
     {
         desktopModeNotice = UpdateRecoveryNotice(desktopHost.Apply(this, settings.DesktopOnly),
@@ -59,6 +67,7 @@ public partial class MainWindow
             alerts ??= new QuotaAlerts(store.Root);
             var pending = alerts.Evaluate(windows, settings, DateTimeOffset.Now, resetCards);
             notificationNotice = UpdateRecoveryNotice(true, "", notificationNotice);
+            var exhausted = new List<string>();
             foreach (var alert in pending)
             {
                 var group = visibleAccounts.FirstOrDefault(group => WidgetKey(group.Key) == alert.AccountKey);
@@ -71,8 +80,12 @@ public partial class MainWindow
                     "expiry" => L.F("{0} 有 {1} 张重置卡将在 {2} 天内到期。", "{0} has {1} reset cards expiring within {2} days.", group.Name, alert.Count, alert.Value),
                     _ => L.F("{0} 有 {1} 张重置卡已到期。", "{0} has {1} expired reset cards.", group.Name, alert.Count)
                 };
-                tray.ShowBalloonTip(8000, "Codex Quota", text, alert.Kind is "low" or "exhausted" ? System.Windows.Forms.ToolTipIcon.Warning : System.Windows.Forms.ToolTipIcon.Info);
+                if (alert.Kind == "exhausted") exhausted.Add(text);
+                else tray.ShowBalloonTip(8000, "Codex Quota", text, alert.Kind == "low" ? System.Windows.Forms.ToolTipIcon.Warning : System.Windows.Forms.ToolTipIcon.Info);
             }
+            if (exhausted.Count > 0)
+                ShowAttentionNotification("quota/exhausted", L.F("额度已耗尽", "Quota exhausted"),
+                    string.Join(Environment.NewLine, exhausted.Distinct()), "minus", CodexStatusViewModel.ErrorColor);
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {

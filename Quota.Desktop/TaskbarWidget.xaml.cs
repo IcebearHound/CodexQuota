@@ -22,7 +22,6 @@ public partial class TaskbarWidget : Window
     private readonly TaskbarWindowHost host = new();
     private readonly DispatcherTimer openTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private readonly DispatcherTimer closeTimer = new() { Interval = TimeSpan.FromMilliseconds(550) };
-    private readonly DispatcherTimer attentionTimer = new() { Interval = TimeSpan.FromSeconds(12) };
     private AccountGroupViewModel[] observed = [];
     private string? selectedKey;
     private readonly string? proofDirectory;
@@ -34,7 +33,6 @@ public partial class TaskbarWidget : Window
     private bool pendingActivation;
     private bool closed;
     private DispatcherOperation? queuedAlignment;
-    private bool attentionPending;
     private RgbColor? lastBackground;
     private string? lastAccent;
     private RgbColor? lastTextColor;
@@ -83,17 +81,9 @@ public partial class TaskbarWidget : Window
         try { panel.Show(); panel.UpdateLayout(); }
         finally { panel.HideImmediately(); panel.Topmost = topmost; }
     }
-    public void ShowInputAttention()
-    {
-        attentionPending = main.CodexStatus.NeedsInput;
-        if (!attentionPending || !host.Visible) return;
-        attentionPending = false;
-        ShowAccounts(false);
-        attentionTimer.Stop(); attentionTimer.Start();
-    }
     internal void KeepFlyoutOpen() { closeTimer.Stop(); openTimer.Stop(); }
     internal void CloseFlyoutLater() { openTimer.Stop(); if (!flyoutPinned) closeTimer.Start(); }
-    internal void CloseAccounts() { flyoutPinned = false; KeepFlyoutOpen(); attentionTimer.Stop(); openPending = false; flyout?.HideAnimated(); }
+    internal void CloseAccounts() { flyoutPinned = false; KeepFlyoutOpen(); openPending = false; flyout?.HideAnimated(); }
     internal void SelectDisplayedAccount(AccountGroupViewModel account) { selectedKey = account.Key; UpdateStatus(); }
 
     public TaskbarWidget(MainWindow main, ObservableCollection<AccountGroupViewModel> accounts, string? proofDirectory)
@@ -118,9 +108,8 @@ public partial class TaskbarWidget : Window
         accounts.CollectionChanged += AccountsChanged;
         openTimer.Tick += (_, _) => ShowAccounts(false);
         closeTimer.Tick += (_, _) => { closeTimer.Stop(); if (!flyoutPinned && !Bar.IsMouseOver && flyout is { IsMouseOver: false }) flyout.HideAnimated(); };
-        attentionTimer.Tick += (_, _) => { attentionTimer.Stop(); if (!flyoutPinned && !Bar.IsMouseOver && flyout is { IsMouseOver: false, IsActive: false }) flyout.HideAnimated(); };
-        Loaded += (_, _) => { ObserveAccounts(); host.WatchForeground(QueueAlignment); Align(); Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, WarmFlyout); if (main.CodexStatus.NeedsInput) ShowInputAttention(); };
-        Closed += (_, _) => { closed = true; queuedAlignment?.Abort(); host.Dispose(); flyout?.Close(); openTimer.Stop(); closeTimer.Stop(); attentionTimer.Stop(); accounts.CollectionChanged -= AccountsChanged; foreach (var account in observed) account.PropertyChanged -= AccountChanged; };
+        Loaded += (_, _) => { ObserveAccounts(); host.WatchForeground(QueueAlignment); Align(); Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, WarmFlyout); };
+        Closed += (_, _) => { closed = true; queuedAlignment?.Abort(); host.Dispose(); flyout?.Close(); openTimer.Stop(); closeTimer.Stop(); accounts.CollectionChanged -= AccountsChanged; foreach (var account in observed) account.PropertyChanged -= AccountChanged; };
     }
     internal void QueueAlignment()
     {
@@ -139,7 +128,6 @@ public partial class TaskbarWidget : Window
             {
                 if (flyout is { IsVisible: true, IsTransitioning: false }) host.PositionFlyout(flyout);
                 if (openPending) { var activate = pendingActivation; openPending = false; ShowAccounts(activate); }
-                if (attentionPending) ShowInputAttention();
                 if (proofDirectory is not null && !proofSaved) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, SaveProof);
             }
         }

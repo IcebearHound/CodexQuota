@@ -34,6 +34,7 @@ internal static class NativeWindowSmoke
         await InterruptedTaskSmoke.Run(main);
         await PanelInteractionSmoke.Run(main);
         await FlyoutMotionSmoke.Run(main, args);
+        await AttentionNotificationSmoke.Run(main, args);
     }
 
     private static async Task CheckTaskbarAreaSampling()

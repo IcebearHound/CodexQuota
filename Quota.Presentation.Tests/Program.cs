@@ -235,19 +235,19 @@ var cases = new (string Name, Action Verify)[]
     ("status lamp maps runtime activity and quota priorities to the requested signals", () =>
     {
         var lamp = new CodexStatusViewModel();
-        lamp.Update(new(CodexActivityKind.Working)); Check(lamp.Signal == CodexSignal.Working && lamp.Breathing && !lamp.Flashing && lamp.Color == "#35B582");
-        lamp.Update(new(CodexActivityKind.Completed)); Check(lamp.Signal == CodexSignal.Completed && lamp.Animation == CodexLampAnimation.Steady && lamp.Color == "#35B582");
-        lamp.Update(new(CodexActivityKind.NeedsInput, Waiting: 1)); Check(lamp.Signal == CodexSignal.NeedsInput && lamp.Flashing && !lamp.Breathing && lamp.Color == "#D5A13E");
-        lamp.Update(new(CodexActivityKind.Working), low: true); Check(lamp.Signal == CodexSignal.Low && !lamp.Breathing && lamp.Color == "#D5A13E");
-        lamp.Update(new(CodexActivityKind.Working), exhausted: true, low: true); Check(lamp.Signal == CodexSignal.Exhausted && lamp.Animation == CodexLampAnimation.Steady && lamp.Color == "#DB5267");
+        lamp.Update(new(CodexActivityKind.Working)); Check(lamp.Signal == CodexSignal.Working && lamp.Breathing && !lamp.Flashing && lamp.Color == "#00C46A");
+        lamp.Update(new(CodexActivityKind.Completed)); Check(lamp.Signal == CodexSignal.Completed && lamp.Animation == CodexLampAnimation.Steady && lamp.Color == "#00C46A");
+        lamp.Update(new(CodexActivityKind.NeedsInput, Waiting: 1)); Check(lamp.Signal == CodexSignal.NeedsInput && lamp.Flashing && !lamp.Breathing && lamp.Color == "#F2B600");
+        lamp.Update(new(CodexActivityKind.Working), low: true); Check(lamp.Signal == CodexSignal.Low && !lamp.Breathing && lamp.Color == "#F2B600");
+        lamp.Update(new(CodexActivityKind.Working), exhausted: true, low: true); Check(lamp.Signal == CodexSignal.Exhausted && lamp.Animation == CodexLampAnimation.Steady && lamp.Color == "#F04438");
         lamp.Update(new(CodexActivityKind.NeedsInput, Waiting: 1), quotaError: true); Check(lamp.Signal == CodexSignal.Error && lamp.NeedsInput && lamp.Flashing && !lamp.Breathing);
-        lamp.Update(new(CodexActivityKind.Error)); Check(lamp.Signal == CodexSignal.Error && lamp.Flashing && !lamp.Breathing && lamp.Color == "#DB5267");
-        lamp.Update(new(CodexActivityKind.Completed), exhausted: true); Check(lamp.Signal == CodexSignal.Exhausted && lamp.Animation == CodexLampAnimation.Steady && lamp.Color == "#DB5267");
-        lamp.Update(new(CodexActivityKind.NeedsInput, Waiting: 1)); Check(lamp.Signal == CodexSignal.NeedsInput && lamp.Flashing && !lamp.Breathing && lamp.Color == "#D5A13E");
+        lamp.Update(new(CodexActivityKind.Error)); Check(lamp.Signal == CodexSignal.Error && lamp.Flashing && !lamp.Breathing && lamp.Color == "#F04438");
+        lamp.Update(new(CodexActivityKind.Completed), exhausted: true); Check(lamp.Signal == CodexSignal.Exhausted && lamp.Animation == CodexLampAnimation.Steady && lamp.Color == "#F04438");
+        lamp.Update(new(CodexActivityKind.NeedsInput, Waiting: 1)); Check(lamp.Signal == CodexSignal.NeedsInput && lamp.Flashing && !lamp.Breathing && lamp.Color == "#F2B600");
         lamp.Update(new(CodexActivityKind.Unknown)); Check(lamp.Signal == CodexSignal.Unknown && !lamp.Breathing);
         lamp.Update(new(CodexActivityKind.Offline)); Check(lamp.Signal == CodexSignal.Offline && !lamp.Breathing);
         lamp.Update(new(CodexActivityKind.Offline, Waiting: 1), exhausted: true, quotaError: true, low: true); Check(lamp.Signal == CodexSignal.Offline && !lamp.Breathing && !lamp.NeedsInput);
-        lamp.Update(new(CodexActivityKind.Paused)); Check(lamp.Signal == CodexSignal.Paused && lamp.Flashing && !lamp.Breathing && lamp.Color == "#DB5267");
+        lamp.Update(new(CodexActivityKind.Paused)); Check(lamp.Signal == CodexSignal.Paused && lamp.Flashing && !lamp.Breathing && lamp.Color == "#F04438");
     }),
     ("taskbar reset countdown uses short labels and updates its bindings", () =>
     {

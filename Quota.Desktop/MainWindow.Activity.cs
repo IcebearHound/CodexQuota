@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ public partial class MainWindow
     private bool activityStarted;
     private bool activityReading;
     private string lastAttention = "";
+    private readonly HashSet<string> lastSessionAttention = [];
     private string? activityPersistenceNotice;
     private Action<Uri> openThread = uri => Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
 
@@ -97,9 +99,6 @@ public partial class MainWindow
             activityPersistenceNotice = UpdateRecoveryNotice(currentMonitor.PersistenceHealthy,
                 L.F("中断状态未能保存，请检查本地数据目录的写入权限。", "Interruption state could not be saved. Check write access to the local data folder."), activityPersistenceNotice);
         UpdateCodexStatus();
-        if (activity.Waiting > 0 && activity.AttentionToken != lastAttention)
-            taskbarWidget?.ShowInputAttention();
-        lastAttention = activity.Waiting > 0 ? activity.AttentionToken : "";
     }
     private void UpdateCodexStatus()
     {
@@ -109,5 +108,32 @@ public partial class MainWindow
         var display = (sessionIssues ??= new(store)).Apply(activity);
         CodexStatus.Update(display, remaining <= 0, error, remaining <= settings.LowQuotaThreshold);
         sessionIssuesWindow?.SetIssues(CodexStatus.SessionIssues);
+        UpdateActivityNotification(display);
+    }
+
+    private void UpdateActivityNotification(CodexActivitySnapshot display)
+    {
+        var inputKey = CodexStatus.NeedsInput ? "input/" + display.AttentionToken : "";
+        var unread = CodexStatus.SessionIssues.Where(issue => !issue.IsRead).ToArray();
+        var fresh = unread.Where(issue => !lastSessionAttention.Contains(issue.Key + "/" + issue.Occurrence)).ToArray();
+        if (inputKey.Length > 0 && inputKey != lastAttention)
+            ShowAttentionNotification(inputKey, L.F("需要你的输入", "Your input is needed"), CodexStatus.InputMessage, "bell", CodexStatusViewModel.WarningColor);
+        else if (fresh.Length > 0 && display.Kind != CodexActivityKind.Offline)
+        {
+            var issue = fresh[0];
+            ShowAttentionNotification("session/" + issue.Key + "/" + issue.Occurrence,
+                issue.Kind == CodexActivityKind.Error ? L.F("会话发生错误", "Chat error") : L.F("会话已中断", "Chat interrupted"),
+                L.F("{0} 个会话需要处理，可从状态灯或任务栏菜单打开异常列表。", unread.Length == 1
+                    ? "1 chat needs attention. Open session issues from the status light or taskbar menu."
+                    : "{0} chats need attention. Open session issues from the status light or taskbar menu.", unread.Length), "activity", CodexStatusViewModel.ErrorColor);
+        }
+        else if (attentionNotification is { IsVisible: true } notification
+            && (notification.NotificationKey.StartsWith("input/", StringComparison.Ordinal) && inputKey.Length == 0
+                || notification.NotificationKey.StartsWith("session/", StringComparison.Ordinal)
+                    && (display.Kind == CodexActivityKind.Offline || !unread.Any(issue => notification.NotificationKey == "session/" + issue.Key + "/" + issue.Occurrence))))
+            notification.Dismiss();
+        lastAttention = inputKey;
+        lastSessionAttention.Clear();
+        lastSessionAttention.UnionWith(unread.Select(issue => issue.Key + "/" + issue.Occurrence));
     }
 }

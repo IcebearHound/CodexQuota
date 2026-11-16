@@ -110,7 +110,7 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplaySettingsChanged;
         Microsoft.Win32.SystemEvents.UserPreferenceChanged -= SystemThemeChanged;
         trayMenu?.SetCurrentValue(System.Windows.Controls.ContextMenu.IsOpenProperty, false); trayMenuAnchor?.Close();
-        settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close();
+        settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close(); attentionNotification?.Close();
         foreach (var group in visibleAccounts) group.Dispose();
         foreach (var source in observedSources) source.PropertyChanged -= AccountSourceChanged;
         lifetime.Cancel(); activityTimer.Stop(); taskbarMonitor.Stop(); taskbarWidget?.Close(); tray.Visible = false;

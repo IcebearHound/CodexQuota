@@ -95,7 +95,7 @@ public sealed class CodexSessionActivity(string? threadId = null)
             case "custom_tool_call_output":
                 if (data.Str("call_id") is { } call && inputs.TryGetValue(call, out var asynchronous))
                 {
-                    if (!asynchronous || Rejected(data)) inputs.Remove(call);
+                    if (!asynchronous || !Accepted(data)) inputs.Remove(call);
                 }
                 if (!terminal && activity != CodexActivityKind.Error) activity = CodexActivityKind.Working;
                 break;
@@ -130,10 +130,10 @@ public sealed class CodexSessionActivity(string? threadId = null)
         else inputs.Clear();
         terminal = false; activity = CodexActivityKind.Working;
     }
-    private static bool Rejected(JsonElement data)
+    private static bool Accepted(JsonElement data)
     {
         if (data.Str("output") is not { } output) return false;
-        try { using var result = JsonDocument.Parse(output); return result.RootElement.Bool("accepted") == false; }
+        try { using var result = JsonDocument.Parse(output); return result.RootElement.Bool("accepted") == true; }
         catch (JsonException) { return false; }
     }
 
