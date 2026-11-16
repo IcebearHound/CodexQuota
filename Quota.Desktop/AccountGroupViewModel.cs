@@ -17,7 +17,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public bool ShowUsed
     {
         get => showUsed;
-        set { showUsed = value; foreach (var bucket in Buckets) foreach (var window in bucket.Windows) window.ShowUsed = value; Raise(nameof(FocusWindow)); Raise(nameof(FocusCaption)); Raise(nameof(MetricTooltip)); Raise(nameof(HasLowQuota)); }
+        set { showUsed = value; foreach (var bucket in Buckets) foreach (var window in bucket.Windows) window.ShowUsed = value; Raise(nameof(FocusWindow)); Raise(nameof(FocusCaption)); Raise(nameof(MetricTooltip)); Raise(nameof(HasLowQuota)); Raise(nameof(StatusColor)); }
     }
     public WindowViewModel? FocusWindow => Buckets.SelectMany(bucket => bucket.Windows).OrderBy(window => window.Remaining).FirstOrDefault();
     public string FocusCaption => FocusWindow is { } window ? window.Caption + " · " + window.Label : "";
@@ -65,7 +65,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public bool HasLowQuota => Buckets.SelectMany(bucket => bucket.Windows).Any(window => window.Remaining <= WindowViewModel.AlertThreshold);
     public string Updated => primary.Updated;
     public string UpdatedTooltip => string.Join(Environment.NewLine, selected.Select(source => $"{SourceName(source)} · {source.UpdatedTooltip}"));
-    public string StatusColor => IsRefreshing ? "#84E1BF" : HasError ? "#F0AAA8" : "#A3B5BB";
+    public string StatusColor => IsRefreshing ? ThemeService.AccentColor : HasError ? ThemeService.DangerColor : ThemeService.SecondaryColor;
     public string Status
     {
         get

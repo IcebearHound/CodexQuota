@@ -33,7 +33,7 @@ public sealed class WindowViewModel(QuotaWindow window) : Observable
     public double Value => ShowUsed ? Math.Clamp(window.UsedPercent, 0, 100) : Remaining;
     public string Caption => ShowUsed ? L.T("已用") : L.T("剩余");
     public string Percent => $"{Value:0}%";
-    public string Color => Remaining <= AlertThreshold ? "#DB6268" : Remaining <= 20 ? "#CDA862" : "#64C9B0";
+    public string Color => Remaining <= AlertThreshold ? ThemeService.DangerColor : Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
     public string ResetText
     {
         get
@@ -127,7 +127,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         }
     }
     public bool IsRefreshing { get => refreshing; set { refreshing = value; Raise(); Raise(nameof(Status)); Raise(nameof(StatusColor)); } }
-    public string StatusColor => IsRefreshing ? "#84E1BF" : error is not null ? "#F0AAA8" : "#A3B5BB";
+    public string StatusColor => IsRefreshing ? ThemeService.AccentColor : error is not null ? ThemeService.DangerColor : ThemeService.SecondaryColor;
     public string Status => IsRefreshing ? L.T("更新中") : error is not null ? (Snapshot is null ? L.T("需处理") : L.T("已过期")) : Snapshot is null ? L.T("等待更新") : loadedFromCache || (DateTimeOffset.UtcNow - Snapshot.FetchedAt).TotalMinutes > 15 ? L.T("缓存") : L.T("已同步");
     public bool HasError => error is not null;
     public string? Error => error is null ? null : (Record.IsCurrent && Snapshot is not null ? L.T("当前登录未验证，以下为上次读取账号的额度。 ") : "") + L.Error(error);

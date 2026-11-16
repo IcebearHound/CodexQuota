@@ -265,7 +265,7 @@ public partial class MainWindow : Window
     }
     private void SystemThemeChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs args)
     {
-        if (settings.Theme == "system" && !exiting) Dispatcher.BeginInvoke(() => ApplySettings());
+        if (settings.Theme == "system" && !exiting) Dispatcher.BeginInvoke(() => { ApplySettings(); QueueSettingsRender(); });
     }
     private void Exit() { exiting = true; Close(); System.Windows.Application.Current.Shutdown(); }
     private void OnClosing(object? sender, CancelEventArgs e)
