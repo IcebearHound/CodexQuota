@@ -79,6 +79,8 @@ internal static class InterruptedTaskSmoke
             Check(main.CodexStatus.UnreadSessionCount == 1 && main.CodexStatus.Flashing, "a fresh interruption in the same chat becomes unread");
             Click(Buttons(dialog, L.F("全部忽略", "Ignore all")).Single());
             Check(main.CodexStatus.UnreadSessionCount == 0 && main.CodexStatus.Signal == CodexSignal.Working && !main.CodexStatus.Flashing, "bulk read clears outstanding interruption alerts");
+            typeof(MainWindow).GetMethod("OpenSessionThread", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(main, [fresh]);
+            Check(links.Count == 1, "an obsolete row cannot reopen a chat after its issue is cleared");
             Console.WriteLine("PASS single ignore bulk ignore and repeated interruptions update all status lights");
             L.Apply("en"); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Check(dialog.Title == "Session issues" && !Buttons(dialog, "Ignore all").Single().IsEnabled, "read state and disabled bulk action survive a language change");

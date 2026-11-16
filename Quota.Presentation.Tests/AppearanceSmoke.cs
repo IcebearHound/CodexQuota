@@ -31,9 +31,9 @@ internal static class AppearanceSmoke
         try
         {
             await Settle();
-            Check(Descendants<RadioButton>(dialog).Count(button => button.GroupName == "palette-presets") == 4, "appearance settings exposes four palette swatches");
+            Check(Descendants<RadioButton>(dialog).Count(button => button.GroupName == "palette-presets") == 5, "appearance settings exposes five palette swatches");
             foreach (var theme in new[] { "dark", "light" })
-                foreach (var palette in new[] { "mint", "ocean", "violet", "amber" })
+                foreach (var palette in new[] { "mint", "ocean", "violet", "amber", "monochrome" })
                 {
                     settings.Theme = theme; settings.Palette = palette; settings.Material = "solid";
                     Method("ApplySettings").Invoke(main, null); await Settle();
@@ -47,7 +47,12 @@ internal static class AppearanceSmoke
                     Check(paletteGroups.SelectMany(group => group.Buckets).SelectMany(bucket => bucket.Windows).Where(window => window.Remaining > 20).All(window => window.Color == Application.Current.FindResource("Accent").ToString()!.Replace("#FF", "#")), "healthy quota rings follow the active palette");
                     if (output is not null) ProductScreenshotSmoke.Capture(main, output, "theme-" + palette + "-" + theme + ".png");
                 }
-            Check(accents.Count == 4, "each preset supplies a distinct accent");
+            Check(accents.Count == 5, "each preset supplies a distinct accent");
+            var mono = Descendants<RadioButton>(dialog).Single(button => Equals(button.Tag, "monochrome"));
+            mono.IsChecked = true; await Settle();
+            Check(settings.Palette == "monochrome" && settings.Theme == "system", "selecting Mono enables automatic system light and dark switching");
+            var savedMono = store.LoadSettings();
+            Check(savedMono.Palette == "monochrome" && savedMono.Theme == "system", "the system-following Mono choice persists");
             settings.Theme = "dark"; settings.Palette = "ocean";
             foreach (var (theme, material) in new[] { ("dark", "glass"), ("dark", "solid"), ("dark", "glass"), ("light", "glass"), ("light", "solid"), ("light", "glass") })
             {
@@ -94,7 +99,7 @@ internal static class AppearanceSmoke
             var saved = store.LoadSettings(); Check(saved.Palette == "ocean" && saved.Material == "glass", "palette and glass mode survive settings reload");
             dialog.Hide(); guide.Hide();
             await CheckVisibleGlass(main, settings, output);
-            Console.WriteLine("PASS four palette contrasts, settings swatches, live native glass in main settings and guide, reversible material and persistence");
+            Console.WriteLine("PASS five palette contrasts, system-following Mono, settings swatches, live native glass and persistence");
         }
         finally
         {

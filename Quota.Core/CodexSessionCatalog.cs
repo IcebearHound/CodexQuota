@@ -4,10 +4,37 @@ namespace Quota.Core;
 
 internal sealed class CodexSessionCatalog(string home)
 {
-    private Dictionary<string, (bool Archived, string Title)> threads = new(StringComparer.OrdinalIgnoreCase);
+    private sealed record ThreadEntry(bool Archived, string Title, string? Parent, string? Rollout);
+    private Dictionary<string, ThreadEntry> threads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> attachedParents = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> archivedFiles = new(StringComparer.OrdinalIgnoreCase);
     public bool IsArchived(string? id) => id is not null && (threads.TryGetValue(id, out var thread) ? thread.Archived : archivedFiles.Contains(id));
     public string? Title(string? id) => id is not null && threads.TryGetValue(id, out var thread) ? thread.Title : null;
+    public bool IsAttached(string? id) => id is not null && (attachedParents.ContainsKey(id) || threads.TryGetValue(id, out var thread) && thread.Parent is not null);
+    public void RegisterAttachment(string? id, string? parent)
+    {
+        if (id is not null && parent is not null && id != parent) attachedParents[id] = parent;
+    }
+    public string? ResolveThreadId(string? id)
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (id is not null && visited.Add(id))
+        {
+            var parent = threads.TryGetValue(id, out var thread) ? thread.Parent : null;
+            parent ??= attachedParents.GetValueOrDefault(id);
+            if (parent is null) return IsArchived(id) ? null : id;
+            id = parent;
+        }
+        return null;
+    }
+    public bool IsCurrentRollout(string? id, string path)
+    {
+        if (IsAttached(id)) return false;
+        return CurrentRollout(id) is not { } current || string.Equals(Path.GetFullPath(path), current, StringComparison.OrdinalIgnoreCase);
+    }
+    public string? CurrentRollout(string? id)
+        => id is not null && threads.TryGetValue(id, out var thread) && !string.IsNullOrWhiteSpace(thread.Rollout)
+            ? Path.GetFullPath(Path.IsPathRooted(thread.Rollout) ? thread.Rollout : Path.Combine(home, thread.Rollout)) : null;
 
     public void Refresh()
     {
@@ -33,15 +60,22 @@ internal sealed class CodexSessionCatalog(string home)
         {
             if (sqlite3_open_v2(path, out database, 1, 0) != 0) return;
             sqlite3_busy_timeout(database, 100);
-            if (sqlite3_prepare_v2(database, "SELECT id, title, archived FROM threads", -1, out statement, 0) != 0) return;
-            var updated = new Dictionary<string, (bool, string)>(StringComparer.OrdinalIgnoreCase);
+            var bindings = sqlite3_prepare_v2(database, "SELECT id, title, archived, attached_thread_parent_id, rollout_path FROM threads", -1, out statement, 0) == 0;
+            if (!bindings)
+            {
+                if (statement != 0) { sqlite3_finalize(statement); statement = 0; }
+                if (sqlite3_prepare_v2(database, "SELECT id, title, archived FROM threads", -1, out statement, 0) != 0) return;
+            }
+            var updated = new Dictionary<string, ThreadEntry>(StringComparer.OrdinalIgnoreCase);
             int result;
             while ((result = sqlite3_step(statement)) == 100)
             {
                 var id = CodexThreadLink.NormalizeId(Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 0)));
                 if (id is null) continue;
                 var title = Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 1)) ?? "";
-                updated[id] = (sqlite3_column_int(statement, 2) != 0, title.Replace('\r', ' ').Replace('\n', ' '));
+                var parent = bindings ? CodexThreadLink.NormalizeId(Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 3))) : null;
+                var rollout = bindings ? Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 4)) : null;
+                updated[id] = new(sqlite3_column_int(statement, 2) != 0, title.Replace('\r', ' ').Replace('\n', ' '), parent, rollout);
             }
             if (result == 101) threads = updated;
         }

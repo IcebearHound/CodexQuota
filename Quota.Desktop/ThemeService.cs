@@ -14,7 +14,8 @@ internal static class ThemeService
         new("mint", "薄荷", "#008560", "#38E8AE", "#E5F7EF", "#071E19", "#10352B", "#102F27", "#46675B", "#A0CDBD"),
         new("ocean", "海蓝", "#2161E8", "#63ADFF", "#E8F1FF", "#08182F", "#122D4C", "#142C4A", "#506780", "#ABC5E5"),
         new("violet", "紫罗兰", "#7C3AED", "#C08BFF", "#F1EAFF", "#1C112E", "#332047", "#322047", "#6B587F", "#CDB5E5"),
-        new("amber", "琥珀", "#B45A08", "#FFC14F", "#FFF1D8", "#271B0D", "#44301A", "#443014", "#79603E", "#DEC39A")
+        new("amber", "琥珀", "#B45A08", "#FFC14F", "#FFF1D8", "#271B0D", "#44301A", "#443014", "#79603E", "#DEC39A"),
+        new("monochrome", "简约黑白", "#242424", "#F0F0F0", "#F3F3F3", "#111111", "#202020", "#181818", "#626262", "#B7B7B7")
     ];
     internal static bool GlassRequested { get; private set; }
     internal static bool IsLight { get; private set; }
@@ -53,7 +54,7 @@ internal static class ThemeService
         {
             ["Background"] = background, ["Surface"] = surface,
             ["BorderBrush"] = Mix(surface, accent, light ? 0.19 : 0.26),
-            ["Text"] = Parse(light ? preset.LightText : "#F8FAFF"), ["Muted"] = Parse(SecondaryColor),
+            ["Text"] = Parse(light ? preset.LightText : preset.Key == "monochrome" ? "#F5F5F5" : "#F8FAFF"), ["Muted"] = Parse(SecondaryColor),
             ["Accent"] = accent, ["Track"] = Mix(surface, accent, light ? 0.13 : 0.18),
             ["ButtonFill"] = Mix(surface, accent, light ? 0.07 : 0.10), ["InputFill"] = surface,
             ["HoverFill"] = Mix(surface, accent, light ? 0.14 : 0.18),

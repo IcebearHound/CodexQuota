@@ -209,6 +209,7 @@ await Test("archive state and session titles refresh from the live WAL database"
     Check(monitor.ReadSince(now.AddMinutes(-1)).SessionIssues!.Count == 0, "completed sessions disappear without reopening the list");
     return Task.CompletedTask;
 });
+await Test("restored chats bind canonical rollouts and exclude hidden attached snapshots", () => SessionBindingRegression.Run(testRoot));
 await Test("archived rollout files suppress stale journal entries when no database exists", () =>
 {
     var home = Path.Combine(testRoot, "archive-files"); Directory.CreateDirectory(Path.Combine(home, "sessions"));
@@ -503,7 +504,7 @@ await Test("palette and panel material migrate safely and persist independently"
     var store = new AccountStore(Path.Combine(testRoot, "appearance-settings"));
     File.WriteAllText(Path.Combine(store.Root, "settings.json"), """{"Theme":"light","Palette":"old-theme","Material":"unknown"}""");
     var settings = store.LoadSettings(); Check(settings.Theme == "light" && settings.Palette == "mint" && settings.Material == "solid");
-    foreach (var palette in new[] { "mint", "ocean", "violet", "amber" })
+    foreach (var palette in new[] { "mint", "ocean", "violet", "amber", "monochrome" })
     {
         settings.Palette = palette; settings.Material = "glass"; store.SaveSettings(settings);
         var saved = store.LoadSettings(); Check(saved.Palette == palette && saved.Material == "glass" && saved.Theme == "light");

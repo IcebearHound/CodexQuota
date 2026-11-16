@@ -32,6 +32,7 @@ public sealed class CodexSessionActivity(string? threadId = null)
     public DateTimeOffset? InterruptedAt { get; private set; }
     public DateTimeOffset? IssueAt { get; private set; }
     public string? IssueToken { get; private set; }
+    public string? AttachedParentId { get; private set; }
     private readonly Dictionary<string, bool> inputs = [];
     private CodexActivityKind activity;
     private bool terminal;
@@ -44,7 +45,12 @@ public sealed class CodexSessionActivity(string? threadId = null)
         if (record.ValueKind != JsonValueKind.Object) return;
         if (!record.TryGetProperty("payload", out var data) || data.ValueKind != JsonValueKind.Object) return;
         var type = data.Str("type");
-        if (record.Str("type") == "session_meta") { ThreadId = CodexThreadLink.NormalizeId(data.Str("id")) ?? ThreadId; return; }
+        if (record.Str("type") == "session_meta")
+        {
+            ThreadId = CodexThreadLink.NormalizeId(data.Str("id")) ?? ThreadId;
+            if (data.Bool("attached_thread") == true) AttachedParentId = CodexThreadLink.NormalizeId(data.Str("forked_from_id"));
+            return;
+        }
         var observedAt = DateTimeOffset.TryParse(record.Str("timestamp"), out var timestamp) ? timestamp : DateTimeOffset.MinValue;
         if (record.Str("type") == "event_msg")
         {
@@ -214,6 +220,9 @@ public sealed class CodexActivityMonitor
     public CodexActivitySnapshot ReadSince(DateTimeOffset? started, CancellationToken cancellationToken = default)
     {
         catalog.Refresh();
+        foreach (var entry in journal.Sessions.Where(entry => catalog.IsAttached(entry.Value.ThreadId)
+            || catalog.CurrentRollout(entry.Value.ThreadId) is { } current && SessionKey(current) != entry.Key).ToArray())
+            journal.Sessions.Remove(entry.Key);
         if (started is null)
         {
             InterruptUnfinished(); SaveJournal(); files.Clear(); processStart = null; lastDiscovery = 0;
@@ -269,6 +278,12 @@ public sealed class CodexActivityMonitor
                 journal.Sessions.TryGetValue(key, out var checkpoint);
                 entry.Value.Read(entry.Key, checkpoint is null ? started.Value : DateTimeOffset.MinValue, cancellationToken);
                 var observed = entry.Value.Activity;
+                catalog.RegisterAttachment(observed.ThreadId, observed.AttachedParentId);
+                if (!catalog.IsCurrentRollout(observed.ThreadId ?? checkpoint?.ThreadId, entry.Key))
+                {
+                    journal.Sessions.Remove(key);
+                    continue;
+                }
                 if (catalog.IsArchived(observed.ThreadId ?? checkpoint?.ThreadId)) continue;
                 if (checkpoint?.InterruptedAt is { } interruption && observed.Kind is not CodexActivityKind.Completed and not CodexActivityKind.Error)
                 {
@@ -291,7 +306,7 @@ public sealed class CodexActivityMonitor
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { unavailable = true; }
         }
-        foreach (var entry in journal.Sessions.Where(entry => entry.Value.Kind == CodexActivityKind.Paused && !catalog.IsArchived(entry.Value.ThreadId) && !observedKeys.Contains(entry.Key)))
+        foreach (var entry in journal.Sessions.Where(entry => entry.Value.Kind == CodexActivityKind.Paused && !catalog.IsArchived(entry.Value.ThreadId) && !catalog.IsAttached(entry.Value.ThreadId) && !observedKeys.Contains(entry.Key)))
         {
             var interrupted = new CodexSessionActivity(entry.Value.ThreadId); interrupted.MarkInterrupted(entry.Value.InterruptedAt, entry.Value.IssueToken); readable.Add(interrupted);
         }
@@ -303,7 +318,7 @@ public sealed class CodexActivityMonitor
     }
 
     private CodexSessionIssue[] JournalIssues() => journal.Sessions
-        .Where(entry => !catalog.IsArchived(entry.Value.ThreadId) && entry.Value.Kind is CodexActivityKind.Paused or CodexActivityKind.Error)
+        .Where(entry => !catalog.IsArchived(entry.Value.ThreadId) && !catalog.IsAttached(entry.Value.ThreadId) && entry.Value.Kind is CodexActivityKind.Paused or CodexActivityKind.Error)
         .Select(entry => new CodexSessionIssue(entry.Key, entry.Value.ThreadId, entry.Value.Kind,
             entry.Value.IssueAt ?? entry.Value.InterruptedAt,
             entry.Value.IssueToken ?? $"interrupted/{entry.Value.InterruptedAt?.UtcTicks}", Title: catalog.Title(entry.Value.ThreadId)))
@@ -328,7 +343,8 @@ public sealed class CodexActivityMonitor
             if (initialized && length == offset && modified == lastWrite) return;
             if (!initialized || length < offset || length == offset && modified != lastWrite)
             {
-                Activity = new(ReadThreadId(stream) ?? threadId); pending = new(8192);
+                Activity = new(threadId);
+                ReadMetadata(stream, Activity); pending = new(8192);
                 offset = Math.Max(0, length - MaximumRecord); skipLine = offset > 0; initialized = true;
                 if (skipLine) { stream.Position = offset - 1; skipLine = stream.ReadByte() != '\n'; }
             }
@@ -373,22 +389,26 @@ public sealed class CodexActivityMonitor
             if (pending.Capacity > MaximumRetainedBuffer) pending = new(8192);
             else pending.Clear();
         }
-        private static string? ReadThreadId(Stream stream)
+        private static void ReadMetadata(Stream stream, CodexSessionActivity activity)
         {
             var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
             try
             {
                 stream.Position = 0;
-                var length = (int)Math.Min(stream.Length, 16 * 1024);
-                var read = stream.ReadAtLeast(buffer.AsSpan(0, length), length, throwOnEndOfStream: false);
-                var newline = buffer.AsSpan(0, read).IndexOf((byte)'\n');
-                if (newline < 0 && stream.Length > read) return null;
-                using var document = JsonDocument.Parse(buffer.AsMemory(0, newline >= 0 ? newline : read));
+                using var metadata = new MemoryStream();
+                while (metadata.Length < MaximumRecord)
+                {
+                    var read = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, MaximumRecord - metadata.Length));
+                    if (read == 0) break;
+                    var newline = buffer.AsSpan(0, read).IndexOf((byte)'\n');
+                    metadata.Write(buffer, 0, newline >= 0 ? newline : read);
+                    if (newline >= 0) break;
+                }
+                using var document = JsonDocument.Parse(metadata.GetBuffer().AsMemory(0, (int)metadata.Length));
                 var record = document.RootElement;
-                return record.Str("type") == "session_meta" && record.TryGetProperty("payload", out var payload)
-                    ? CodexThreadLink.NormalizeId(payload.Str("id")) : null;
+                if (record.Str("type") == "session_meta") activity.Apply(record);
             }
-            catch (JsonException) { return null; }
+            catch (JsonException) { }
             finally { ArrayPool<byte>.Shared.Return(buffer, clearArray: true); }
         }
     }

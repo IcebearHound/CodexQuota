@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 2.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 2.1 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.1.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use the light theme and demo data.
 
@@ -22,7 +22,7 @@ Screenshots use the light theme and demo data.
 
 ## Act on session issues
 
-Open the issue list from the main window, a status light or the taskbar menu. Review errors and interruptions, ignore a single occurrence or choose **Ignore all**. The list refreshes automatically and filters out archived chats. A new issue in the same chat triggers a fresh alert.
+Open the issue list from the main window, a status light or the taskbar menu. Review errors and interruptions, ignore a single occurrence or choose **Ignore all**. The list refreshes automatically, filters out archived chats and attached history snapshots, and clears old interruptions when work resumes. A new issue in the same chat triggers a fresh alert. Input requests, errors, interruptions and exhausted quotas appear in a compact notification window.
 
 ## Quick start
 
@@ -64,7 +64,13 @@ Compact mode shows account names, quotas and reset timers. Double-click, press E
 
 ## Make it fit your desktop
 
-Choose Mint, Ocean, Violet or Amber, with System, Dark and Light theme options. Liquid glass uses Windows 11 backdrop blur, translucent layers and soft highlights, with live changes across the main window, guide and flyouts. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
+Choose Mono, Mint, Ocean, Violet or Amber. Selecting **Mono** automatically follows Windows light and dark mode, with clear yellow and red status alerts. System, Dark and Light options are also available manually.
+
+| Mono light | Mono dark |
+| --- | --- |
+| <img src="docs/images/mono-light.png" alt="Mono palette in light mode" width="252"> | <img src="docs/images/mono-dark.png" alt="Mono palette in dark mode" width="252"> |
+
+Liquid glass reveals background colors through Windows 11 native blur, translucent cards, soft reflections and double-highlighted edges. Changes apply live across the main window, guide and flyouts. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
 
 <details>
 <summary>Appearance, startup and other options</summary>

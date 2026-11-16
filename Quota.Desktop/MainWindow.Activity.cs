@@ -74,13 +74,17 @@ public partial class MainWindow
     }
     private void OpenSessionThread(CodexSessionIssue target)
     {
-        if (CodexThreadLink.Create(target.ThreadId) is not { } link)
+        if (!CodexStatus.SessionIssues.Any(issue => issue.Key == target.Key && issue.Occurrence == target.Occurrence)) return;
+        try
         {
-            DialogLayout.Alert(AccountDialogOwner, L.F("无法定位中断任务", "Interrupted task unavailable"),
-                L.F("尚未读取到原会话编号，请进入 Codex 手动打开中断的会话。", "The original chat ID is unavailable. Open the interrupted chat manually in Codex.")); return;
+            if (CodexThreadLink.CreateCurrent(target.ThreadId) is not { } link)
+            {
+                DialogLayout.Alert(AccountDialogOwner, L.F("无法定位中断任务", "Interrupted task unavailable"),
+                    L.F("原会话已归档或无法定位，请返回 Codex 查看当前会话。", "The original chat is archived or unavailable. Return to Codex to view the current chat.")); return;
+            }
+            openThread(link);
         }
-        try { openThread(link); }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             DialogLayout.Alert(AccountDialogOwner, L.F("无法打开中断任务", "Could not open interrupted task"),
                 L.F("请确认已安装 Codex 桌面程序，并进入原会话手动继续。", "Check that the Codex desktop app is installed, then open the original chat to continue."));

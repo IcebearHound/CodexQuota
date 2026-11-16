@@ -12,7 +12,7 @@ public partial class MainWindow
     private void BuildPaletteSettings(Panel parent)
     {
         var section = SettingsControls.Section(parent, "调色板", "palette");
-        var choices = new UniformGrid { Columns = narrowSettings ? 2 : 4, Margin = new Thickness(0, 0, -6, 0) };
+        var choices = new UniformGrid { Columns = narrowSettings ? 2 : ThemeService.Palettes.Length, Margin = new Thickness(0, 0, -6, 0) };
         foreach (var preset in ThemeService.Palettes)
         {
             var content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
@@ -47,7 +47,12 @@ public partial class MainWindow
             content.Children.Add(caption);
             var choice = new RadioButton { Content = content, Tag = preset.Key, IsChecked = settings.Palette == preset.Key, GroupName = "palette-presets", Style = (Style)FindResource("IntervalChoice") };
             AutomationProperties.SetName(choice, L.T(preset.Name));
-            choice.Checked += (_, _) => { settings.Palette = preset.Key; CommitSettings(); };
+            choice.Checked += (_, _) =>
+            {
+                settings.Palette = preset.Key;
+                if (preset.Key == "monochrome") settings.Theme = "system";
+                CommitSettings(); QueueSettingsRender();
+            };
             choices.Children.Add(choice);
         }
         section.Children.Add(choices);
