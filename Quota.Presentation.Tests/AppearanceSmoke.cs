@@ -20,7 +20,7 @@ internal static class AppearanceSmoke
     {
         var settings = (WidgetSettings)Field("settings").GetValue(main)!;
         var store = (AccountStore)Field("store").GetValue(main)!;
-        var original = (settings.Theme, settings.Palette, settings.Material, settings.TransparentGlass);
+        var original = (settings.Theme, settings.Palette, settings.Material);
         var guide = Application.Current.Windows.OfType<GuideWindow>().Single();
         Method("SettingsClick").Invoke(main, [main, new RoutedEventArgs()]);
         var dialog = (Window)Field("settingsWindow").GetValue(main)!;
@@ -56,19 +56,7 @@ internal static class AppearanceSmoke
             Check(settings.Palette == "monochrome" && settings.Theme == "system", "selecting Mono enables automatic system light and dark switching");
             var savedMono = store.LoadSettings();
             Check(savedMono.Palette == "monochrome" && savedMono.Theme == "system", "the system-following Mono choice persists");
-            Method("RenderSettings").Invoke(main, null); await Settle();
-            Check(!Descendants<CheckBox>(dialog).Single(box => AutomationProperties.GetName(box) == L.T("透明模式")).IsEnabled, "transparent mode is unavailable on solid panels");
-            settings.Material = "glass"; Method("ApplySettings").Invoke(main, null); Method("RenderSettings").Invoke(main, null); await Settle();
-            var standardSurface = ((SolidColorBrush)Application.Current.FindResource("Surface")).Color;
-            var transparentToggle = Descendants<CheckBox>(dialog).Single(box => AutomationProperties.GetName(box) == L.T("透明模式"));
-            Check(transparentToggle.IsEnabled, "transparent mode is enabled with liquid glass");
-            transparentToggle.IsChecked = true; await Settle();
-            Check(settings.TransparentGlass && store.LoadSettings().TransparentGlass
-                && ((SolidColorBrush)Application.Current.FindResource("Surface")).Color.A < standardSurface.A,
-                "transparent mode persists and reduces the glass tint through its normal settings control");
-            settings.Material = "solid"; Method("ApplySettings").Invoke(main, null);
-            Check(Application.Current.FindResource("Surface") is SolidColorBrush { Color.A: 255 }, "stored transparency cannot make solid panels translucent");
-            settings.TransparentGlass = false;
+            Check(!Descendants<CheckBox>(dialog).Any(box => AutomationProperties.GetName(box) == "透明模式"), "removed transparent mode has no settings toggle");
             settings.Theme = "dark"; settings.Palette = "ocean";
             foreach (var (theme, material) in new[] { ("dark", "glass"), ("dark", "solid"), ("dark", "glass"), ("light", "glass"), ("light", "solid"), ("light", "glass") })
             {
@@ -120,7 +108,7 @@ internal static class AppearanceSmoke
         finally
         {
             settings.DesktopOnly = false;
-            (settings.Theme, settings.Palette, settings.Material, settings.TransparentGlass) = original;
+            (settings.Theme, settings.Palette, settings.Material) = original;
             Method("ApplySettings").Invoke(main, null); Method("SaveSettings").Invoke(main, null); dialog.Close();
         }
     }
@@ -140,7 +128,7 @@ internal static class AppearanceSmoke
         try
         {
             background.Show(); main.Left = background.Left + 50; main.Top = background.Top + 70; main.Topmost = true; main.Activate();
-            settings.Theme = "light"; settings.Palette = "monochrome"; settings.Topmost = true; settings.TransparentGlass = false;
+            settings.Theme = "light"; settings.Palette = "monochrome"; settings.Topmost = true;
             main.Show(); main.Topmost = false; main.Topmost = true; main.Activate();
             var distance = 0;
             foreach (var material in new[] { "solid", "glass", "solid", "glass", "solid", "glass" })
@@ -165,18 +153,44 @@ internal static class AppearanceSmoke
             await Task.Delay(160);
             var groups = (ObservableCollection<AccountGroupViewModel>)Field("visibleAccounts").GetValue(main)!;
             strip = new TaskbarWidget(main, groups, null);
+            await CheckFirstOpenGlass(main, strip, groups, background, scene);
             flyout = new TaskbarFlyout(strip, main, groups) { Left = background.Left + 500, Top = background.Top + 150, Topmost = true };
             flyout.Show(); await Task.Delay(200);
+            Check(flyout.ActualWidth >= 330 && flyout.ActualHeight > 250 && ((FrameworkElement)flyout.Content).ActualWidth >= 330, "glass flyout keeps its full measured content on the first frame");
             if (output is not null) CaptureNative(background, Path.Combine(output, "glass-light.png"));
-            settings.TransparentGlass = true; Method("ApplySettings").Invoke(main, null); await Task.Delay(200);
-            if (output is not null) CaptureNative(background, Path.Combine(output, "transparent-light.png"));
-            settings.Theme = "dark"; settings.TransparentGlass = false; Method("ApplySettings").Invoke(main, null); await Task.Delay(200);
+            settings.Theme = "dark"; Method("ApplySettings").Invoke(main, null); await Task.Delay(200);
             if (output is not null) CaptureNative(background, Path.Combine(output, "glass-dark.png"));
-            settings.TransparentGlass = true; Method("ApplySettings").Invoke(main, null); await Task.Delay(200);
-            if (output is not null) CaptureNative(background, Path.Combine(output, "transparent-dark.png"));
             Console.WriteLine($"PASS compositor glass transmits background colors ({distance}), solid blocks them, full-window light and dark renders");
         }
         finally { flyout?.Close(); strip?.Close(); background.Close(); settings.Topmost = originalTopmostSetting; (main.Left, main.Top, main.Topmost) = original; }
+    }
+    private static async Task CheckFirstOpenGlass(MainWindow main, TaskbarWidget strip,
+        ObservableCollection<AccountGroupViewModel> groups, Window background, Canvas scene)
+    {
+        var settings = DialogLayout.Create(null, "First-open glass", 332);
+        DialogLayout.Frame(settings, new StackPanel { Height = 200 });
+        var windows = new Window[] { settings, new GuideWindow(main), new TaskbarFlyout(strip, main, groups) };
+        var orbs = scene.Children.Cast<UIElement>().ToArray(); scene.Children.Clear();
+        try
+        {
+            foreach (var window in windows)
+            {
+                window.ShowActivated = false; window.Topmost = true; window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.Left = background.Left + 500; window.Top = background.Top + 40;
+                window.Show();
+                Check(GlassEnabled(window) && window.Background is SolidColorBrush { Color.A: 0 }, "new windows have one transparent composition canvas immediately after Show, without activation");
+                scene.Background = new SolidColorBrush(Color.FromRgb(238, 64, 128)); await Task.Delay(240);
+                var first = Sample(window, new Point(5, 100));
+                scene.Background = new SolidColorBrush(Color.FromRgb(34, 140, 248)); await Task.Delay(240);
+                var second = Sample(window, new Point(5, 100));
+                var distance = Math.Abs(first.R - second.R) + Math.Abs(first.G - second.G) + Math.Abs(first.B - second.B);
+                Check(distance > 90, $"{window.GetType().Name} shows native glass on its first non-activated opening, difference {distance}");
+                Check(!Descendants<FrameworkElement>(window).Any(element => element.GetType().Name == "GlassHighlight"), "glass windows have no inset reflection/background sheet");
+                window.Hide();
+            }
+            Console.WriteLine("PASS first-open settings, guide and taskbar flyout show glass without clicks or extra inset backgrounds");
+        }
+        finally { foreach (var window in windows) window.Close(); foreach (var orb in orbs) scene.Children.Add(orb); }
     }
     private static void AddOrb(Canvas scene, string color, double size, double left, double top)
     {

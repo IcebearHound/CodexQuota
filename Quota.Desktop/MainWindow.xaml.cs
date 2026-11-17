@@ -77,6 +77,7 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             WindowPlacementGuard.EnsureVisible(this); ApplySettings();
+            _ = InitializeAppUpdatesAsync();
             if (startupNotice is { } startupMessage) ShowNotice(startupMessage);
             if (demo) { LoadDemo(); if (Array.IndexOf(arguments, "--guide") >= 0) ShowUserGuide(); }
             else
@@ -128,7 +129,7 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         WindowViewModel.AlertThreshold = settings.LowQuotaThreshold;
-        ThemeService.ApplyAppearance(settings.Theme, settings.Palette, settings.Material, settings.TransparentGlass);
+        ThemeService.ApplyAppearance(settings.Theme, settings.Palette, settings.Material);
         Topmost = settings.Topmost && !settings.DesktopOnly;
         if (settingsWindow is { } preferences) preferences.Topmost = Topmost;
         if (guideWindow is { } guide) guide.Topmost = Topmost;
@@ -157,7 +158,7 @@ public partial class MainWindow : Window
     }
     private async Task RefreshAllAsync()
     {
-        if (demo || refreshing || switching || exiting) return;
+        if (demo || refreshing || switching || exiting || appUpdateState.Phase == "installing") return;
         var cli = GetCli(); if (cli is null) { nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes); foreach (var a in accounts) a.SetError("未找到 Codex，请在设置中选择 codex.exe。"); UpdateSummary(); return; }
         refreshing = true; RefreshButton.IsEnabled = false;
         nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes);
@@ -165,10 +166,10 @@ public partial class MainWindow : Window
         finally
         {
             refreshing = false;
-            if (!exiting) { RefreshButton.IsEnabled = true; UpdateSummary(); CheckNotifications(); HandleWidgetSwitchRequest(); }
+            if (!exiting) { RefreshButton.IsEnabled = true; UpdateSummary(); CheckNotifications(); }
         }
     }
-    internal async Task RefreshFromWidgetAsync() { await RefreshAllAsync(); HandleWidgetSwitchRequest(); }
+    internal async Task RefreshFromWidgetAsync() { await RefreshAllAsync(); }
     private Task RefreshAccountAsync(string cli, AccountViewModel account)
         => switching ? Task.CompletedTask : RefreshAccountTrackedAsync(cli, account);
     private async Task RefreshAccountTrackedAsync(string cli, AccountViewModel account)
@@ -209,7 +210,6 @@ public partial class MainWindow : Window
         var errors = visibleAccounts.Sum(group => group.Sources.Count(source => source.HasError));
         Summary.Text = L.F("{0} 个账号", "{0} accounts", visibleAccounts.Count) + (busy > 0 ? L.F(" · {0} 个同步中", " · {0} updating", busy) : errors > 0 ? L.F(" · {0} 个来源需处理", errors == 1 ? " · {0} source needs attention" : " · {0} sources need attention", errors) : low > 0 ? L.F(" · {0} 个额度偏低", " · {0} low", low) : L.F(" · 已同步", " · up to date"));
         Summary.ToolTip = string.Join(Environment.NewLine, visibleAccounts.SelectMany(group => group.Sources.Where(source => source.HasError).Select(source => group.Name + " · " + AccountGroupViewModel.SourceName(source) + " · " + source.ActionHint)));
-        PublishWidgetData();
     }
     private void RebuildAccountGroups()
     {
@@ -286,7 +286,7 @@ public partial class MainWindow : Window
     private async Task<AccountConnectionResult> AddAccountAsync()
     {
         if (demo) { ShowNotice(L.T("当前为演示模式；正常启动后可连接真实账号。")); return new(AccountConnectionOutcome.Demo); }
-        if (loggingIn || switching)
+        if (loggingIn || switching || appUpdateState.Phase == "installing")
         {
             var result = new AccountConnectionResult(AccountConnectionOutcome.Busy);
             ShowNotice(result.Description); return result;

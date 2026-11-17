@@ -134,15 +134,7 @@ public partial class MainWindow
         var placement = SettingsControls.Section(body, L.F("任务栏小组件", "Taskbar widget"), "monitor", L.F("位置与布局实时生效，独立于主面板精简布局。", "Position and layout apply immediately, independently of the main compact layout."));
         placement.Children.Add(new WidgetPlacementPanel(this));
         body.Children.Add(SettingsControls.Action("展开任务栏账号面板", "chevron-right", () => taskbarWidget?.ShowAccounts()));
-        var system = SettingsControls.Section(body, "Windows 小组件（天气）", "sun");
-        var state = WindowsTaskbarSettings.WidgetsVisible;
-        system.Children.Add(DialogLayout.Text(state == true ? L.F("系统入口已开启", "The Windows Widgets entry is on") : state == false ? L.F("系统入口已关闭", "The Windows Widgets entry is off") : L.F("系统入口状态暂不可读", "The Windows Widgets state is unavailable"), 12));
-        system.Children.Add(DialogLayout.Text(L.F("在 Windows 任务栏设置中调整天气入口，返回后自动更新状态与圆环位置。", "Change the weather entry in Windows Taskbar settings. Its status and the ring position update when you return."), 11, true));
-        system.Children.Add(SettingsControls.Action("打开 Windows 任务栏设置", "monitor", () =>
-        {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:taskbar") { UseShellExecute = true }); }
-            catch (System.ComponentModel.Win32Exception) { ShowNotice(L.T("无法打开 Windows 任务栏设置，请从 Windows 设置中打开个性化和任务栏。")); }
-        }));
+
     }
 
     private void BuildAccountSettings(Panel body)
@@ -229,6 +221,7 @@ public partial class MainWindow
         })); cli.Children.Add(actions);
         var help = SettingsControls.Section(body, L.F("帮助", "Help"), "info");
         help.Children.Add(SettingsControls.Action("使用导览与说明书", "info", () => ShowUserGuide()));
+        BuildUpdateSettings(body);
     }
 
     private void SettingsFrame(Window dialog, StackPanel content, UIElement navigation, bool narrow)

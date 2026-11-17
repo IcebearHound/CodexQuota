@@ -1,6 +1,13 @@
 using System.Text.Json;
 using Quota.Core;
 
+if (args.FirstOrDefault() == "--update-feed")
+{
+    using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
+    var release = await new AppUpdateClient(http).CheckAsync(new Version(0, 0, 0));
+    Console.WriteLine(JsonSerializer.Serialize(new { Version = release?.Version.ToString(), release?.AssetName, release?.Size })); return;
+}
+
 if (args.FirstOrDefault() == "--fake") { await Fake(args.ElementAtOrDefault(1) ?? "normal"); return; }
 if (args.FirstOrDefault() is "--cc-scan" or "--cc-import")
 {
@@ -507,8 +514,8 @@ await Test("palette and panel material migrate safely and persist independently"
     Check(new AccountStore(Path.Combine(testRoot, "new-default-palette")).LoadSettings().Palette == "monochrome");
     foreach (var palette in new[] { "mint", "ocean", "violet", "amber", "monochrome" })
     {
-        settings.Palette = palette; settings.Material = "glass"; settings.TransparentGlass = true; store.SaveSettings(settings);
-        var saved = store.LoadSettings(); Check(saved.Palette == palette && saved.Material == "glass" && saved.Theme == "light" && saved.TransparentGlass);
+        settings.Palette = palette; settings.Material = "glass"; store.SaveSettings(settings);
+        var saved = store.LoadSettings(); Check(saved.Palette == palette && saved.Material == "glass" && saved.Theme == "light");
     }
     return Task.CompletedTask;
 });
@@ -1167,6 +1174,7 @@ await Test("typed quota changes cannot reuse a different period's reset or exhau
     Check(changed.Single().Kind == "low");
     return Task.CompletedTask;
 });
+await AppUpdateSmoke.Run(Test, testRoot);
 Console.WriteLine($"{pass}/{total} checks passed");
 // Only remove the unique test directory created by this process.
 Directory.Delete(testRoot, true);

@@ -4,7 +4,7 @@ namespace Quota.Core;
 
 public static class CodexAppIdentity
 {
-    // Keep the registered package family and Desktop application ID stable across upgrades.
+    // Keep the primary Windows identity stable, including upgrades from the retired Widgets package.
     public const string AppUserModelId = "CodexQuota.Widget_3f0p9vy5t317m!Desktop";
     public static void Apply()
     {

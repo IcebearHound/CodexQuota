@@ -106,7 +106,9 @@ internal sealed class DesktopWindowHost
     internal static void SynchronizeVisibility(Window window, nint handle)
     {
         var visible = (GetWindowLongPtr(handle, -16).ToInt64() & 0x10000000L) != 0;
-        var requested = window.Visibility == Visibility.Visible;
+        // SourceInitialized can configure blur before WPF has measured its content.
+        // Do not let a native material call expose that not-yet-loaded HWND.
+        var requested = window.IsLoaded && window.Visibility == Visibility.Visible;
         if (visible != requested) ShowWindow(handle, requested ? 4 : 0);
     }
 

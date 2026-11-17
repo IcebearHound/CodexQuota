@@ -21,6 +21,7 @@ public sealed class BrandIcon : FrameworkElement
         var pen = new Pen(Foreground, 3.1) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         drawing.DrawEllipse(null, pen, new Point(11.2, 11.2), 7.2, 7.2);
         drawing.DrawLine(pen, new Point(14.1, 14.1), new Point(20, 20));
+        drawing.DrawLine(new Pen(Foreground, 2.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, new Point(11.2, 11.2), new Point(14.6, 7.8));
         drawing.Pop();
     }
 }

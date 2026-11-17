@@ -190,9 +190,8 @@ internal static class NativeWindowSmoke
             Console.WriteLine("PASS settings and guide topmost state follows the main panel live");
             Descendants<RadioButton>(settingsWindow).Single(button => button.GroupName == "settings-pages" && AutomationProperties.GetName(button) == L.T("小组件")).IsChecked = true;
             await Settle(settingsWindow);
-            Check(Descendants<TextBlock>(settingsWindow).Any(text => text.Text == L.T("打开 Windows 任务栏设置"))
-                && !Descendants<CheckBox>(settingsWindow).Any(box => Equals(box.Content, L.T("显示系统小组件（天气）"))), "system widgets use the supported settings entry");
-            Console.WriteLine("PASS system widget controls expose the Windows settings entry and explain the restricted switch");
+            Check(!Descendants<TextBlock>(settingsWindow).Any(text => text.Text == L.T("打开 Windows 任务栏设置")), "retired Windows Widgets controls are absent");
+            Console.WriteLine("PASS widget settings retain the taskbar component without Windows Widgets Board controls");
             Descendants<RadioButton>(settingsWindow).Single(button => button.GroupName == "settings-pages" && AutomationProperties.GetName(button) == L.T("通用")).IsChecked = true;
             await Settle(settingsWindow);
             var startupToggle = Descendants<CheckBox>(settingsWindow).Single(box => AutomationProperties.GetName(box) == L.T("开机启动"));
@@ -204,6 +203,19 @@ internal static class NativeWindowSmoke
                 startupToggle.IsChecked = false;
             }
             Console.WriteLine("PASS startup option is accessible in General settings and supports isolated demo preview");
+            if (args.Contains("--demo"))
+            {
+                var updateCheck = Descendants<Button>(settingsWindow).Single(button => AutomationProperties.GetName(button) == L.F("检查更新", "Check for updates"));
+                updateCheck.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(settingsWindow);
+                Check(Descendants<TextBlock>(settingsWindow).Any(text => text.Text == L.F("当前已是最新正式版。", "You are running the latest stable release.")), "demo update check exercises the normal UI without network access");
+                var updateState = typeof(MainWindow).GetField("appUpdateState", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(main)!;
+                var set = updateState.GetType().GetMethod("Set", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                set.Invoke(updateState, ["downloading", "3.0.0"]); updateState.GetType().GetProperty("Percent")!.SetValue(updateState, 42d); await Settle(settingsWindow);
+                Check(!updateCheck.IsEnabled && Descendants<Button>(settingsWindow).Single(button => AutomationProperties.GetName(button) == L.F("取消下载", "Cancel download")).Visibility == Visibility.Visible
+                    && Descendants<ProgressBar>(settingsWindow).Any(bar => bar.Value == 42), "download state displays progress, cancellation and prevents duplicate checks");
+                set.Invoke(updateState, ["idle", null]);
+                Console.WriteLine("PASS update settings expose automatic checks, live download progress and cancellation");
+            }
             Descendants<RadioButton>(settingsWindow).Single(button => button.GroupName == "settings-pages" && AutomationProperties.GetName(button) == L.T("通知")).IsChecked = true;
             await Settle(settingsWindow);
             var input = Descendants<TextBox>(settingsWindow).Single(box => AutomationProperties.GetName(box) == L.T("低额度阈值 (%)"));

@@ -1,6 +1,9 @@
 using Quota.Core;
 using Quota.Desktop;
 
+if (args.FirstOrDefault() == "--update-lifecycle") { Environment.ExitCode = await UpdateLifecycleSmoke.Run(args); return; }
+if (args.FirstOrDefault() == "--close-update-fixture") { await UpdateLifecycleSmoke.CloseFixture(args[1]); return; }
+
 if (args.FirstOrDefault() == "--external-parent") { ExternalHostSmoke.RunParent(); return; }
 if (args.FirstOrDefault() == "--taskbar-lifecycle") { Environment.ExitCode = TaskbarLifecycleSmoke.Run(args); return; }
 if (args.FirstOrDefault() == "--guide-smoke") { Environment.ExitCode = GuideSmoke.Run(args); return; }
@@ -8,7 +11,7 @@ if (args.FirstOrDefault() == "--guide-smoke") { Environment.ExitCode = GuideSmok
 var pass = 0;
 var cases = new (string Name, Action Verify)[]
 {
-    ("desktop and Widgets share one package application and Windows identity", AppIdentitySmoke.Run),
+    ("desktop keeps its stable Windows application identity", AppIdentitySmoke.Run),
     ("startup registration respects native state quoted paths upgrades and isolated cleanup", StartupRegistrationSmoke.Run),
     ("status read failures expose specific localized reasons and recover", () =>
     {

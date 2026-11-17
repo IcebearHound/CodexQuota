@@ -4,9 +4,9 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 2.2 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.2.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 2.3 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.3.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
-Actual 2.2 screenshots with demo data. All use the light theme except the dark-theme comparison.
+Actual 2.3 screenshots with demo data. All use the light theme except the dark-theme comparison.
 
 | Compact widget (main window) | Taskbar widget and expanded panel |
 | --- | --- |
@@ -70,9 +70,9 @@ Compact mode shows account names, quotas and reset timers. Double-click, press E
 | --- | --- |
 | <img src="docs/images/mono-light.png" alt="Black & White palette in light mode" width="252"> | <img src="docs/images/mono-dark.png" alt="Black & White palette in dark mode" width="252"> |
 
-Liquid glass uses Windows 11 native blur, light cards and soft edges, without the raised inner outline. Enable **Transparent mode** in **Settings → Appearance** for more background color while keeping readable text. This option is available only with liquid glass. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
+Liquid glass uses native blur, one base surface and light cards, without an inset reflection sheet or extra inner outline. It appears on the first opening without another click. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
 
-<img src="docs/images/transparent-light.png" alt="2.2 light transparent glass on the main window and taskbar flyout over a colorful demo background" width="760">
+<img src="docs/images/glass-light.png" alt="2.3 light liquid glass on the main window and taskbar flyout over a colorful demo background" width="760">
 
 <details>
 <summary>Appearance, startup and other options</summary>
@@ -87,11 +87,19 @@ Enable **Start with Windows** in **Settings → General → Window behavior** to
 
 </details>
 
+## In-place updates
+
+Open **Settings → General → Version and updates** to check stable releases. Automatic checks run at most once per day. Downloading and restarting require confirmation. After verifying the GitHub-provided SHA-256 digest, the app restarts briefly, replaces files in its original folder and refreshes the existing startup path. Failed startup checks automatically restore the previous version.
+
+<img src="docs/images/updates-en.png" alt="2.3 version and update settings with automatic and manual checks" width="460">
+
+Self-updating starts with the **complete 2.3 portable ZIP**. Users of 2.2 or old Win+W packages need to download this version once. See [update architecture and recovery](docs/updates.md#english).
+
 ## Data and upgrades
 
 Accounts and settings are stored in `%LOCALAPPDATA%\CodexQuotaWidget`. Usage is queried through the local Codex app-server. Exit the previous version before starting an upgrade.
 
-The optional [Windows Win+W Widgets package](docs/windows-widgets.md#windows-widgets-board-optional) combines the desktop app and provider into one Start entry, with startup controlled by the main app. It uses unsigned developer registration. The ordinary taskbar widget works directly from the portable build.
+**Starting with 2.3, Windows Win+W Widgets board support and its extension package are discontinued. The taskbar widget remains supported.** First verify and back up your accounts and settings in the portable build, then remove the old package from Windows Installed apps. If data is missing, keep the old package until backup and migration are complete. Keep the data directory above.
 
 <details>
 <summary>Build and verification</summary>
@@ -114,10 +122,10 @@ dotnet run --project Quota.Presentation.Tests -c Release -- --guide-smoke --demo
 Publish a self-contained single-file build.
 
 ```powershell
-dotnet publish Quota.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o artifacts/win-x64
+./Publish-Release.ps1 -OutputDirectory artifacts/release
 ```
 
-The source includes `Quota.WidgetProvider` and `Publish-Widgets.ps1` for a Windows Widgets Board extension under the same application entry. See [build and registration instructions](docs/windows-widgets.md#windows-widgets-board-optional).
+The release script packages the self-contained single-file app, licenses and `install-files.json` for future in-place updates. The updater reuses the app executable instead of shipping another .NET runtime.
 
 </details>
 

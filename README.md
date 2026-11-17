@@ -4,9 +4,9 @@
 
 在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-**[下载 2.2 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.2.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
+**[下载 2.3 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.3.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
-以下为 2.2 实际界面截图，使用演示数据；除黑色主题对照外，均为浅色界面。
+以下为 2.3 实际界面截图，使用演示数据；除黑色主题对照外，均为浅色界面。
 
 | 精简小组件（主面板） | 任务栏小组件与展开面板 |
 | --- | --- |
@@ -70,9 +70,9 @@
 | --- | --- |
 | <img src="docs/images/mono-light.png" alt="黑白主题的浅色界面" width="252"> | <img src="docs/images/mono-dark.png" alt="黑白主题的深色界面" width="252"> |
 
-液态玻璃采用 Windows 11 原生模糊、轻薄卡片与柔光边缘，去掉浮窗内部的凸起描边。在「设置 → 外观」开启 **透明模式**，进一步透出桌面色彩，同时保留文字遮罩；此选项仅液态玻璃可用。系统背景不可用或桌面嵌入模式下采用纯色配色。
+液态玻璃使用统一的原生模糊、单层底面与轻薄卡片，移除内层反射背景与额外描边。首次打开窗口即可呈现玻璃效果，无需再次点击。系统背景不可用或桌面嵌入模式下使用纯色配色。
 
-<img src="docs/images/transparent-light.png" alt="2.2 浅色透明液态玻璃，主面板与任务栏浮窗透出彩色演示背景" width="760">
+<img src="docs/images/glass-light.png" alt="2.3 浅色液态玻璃，主面板与任务栏浮窗透出彩色演示背景" width="760">
 
 <details>
 <summary>外观、开机启动与其他选项</summary>
@@ -87,11 +87,19 @@
 
 </details>
 
+## 原地自更新
+
+在「设置 → 通用 → 版本与更新」检查正式版。自动检查每天至多一次，下载和重启前会征求确认。更新包通过 GitHub 提供的 SHA-256 校验后，应用短暂重启、原目录替换并刷新已有开机启动路径；新版本启动失败时自动回滚。
+
+<img src="docs/images/updates.png" alt="2.3 的版本与更新设置，提供自动检查与手动检查入口" width="460">
+
+自更新从 **2.3 完整便携版**开始支持。2.2 及旧 Win+W 包用户需要先下载本版，之后可在应用内更新。[更新机制与恢复说明](docs/updates.md)。
+
 ## 数据与升级
 
 账号和设置保存在 `%LOCALAPPDATA%\CodexQuotaWidget`，用量通过本机 Codex app-server 查询。升级前退出旧版额度监控，再运行新版。
 
-可选的 [Windows Win+W 小组件包](docs/windows-widgets.md) 将主程序和小组件提供程序合并为一个开始菜单条目，开机启动统一由主程序控制。它使用未签名的开发者注册流程；普通任务栏小组件直接使用便携版即可。
+**2.3 起停止支持 Windows Win+W 内置小组件，不再发布扩展包。任务栏小组件继续保留。** 先在完整便携版中确认账号和设置完整并备份，再从 Windows「已安装的应用」卸载旧包。若数据未出现，保留旧包，先完成数据备份与迁移；不要删除上述数据目录。
 
 <details>
 <summary>构建与验证</summary>
@@ -114,10 +122,10 @@ dotnet run --project Quota.Presentation.Tests -c Release -- --guide-smoke --demo
 发布自包含单文件版本。
 
 ```powershell
-dotnet publish Quota.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o artifacts/win-x64
+./Publish-Release.ps1 -OutputDirectory artifacts/release
 ```
 
-源码包含 `Quota.WidgetProvider` 和 `Publish-Widgets.ps1`，提供同一应用入口下的 Windows Widgets Board 扩展。[构建与注册说明](docs/windows-widgets.md)。
+发布脚本生成自包含单文件程序、许可与 `install-files.json`，打包为支持后续原地更新的 ZIP。更新器复用程序自身，不额外分发一套 .NET 运行时。
 
 </details>
 

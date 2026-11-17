@@ -82,6 +82,9 @@ internal static class ProductScreenshotSmoke
         await Settle(dialog);
         Check(startup.IsChecked == true && Descendants<TextBlock>(dialog).Any(text => text.Text == L.F("演示模式，开机启动设置仅供预览。", "Demo mode. Startup changes are previewed here.")), "demo startup toggle previews state through its normal UI handler");
         startup.IsChecked = false;
+        var updates = Descendants<StackPanel>(dialog).Single(panel => AutomationProperties.GetName(panel) == L.F("版本与更新", "Version and updates"));
+        var updateCard = (FrameworkElement)VisualTreeHelper.GetParent(updates); updateCard.BringIntoView();
+        await Settle(dialog); Capture(updateCard, output, "updates" + suffix + ".png", dialog);
         dialog.Close();
         var groups = (ObservableCollection<AccountGroupViewModel>)Field("visibleAccounts").GetValue(main)!;
         var widget = new TaskbarWidget(main, groups, null);

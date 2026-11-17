@@ -8,6 +8,7 @@ namespace Quota.Core;
 
 public sealed class AccountStore
 {
+    public static string DefaultDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexQuotaWidget");
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNameCaseInsensitive = true };
     public string Root { get; }
     public string? RecoveryNotice { get; private set; }

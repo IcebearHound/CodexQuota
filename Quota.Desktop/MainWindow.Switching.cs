@@ -10,23 +10,9 @@ namespace Quota.Desktop;
 public partial class MainWindow
 {
     private bool switching;
-    private void HandleWidgetSwitchRequest()
-    {
-        if (demo || switching || loggingIn || refreshing) return;
-        var request = Path.Combine(store.Root, "widget-switch-request.txt");
-        if (!File.Exists(request)) return;
-        try
-        {
-            var id = File.ReadAllText(request).Trim(); File.Delete(request);
-            if (!Guid.TryParseExact(id, "N", out _)) return;
-            var group = visibleAccounts.FirstOrDefault(group => group.Sources.Any(source => source.Record.Id == id));
-            if (group is not null) SwitchAccountClick(new Button { Tag = group }, new());
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { ShowNotice(L.T("请刷新账号或重新登录后再试。")); }
-    }
     private async void SwitchAccountClick(object sender, RoutedEventArgs args)
     {
-        if (switching || loggingIn || sender is not Button { Tag: AccountGroupViewModel group }) return;
+        if (appUpdateState.Phase == "installing" || switching || loggingIn || sender is not Button { Tag: AccountGroupViewModel group }) return;
         if (group.IsCurrent) return;
         var target = group.Sources.Where(source => source.Managed).OrderBy(source => source.HasError).ThenByDescending(source => source.Snapshot?.FetchedAt).FirstOrDefault();
         if (target is null || (!demo && GetCli() is null)) return;

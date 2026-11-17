@@ -115,7 +115,9 @@ public sealed class WidgetSettings
     public string Theme { get; set; } = "system";
     public string Palette { get; set; } = "monochrome";
     public string Material { get; set; } = "solid";
-    public bool TransparentGlass { get; set; }
+    public bool AutoCheckUpdates { get; set; } = true;
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+    public string? LastUpdateJob { get; set; }
     public string Language { get; set; } = "zh-CN";
     public bool CcSwitchPromptShown { get; set; }
     public int GuideVersion { get; set; }

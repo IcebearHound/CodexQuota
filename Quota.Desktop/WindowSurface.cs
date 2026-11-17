@@ -15,7 +15,7 @@ internal static class WindowSurface
     private static bool registered;
     private static readonly DependencyProperty AppliedProperty = DependencyProperty.RegisterAttached("Applied", typeof(bool), typeof(WindowSurface), new PropertyMetadata(false));
     private static readonly DependencyProperty GlassEnabledProperty = DependencyProperty.RegisterAttached("GlassEnabled", typeof(bool), typeof(WindowSurface), new PropertyMetadata(false));
-    private static readonly DependencyProperty HighlightProperty = DependencyProperty.RegisterAttached("Highlight", typeof(GlassHighlight), typeof(WindowSurface), new PropertyMetadata(null));
+    private static readonly DependencyProperty PreparedProperty = DependencyProperty.RegisterAttached("Prepared", typeof(bool), typeof(WindowSurface), new PropertyMetadata(false));
     private static readonly DependencyProperty NativeMaterialProperty = DependencyProperty.RegisterAttached("NativeMaterial", typeof(int), typeof(WindowSurface), new PropertyMetadata(0));
     private static readonly DependencyProperty BlurPendingProperty = DependencyProperty.RegisterAttached("BlurPending", typeof(bool), typeof(WindowSurface), new PropertyMetadata(false));
     internal static bool IsGlassEnabled(Window window) => (bool)window.GetValue(GlassEnabledProperty);
@@ -23,11 +23,21 @@ internal static class WindowSurface
     {
         if (registered) return;
         registered = true;
+        WindowChrome.WindowChromeProperty.OverrideMetadata(typeof(Window), new PropertyMetadata(null,
+            (sender, args) => { if (sender is Window window && args.NewValue is WindowChrome) Prepare(window); }));
         EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler(Loaded));
+    }
+    private static void Prepare(Window window)
+    {
+        if ((bool)window.GetValue(PreparedProperty)) return;
+        window.SetValue(PreparedProperty, true);
+        window.SourceInitialized += (_, _) => ApplyMaterial(window);
+        window.IsVisibleChanged += (_, _) => { if (window.IsVisible) ApplyMaterial(window); };
     }
     private static void Loaded(object sender, RoutedEventArgs args)
     {
         if (sender is not Window window || !ReferenceEquals(args.OriginalSource, window) || window.AllowsTransparency || (bool)window.GetValue(AppliedProperty)) return;
+        Prepare(window);
         window.SetValue(AppliedProperty, true);
         var chrome = WindowChrome.GetWindowChrome(window);
         if (chrome is null) return;
@@ -37,12 +47,6 @@ internal static class WindowSurface
         var round = 2; var noBorder = unchecked((int)0xFFFFFFFE);
         DwmSetWindowAttribute(handle, 33, ref round, sizeof(int));
         DwmSetWindowAttribute(handle, 34, ref noBorder, sizeof(int));
-        window.IsVisibleChanged += (_, _) =>
-        {
-            if (!window.IsVisible) return;
-            ApplyMaterial(window);
-            QueueBackdropBlur(window, handle);
-        };
         ApplyMaterial(window);
         Border? clipped = null; Size previous = default; int previousRadius = -1;
         void ClipContent()
@@ -50,7 +54,6 @@ internal static class WindowSurface
             if (window.Content is not Border border) return;
             if (WindowChrome.GetWindowChrome(window) is { } currentChrome
                 && currentChrome.CornerRadius != new CornerRadius(0)) ApplyMaterial(window);
-            UpdateHighlight(border, IsGlassEnabled(window));
             var radius = window.WindowState == WindowState.Maximized ? 0 : CornerRadius;
             var size = new Size(border.ActualWidth, border.ActualHeight);
             if (ReferenceEquals(clipped, border) && size == previous && radius == previousRadius) return;
@@ -65,8 +68,8 @@ internal static class WindowSurface
     }
     internal static void ApplyMaterial(Window window)
     {
-        if (!window.IsLoaded || !window.IsVisible || window.AllowsTransparency || WindowChrome.GetWindowChrome(window) is not { } chrome) return;
-        var source = PresentationSource.FromVisual(window) as HwndSource;
+        if (window.AllowsTransparency || WindowChrome.GetWindowChrome(window) is not { } chrome) return;
+        var source = HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
         if (source?.CompositionTarget is null) return;
         var handle = source.Handle;
         var dark = ThemeService.IsLight ? 0 : 1;
@@ -107,9 +110,8 @@ internal static class WindowSurface
         var resources = System.Windows.Application.Current.Resources;
         window.Resources["Background"] = glass ? ThemeService.GlassBackground : ThemeService.PanelBackground;
         window.Resources["Surface"] = glass ? resources["Surface"] : ThemeService.OpaqueSurface;
-        window.SetCurrentValue(Window.BackgroundProperty, topLevel ? Brushes.Transparent : ThemeService.OpaqueBackground);
+        window.Background = topLevel ? Brushes.Transparent : ThemeService.OpaqueBackground;
         if (window.Content is Border { Background: null } border) border.SetResourceReference(Border.BackgroundProperty, "Background");
-        if (window.Content is Border surface) UpdateHighlight(surface, glass, refresh: true);
         DesktopWindowHost.SynchronizeVisibility(window, handle);
         if (nativeChanged || frameChanged) QueueBackdropBlur(window, handle);
     }
@@ -131,21 +133,6 @@ internal static class WindowSurface
             if ((int)window.GetValue(NativeMaterialProperty) == 2) SetBackdropBlur(handle, true);
             DesktopWindowHost.SynchronizeVisibility(window, handle);
         });
-    }
-    private static void UpdateHighlight(Border border, bool glass, bool refresh = false)
-    {
-        var highlight = (GlassHighlight?)border.GetValue(HighlightProperty);
-        if (highlight is null && glass && border.Child is { } child)
-        {
-            border.Child = null;
-            var layers = new Grid();
-            highlight = new GlassHighlight();
-            layers.Children.Add(highlight); layers.Children.Add(child);
-            border.Child = layers; border.SetValue(HighlightProperty, highlight);
-        }
-        if (highlight is null) return;
-        highlight.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
-        if (glass && refresh) highlight.InvalidateVisual();
     }
     private static bool SetBackdropBlur(nint window, bool enabled)
     {

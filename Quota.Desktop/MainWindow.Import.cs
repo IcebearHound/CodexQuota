@@ -28,7 +28,7 @@ public partial class MainWindow
     private async Task<AccountConnectionResult> SyncCcSwitchAsync(string? location = null)
     {
         if (demo) { ShowNotice(L.T("请正常启动应用后导入真实账号。")); return new(AccountConnectionOutcome.Demo); }
-        if (loggingIn || switching || refreshing || accounts.Any(account => account.IsRefreshing)) { ShowNotice(L.T("请等待当前更新完成后再同步。")); return new(AccountConnectionOutcome.Busy); }
+        if (loggingIn || switching || refreshing || appUpdateState.Phase == "installing" || accounts.Any(account => account.IsRefreshing)) { ShowNotice(L.T("请等待当前更新完成后再同步。")); return new(AccountConnectionOutcome.Busy); }
         loggingIn = true;
         try
         {

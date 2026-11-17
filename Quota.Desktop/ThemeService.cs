@@ -18,7 +18,6 @@ internal static class ThemeService
         new("amber", "琥珀", "#B45A08", "#FFC14F", "#FFF1D8", "#271B0D", "#44301A", "#443014", "#79603E", "#DEC39A")
     ];
     internal static bool GlassRequested { get; private set; }
-    internal static bool TransparentGlass { get; private set; }
     internal static bool IsLight { get; private set; }
     internal static SolidColorBrush OpaqueBackground { get; private set; } = new(Color.FromRgb(17, 17, 17));
     internal static SolidColorBrush OpaqueSurface { get; private set; } = new(Color.FromRgb(32, 32, 32));
@@ -32,15 +31,14 @@ internal static class ThemeService
 
     public static void Apply(string preference) => ApplyAppearance(preference, "monochrome", "solid");
 
-    public static void ApplyAppearance(string preference, string palette, string material, bool transparentGlass = false)
+    public static void ApplyAppearance(string preference, string palette, string material)
     {
         var light = preference == "light" || preference == "system" && SystemIsLight();
         var preset = Array.Find(Palettes, candidate => candidate.Key == palette) ?? Palettes[0];
         var glass = material == "glass" && !SystemParameters.HighContrast && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22621);
-        var clear = glass && transparentGlass;
-        var key = $"{light}/{preset.Key}/{glass}/{clear}";
+        var key = $"{light}/{preset.Key}/{glass}";
         if (key == applied) return;
-        applied = key; IsLight = light; GlassRequested = glass; TransparentGlass = clear;
+        applied = key; IsLight = light; GlassRequested = glass;
         AccentColor = light ? preset.LightAccent : preset.DarkAccent;
         SecondaryColor = light ? preset.LightMuted : preset.DarkMuted;
         var accent = Parse(AccentColor);
@@ -48,13 +46,8 @@ internal static class ThemeService
         var surface = light ? Colors.White : Parse(preset.DarkSurface);
         OpaqueBackground = Brush(background); OpaqueSurface = Brush(surface);
         PanelBackground = Gradient((background, 0), (Mix(background, surface, 0.52), 0.6), (background, 1));
-        var topAlpha = clear ? (light ? (byte)52 : (byte)110) : (light ? (byte)112 : (byte)180);
-        var middleAlpha = clear ? (light ? (byte)16 : (byte)52) : (light ? (byte)36 : (byte)92);
-        var bottomAlpha = clear ? (light ? (byte)42 : (byte)88) : (light ? (byte)76 : (byte)150);
-        GlassBackground = Gradient(
-            (Tint(light ? Colors.White : background, topAlpha), 0),
-            (Tint(light ? background : surface, middleAlpha), 0.48),
-            (Tint(light ? Colors.White : background, bottomAlpha), 1));
+        // One uniform tint over DWM blur: no inset gradient or second glass sheet.
+        GlassBackground = Brush(Tint(light ? Colors.White : background, light ? (byte)72 : (byte)110));
         var colors = new Dictionary<string, Color>
         {
             ["Background"] = background, ["Surface"] = surface,
@@ -64,6 +57,7 @@ internal static class ThemeService
             ["ButtonFill"] = Mix(surface, accent, light ? 0.07 : 0.10), ["InputFill"] = surface,
             ["HoverFill"] = Mix(surface, accent, light ? 0.14 : 0.18),
             ["Error"] = Parse(DangerColor),
+            ["ToggleThumb"] = light ? Colors.White : Colors.Black,
             ["SelectedFill"] = Mix(surface, accent, light ? 0.20 : 0.25)
         };
         var resources = System.Windows.Application.Current.Resources;
@@ -74,10 +68,10 @@ internal static class ThemeService
         if (glass)
         {
             resources["Background"] = GlassBackground;
-            resources["Surface"] = Brush(Tint(light ? Colors.White : background, clear ? (byte)82 : light ? (byte)138 : (byte)125));
-            resources["FlyoutCardSurface"] = Brush(Tint(light ? Colors.White : background, clear ? (byte)58 : (byte)88));
+            resources["Surface"] = Brush(Tint(light ? Colors.White : background, light ? (byte)100 : (byte)110));
+            resources["FlyoutCardSurface"] = Brush(Tint(light ? Colors.White : background, light ? (byte)64 : (byte)72));
             resources["FlyoutCardBorder"] = Brush(Tint(Colors.White, light ? (byte)45 : (byte)28));
-            resources["BorderBrush"] = Gradient((Tint(Colors.White, 155), 0), (Tint(accent, 35), 0.5), (Tint(Colors.White, 90), 1));
+            resources["BorderBrush"] = Brush(Tint(Colors.White, light ? (byte)100 : (byte)64));
             resources["HoverFill"] = Brush(Tint(light ? Colors.White : surface, 90));
             resources["InputFill"] = Brush(Tint(surface, light ? (byte)190 : (byte)220));
         }

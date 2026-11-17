@@ -7,6 +7,8 @@ using Quota.Core;
 namespace Quota.Desktop;
 public partial class MainWindow
 {
+    // Preserve notification occurrence identities from releases before 2.3.
+    private static string WidgetKey(string key) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));
     private QuotaAlerts? alerts;
     private string? desktopModeNotice;
     private string? notificationNotice;
