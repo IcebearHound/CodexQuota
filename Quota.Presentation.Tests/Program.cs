@@ -8,6 +8,7 @@ if (args.FirstOrDefault() == "--guide-smoke") { Environment.ExitCode = GuideSmok
 var pass = 0;
 var cases = new (string Name, Action Verify)[]
 {
+    ("desktop and Widgets share one package application and Windows identity", AppIdentitySmoke.Run),
     ("startup registration respects native state quoted paths upgrades and isolated cleanup", StartupRegistrationSmoke.Run),
     ("status read failures expose specific localized reasons and recover", () =>
     {

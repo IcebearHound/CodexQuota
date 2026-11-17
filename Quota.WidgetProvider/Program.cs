@@ -29,6 +29,7 @@ if (args.FirstOrDefault() == "--render-check")
     Console.WriteLine("PASS localized exhausted-quota warning");
     return;
 }
+CodexAppIdentity.Apply();
 ComWrappersSupport.InitializeComWrappers();
 Marshal.ThrowExceptionForHR(Native.CoInitializeEx(0, 0));
 var identifier = new Guid("91133FB0-CE2D-4E2C-9A07-42F527EAE907");

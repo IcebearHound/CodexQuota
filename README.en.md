@@ -4,9 +4,9 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 2.1 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.1.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 2.2 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.2.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
-Screenshots use the light theme and demo data.
+Actual 2.2 screenshots with demo data. All use the light theme except the dark-theme comparison.
 
 | Compact widget (main window) | Taskbar widget and expanded panel |
 | --- | --- |
@@ -64,13 +64,15 @@ Compact mode shows account names, quotas and reset timers. Double-click, press E
 
 ## Make it fit your desktop
 
-Choose Mono, Mint, Ocean, Violet or Amber. Selecting **Mono** automatically follows Windows light and dark mode, with clear yellow and red status alerts. System, Dark and Light options are also available manually.
+**Black & White** is now the default palette and appears first. It follows Windows light and dark mode. Mint, Ocean, Violet and Amber are also available, along with manual light/dark controls. Upgrades preserve your selected palette.
 
-| Mono light | Mono dark |
+| Black & White · Light | Black & White · Dark |
 | --- | --- |
-| <img src="docs/images/mono-light.png" alt="Mono palette in light mode" width="252"> | <img src="docs/images/mono-dark.png" alt="Mono palette in dark mode" width="252"> |
+| <img src="docs/images/mono-light.png" alt="Black & White palette in light mode" width="252"> | <img src="docs/images/mono-dark.png" alt="Black & White palette in dark mode" width="252"> |
 
-Liquid glass reveals background colors through Windows 11 native blur, translucent cards, soft reflections and double-highlighted edges. Changes apply live across the main window, guide and flyouts. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
+Liquid glass uses Windows 11 native blur, light cards and soft edges, without the raised inner outline. Enable **Transparent mode** in **Settings → Appearance** for more background color while keeping readable text. This option is available only with liquid glass. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
+
+<img src="docs/images/transparent-light.png" alt="2.2 light transparent glass on the main window and taskbar flyout over a colorful demo background" width="760">
 
 <details>
 <summary>Appearance, startup and other options</summary>
@@ -88,6 +90,8 @@ Enable **Start with Windows** in **Settings → General → Window behavior** to
 ## Data and upgrades
 
 Accounts and settings are stored in `%LOCALAPPDATA%\CodexQuotaWidget`. Usage is queried through the local Codex app-server. Exit the previous version before starting an upgrade.
+
+The optional [Windows Win+W Widgets package](docs/windows-widgets.md#windows-widgets-board-optional) combines the desktop app and provider into one Start entry, with startup controlled by the main app. It uses unsigned developer registration. The ordinary taskbar widget works directly from the portable build.
 
 <details>
 <summary>Build and verification</summary>
@@ -113,7 +117,7 @@ Publish a self-contained single-file build.
 dotnet publish Quota.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o artifacts/win-x64
 ```
 
-The source includes the `Quota.WidgetProvider` Windows Widgets Board provider and `Publish-Widgets.ps1`, which use a separate MSIX registration flow.
+The source includes `Quota.WidgetProvider` and `Publish-Widgets.ps1` for a Windows Widgets Board extension under the same application entry. See [build and registration instructions](docs/windows-widgets.md#windows-widgets-board-optional).
 
 </details>
 

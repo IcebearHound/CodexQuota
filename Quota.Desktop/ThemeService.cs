@@ -11,34 +11,36 @@ internal static class ThemeService
         string LightBackground, string DarkBackground, string DarkSurface, string LightText, string LightMuted, string DarkMuted);
     internal static readonly PalettePreset[] Palettes =
     [
+        new("monochrome", "黑白", "#242424", "#F0F0F0", "#F3F3F3", "#111111", "#202020", "#181818", "#626262", "#B7B7B7"),
         new("mint", "薄荷", "#008560", "#38E8AE", "#E5F7EF", "#071E19", "#10352B", "#102F27", "#46675B", "#A0CDBD"),
         new("ocean", "海蓝", "#2161E8", "#63ADFF", "#E8F1FF", "#08182F", "#122D4C", "#142C4A", "#506780", "#ABC5E5"),
         new("violet", "紫罗兰", "#7C3AED", "#C08BFF", "#F1EAFF", "#1C112E", "#332047", "#322047", "#6B587F", "#CDB5E5"),
-        new("amber", "琥珀", "#B45A08", "#FFC14F", "#FFF1D8", "#271B0D", "#44301A", "#443014", "#79603E", "#DEC39A"),
-        new("monochrome", "简约黑白", "#242424", "#F0F0F0", "#F3F3F3", "#111111", "#202020", "#181818", "#626262", "#B7B7B7")
+        new("amber", "琥珀", "#B45A08", "#FFC14F", "#FFF1D8", "#271B0D", "#44301A", "#443014", "#79603E", "#DEC39A")
     ];
     internal static bool GlassRequested { get; private set; }
+    internal static bool TransparentGlass { get; private set; }
     internal static bool IsLight { get; private set; }
-    internal static SolidColorBrush OpaqueBackground { get; private set; } = new(Color.FromRgb(16, 23, 28));
-    internal static SolidColorBrush OpaqueSurface { get; private set; } = new(Color.FromRgb(25, 35, 41));
+    internal static SolidColorBrush OpaqueBackground { get; private set; } = new(Color.FromRgb(17, 17, 17));
+    internal static SolidColorBrush OpaqueSurface { get; private set; } = new(Color.FromRgb(32, 32, 32));
     internal static Brush PanelBackground { get; private set; } = OpaqueBackground;
     internal static Brush GlassBackground { get; private set; } = Brushes.Transparent;
-    internal static string AccentColor { get; private set; } = "#008560";
+    internal static string AccentColor { get; private set; } = "#F0F0F0";
     internal static string WarningColor => IsLight ? "#A65D00" : "#FFC14F";
     internal static string DangerColor => IsLight ? "#DC3545" : "#FF7180";
-    internal static string SecondaryColor { get; private set; } = "#A0CDBD";
+    internal static string SecondaryColor { get; private set; } = "#B7B7B7";
     private static string? applied;
 
-    public static void Apply(string preference) => ApplyAppearance(preference, "mint", "solid");
+    public static void Apply(string preference) => ApplyAppearance(preference, "monochrome", "solid");
 
-    public static void ApplyAppearance(string preference, string palette, string material)
+    public static void ApplyAppearance(string preference, string palette, string material, bool transparentGlass = false)
     {
         var light = preference == "light" || preference == "system" && SystemIsLight();
         var preset = Array.Find(Palettes, candidate => candidate.Key == palette) ?? Palettes[0];
         var glass = material == "glass" && !SystemParameters.HighContrast && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22621);
-        var key = $"{light}/{preset.Key}/{glass}";
+        var clear = glass && transparentGlass;
+        var key = $"{light}/{preset.Key}/{glass}/{clear}";
         if (key == applied) return;
-        applied = key; IsLight = light; GlassRequested = glass;
+        applied = key; IsLight = light; GlassRequested = glass; TransparentGlass = clear;
         AccentColor = light ? preset.LightAccent : preset.DarkAccent;
         SecondaryColor = light ? preset.LightMuted : preset.DarkMuted;
         var accent = Parse(AccentColor);
@@ -46,10 +48,13 @@ internal static class ThemeService
         var surface = light ? Colors.White : Parse(preset.DarkSurface);
         OpaqueBackground = Brush(background); OpaqueSurface = Brush(surface);
         PanelBackground = Gradient((background, 0), (Mix(background, surface, 0.52), 0.6), (background, 1));
+        var topAlpha = clear ? (light ? (byte)52 : (byte)110) : (light ? (byte)112 : (byte)180);
+        var middleAlpha = clear ? (light ? (byte)16 : (byte)52) : (light ? (byte)36 : (byte)92);
+        var bottomAlpha = clear ? (light ? (byte)42 : (byte)88) : (light ? (byte)76 : (byte)150);
         GlassBackground = Gradient(
-            (Tint(light ? Colors.White : background, light ? (byte)112 : (byte)180), 0),
-            (Tint(light ? background : surface, light ? (byte)36 : (byte)92), 0.48),
-            (Tint(light ? Colors.White : background, light ? (byte)76 : (byte)150), 1));
+            (Tint(light ? Colors.White : background, topAlpha), 0),
+            (Tint(light ? background : surface, middleAlpha), 0.48),
+            (Tint(light ? Colors.White : background, bottomAlpha), 1));
         var colors = new Dictionary<string, Color>
         {
             ["Background"] = background, ["Surface"] = surface,
@@ -64,11 +69,16 @@ internal static class ThemeService
         var resources = System.Windows.Application.Current.Resources;
         foreach (var pair in colors) resources[pair.Key] = Brush(pair.Value);
         resources["MenuSurface"] = OpaqueSurface;
+        resources["FlyoutCardSurface"] = OpaqueSurface;
+        resources["FlyoutCardBorder"] = Brush(Mix(surface, accent, light ? 0.10 : 0.18));
         if (glass)
         {
             resources["Background"] = GlassBackground;
-            resources["Surface"] = Brush(Tint(light ? Colors.White : background, light ? (byte)138 : (byte)125));
-            resources["BorderBrush"] = Gradient((Tint(Colors.White, 230), 0), (Tint(accent, 70), 0.38), (Tint(Colors.White, 65), 0.64), (Tint(Colors.White, 165), 1));
+            resources["Surface"] = Brush(Tint(light ? Colors.White : background, clear ? (byte)82 : light ? (byte)138 : (byte)125));
+            resources["FlyoutCardSurface"] = Brush(Tint(light ? Colors.White : background, clear ? (byte)58 : (byte)88));
+            resources["FlyoutCardBorder"] = Brush(Tint(Colors.White, light ? (byte)45 : (byte)28));
+            resources["BorderBrush"] = Gradient((Tint(Colors.White, 155), 0), (Tint(accent, 35), 0.5), (Tint(Colors.White, 90), 1));
+            resources["HoverFill"] = Brush(Tint(light ? Colors.White : surface, 90));
             resources["InputFill"] = Brush(Tint(surface, light ? (byte)190 : (byte)220));
         }
         foreach (Window window in System.Windows.Application.Current.Windows) WindowSurface.ApplyMaterial(window);

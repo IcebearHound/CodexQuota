@@ -57,7 +57,18 @@ public partial class MainWindow
         }
         section.Children.Add(choices);
         SettingChoices(parent, "面板材质", "layers", ["纯色面板", "液态玻璃"], ["solid", "glass"], ["layout-grid", "layers"], settings.Material,
-            value => settings.Material = value,
-            L.F("液态玻璃透出背景色彩，叠加原生模糊、半透明卡片与双层高光边缘。", "Liquid glass reveals background colors through native blur, translucent cards and double-highlighted edges."));
+            value => { settings.Material = value; QueueSettingsRender(); },
+            L.F("液态玻璃透出背景色彩，搭配轻薄卡片与原生模糊。", "Liquid glass reveals background colors through native blur and subtle cards."));
+        var transparent = new CheckBox
+        {
+            Content = SettingsControls.Label("透明模式", "layers"),
+            IsEnabled = settings.Material == "glass", IsChecked = settings.Material == "glass" && settings.TransparentGlass,
+            Margin = new Thickness(0, 0, 0, 14),
+            ToolTip = L.F("仅液态玻璃可用，降低背景和卡片遮罩，保留文字对比度。", "Available with liquid glass. Reduces background and card tint while retaining readable text.")
+        };
+        AutomationProperties.SetName(transparent, L.T("透明模式"));
+        transparent.Checked += (_, _) => { settings.TransparentGlass = true; CommitSettings(); };
+        transparent.Unchecked += (_, _) => { settings.TransparentGlass = false; CommitSettings(); };
+        parent.Children.Add(transparent);
     }
 }

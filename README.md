@@ -4,9 +4,9 @@
 
 在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-**[下载 2.1 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.1.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
+**[下载 2.2 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.2.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
-以下截图使用浅色主题和演示数据。
+以下为 2.2 实际界面截图，使用演示数据；除黑色主题对照外，均为浅色界面。
 
 | 精简小组件（主面板） | 任务栏小组件与展开面板 |
 | --- | --- |
@@ -64,13 +64,15 @@
 
 ## 按习惯调整外观
 
-支持简约黑白、薄荷、海蓝、紫罗兰和琥珀五种配色。选择「简约黑白」后自动跟随 Windows 的浅色和深色模式，红黄状态提醒继续清晰显示。也可手动选择系统、深色或浅色主题。
+默认使用「黑白」配色，位于调色板首位，随 Windows 浅色和深色模式切换。还可选择薄荷、海蓝、紫罗兰和琥珀，或手动指定明暗主题。升级会保留已选配色。
 
-| 简约白色 | 简约黑色 |
+| 黑白 · 浅色 | 黑白 · 深色 |
 | --- | --- |
-| <img src="docs/images/mono-light.png" alt="简约黑白主题的浅色界面" width="252"> | <img src="docs/images/mono-dark.png" alt="简约黑白主题的深色界面" width="252"> |
+| <img src="docs/images/mono-light.png" alt="黑白主题的浅色界面" width="252"> | <img src="docs/images/mono-dark.png" alt="黑白主题的深色界面" width="252"> |
 
-液态玻璃透出背景色彩，结合 Windows 11 原生模糊、半透明卡片、反射柔光和双层高光边缘，主面板、导览和浮窗可即时切换。系统背景不可用或桌面嵌入模式下采用纯色配色。
+液态玻璃采用 Windows 11 原生模糊、轻薄卡片与柔光边缘，去掉浮窗内部的凸起描边。在「设置 → 外观」开启 **透明模式**，进一步透出桌面色彩，同时保留文字遮罩；此选项仅液态玻璃可用。系统背景不可用或桌面嵌入模式下采用纯色配色。
+
+<img src="docs/images/transparent-light.png" alt="2.2 浅色透明液态玻璃，主面板与任务栏浮窗透出彩色演示背景" width="760">
 
 <details>
 <summary>外观、开机启动与其他选项</summary>
@@ -88,6 +90,8 @@
 ## 数据与升级
 
 账号和设置保存在 `%LOCALAPPDATA%\CodexQuotaWidget`，用量通过本机 Codex app-server 查询。升级前退出旧版额度监控，再运行新版。
+
+可选的 [Windows Win+W 小组件包](docs/windows-widgets.md) 将主程序和小组件提供程序合并为一个开始菜单条目，开机启动统一由主程序控制。它使用未签名的开发者注册流程；普通任务栏小组件直接使用便携版即可。
 
 <details>
 <summary>构建与验证</summary>
@@ -113,7 +117,7 @@ dotnet run --project Quota.Presentation.Tests -c Release -- --guide-smoke --demo
 dotnet publish Quota.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o artifacts/win-x64
 ```
 
-源码包含 `Quota.WidgetProvider` Windows Widgets Board 提供程序及 `Publish-Widgets.ps1`，采用独立的 MSIX 注册流程。
+源码包含 `Quota.WidgetProvider` 和 `Publish-Widgets.ps1`，提供同一应用入口下的 Windows Widgets Board 扩展。[构建与注册说明](docs/windows-widgets.md)。
 
 </details>
 

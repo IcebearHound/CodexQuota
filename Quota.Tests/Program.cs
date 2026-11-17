@@ -503,11 +503,12 @@ await Test("palette and panel material migrate safely and persist independently"
 {
     var store = new AccountStore(Path.Combine(testRoot, "appearance-settings"));
     File.WriteAllText(Path.Combine(store.Root, "settings.json"), """{"Theme":"light","Palette":"old-theme","Material":"unknown"}""");
-    var settings = store.LoadSettings(); Check(settings.Theme == "light" && settings.Palette == "mint" && settings.Material == "solid");
+    var settings = store.LoadSettings(); Check(settings.Theme == "light" && settings.Palette == "monochrome" && settings.Material == "solid");
+    Check(new AccountStore(Path.Combine(testRoot, "new-default-palette")).LoadSettings().Palette == "monochrome");
     foreach (var palette in new[] { "mint", "ocean", "violet", "amber", "monochrome" })
     {
-        settings.Palette = palette; settings.Material = "glass"; store.SaveSettings(settings);
-        var saved = store.LoadSettings(); Check(saved.Palette == palette && saved.Material == "glass" && saved.Theme == "light");
+        settings.Palette = palette; settings.Material = "glass"; settings.TransparentGlass = true; store.SaveSettings(settings);
+        var saved = store.LoadSettings(); Check(saved.Palette == palette && saved.Material == "glass" && saved.Theme == "light" && saved.TransparentGlass);
     }
     return Task.CompletedTask;
 });

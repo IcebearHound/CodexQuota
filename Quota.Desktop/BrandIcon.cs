@@ -5,20 +5,22 @@ namespace Quota.Desktop;
 
 public sealed class BrandIcon : FrameworkElement
 {
-    private static readonly Brush Color = new SolidColorBrush(System.Windows.Media.Color.FromRgb(91, 185, 170));
+    public static readonly DependencyProperty ForegroundProperty = System.Windows.Controls.Control.ForegroundProperty.AddOwner(
+        typeof(BrandIcon), new FrameworkPropertyMetadata(Brushes.Black, FrameworkPropertyMetadataOptions.AffectsRender));
+    public Brush Foreground { get => (Brush)GetValue(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
     public BrandIcon()
     {
         Width = Height = 24; UseLayoutRounding = true; IsHitTestVisible = false;
         VerticalAlignment = VerticalAlignment.Center;
         RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
+        SetResourceReference(ForegroundProperty, "Accent");
     }
     protected override void OnRender(DrawingContext drawing)
     {
         drawing.PushTransform(new ScaleTransform(ActualWidth / 24, ActualHeight / 24));
-        var pen = new Pen(Color, 1.8) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-        drawing.DrawEllipse(null, pen, new Point(10.7, 10.7), 8.2, 8.2);
-        drawing.DrawLine(pen, new Point(16.7, 16.7), new Point(21.1, 21.1));
-        drawing.DrawLine(pen, new Point(10.7, 10.7), new Point(15.3, 6.1));
+        var pen = new Pen(Foreground, 3.1) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        drawing.DrawEllipse(null, pen, new Point(11.2, 11.2), 7.2, 7.2);
+        drawing.DrawLine(pen, new Point(14.1, 14.1), new Point(20, 20));
         drawing.Pop();
     }
 }

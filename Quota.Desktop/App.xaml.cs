@@ -44,6 +44,7 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        CodexAppIdentity.Apply();
         var demo = Array.IndexOf(e.Args, "--demo") >= 0;
         var instanceName = demo ? "Local\\CodexQuotaWidget.Demo.v2" : "Local\\CodexQuotaWidget.v2";
         var dataIndex = Array.IndexOf(e.Args, "--data-dir");
