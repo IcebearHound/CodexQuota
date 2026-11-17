@@ -104,6 +104,14 @@ internal static class AppUpdateSmoke
             var plan = Plan(root, "rollback"); var result = await UpdateInstaller.ApplyAsync(plan, () => Task.FromResult(false));
             Check(result.Status == "rolled-back"); AssertRestored(plan);
         });
+        await test("new payload names cannot overwrite pre-existing unowned user files", async () =>
+        {
+            var plan = Plan(root, "unowned-collision");
+            File.WriteAllText(Path.Combine(plan.InstallRoot, "LICENSE.txt"), "user-owned document");
+            await Throws<IOException>(() => UpdateInstaller.ApplyAsync(plan, () => Task.FromResult(true)));
+            Check(File.ReadAllText(Path.Combine(plan.InstallRoot, "LICENSE.txt")) == "user-owned document"
+                && File.ReadAllText(Path.Combine(plan.InstallRoot, "CodexQuota.exe")) == "old");
+        });
         await test("candidate launch exceptions use the same rollback path", async () =>
         {
             var plan = Plan(root, "launch-failed"); var result = await UpdateInstaller.ApplyAsync(plan, () => throw new IOException("launch failed"));

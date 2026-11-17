@@ -40,10 +40,13 @@ public static class UpdateInstaller
         if (!File.Exists(FileAt(plan.InstallRoot, "CodexQuota.exe"))) throw new IOException("The installed executable is missing.");
         var stage = Path.Combine(plan.JobRoot, "stage"); EnsurePhysical(stage);
         var manifest = UpdatePackage.ReadManifest(File.ReadAllText(Path.Combine(stage, "install-files.json")), version);
+        var installed = ReadInstalled(plan.InstallRoot);
         foreach (var file in manifest.Files)
         {
             if (!File.Exists(FileAt(stage, file))) throw new InvalidDataException("Incomplete staged update.");
-            _ = FileAt(plan.InstallRoot, file);
+            var target = FileAt(plan.InstallRoot, file);
+            if (File.Exists(target) && !installed.Files.Contains(file, StringComparer.OrdinalIgnoreCase))
+                throw new IOException("A new payload file conflicts with an unowned user file: " + file);
         }
         var probe = Path.Combine(plan.InstallRoot, ".codexquota-write-test-" + plan.Nonce);
         using (new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
@@ -69,10 +72,7 @@ public static class UpdateInstaller
             try { using (new FileStream(FileAt(plan.InstallRoot, "CodexQuota.exe"), FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { } break; }
             catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33 && retry < 49) { await Task.Delay(100); }
         }
-        var oldPath = FileAt(plan.InstallRoot, "install-files.json");
-        var old = Read<UpdatePayload>(oldPath);
-        if (!System.Version.TryParse(old.Version, out var oldVersion)) throw new InvalidDataException("Invalid installed version.");
-        old = UpdatePackage.ReadManifest(File.ReadAllText(oldPath), oldVersion);
+        var old = ReadInstalled(plan.InstallRoot);
         var entries = old.Files.Union(manifest.Files, StringComparer.OrdinalIgnoreCase)
             .Select(file => new UpdateBackup(file, File.Exists(FileAt(plan.InstallRoot, file)))).ToArray();
         var backup = Path.Combine(plan.JobRoot, "backup");
@@ -100,6 +100,13 @@ public static class UpdateInstaller
         }
         Write(Path.Combine(plan.JobRoot, "result.json"), result);
         return result;
+    }
+    private static UpdatePayload ReadInstalled(string root)
+    {
+        var json = File.ReadAllText(FileAt(root, "install-files.json"));
+        var old = JsonSerializer.Deserialize<UpdatePayload>(json) ?? throw new InvalidDataException("Missing installed manifest.");
+        if (!System.Version.TryParse(old.Version, out var version)) throw new InvalidDataException("Invalid installed version.");
+        return UpdatePackage.ReadManifest(json, version);
     }
     public static void Restore(UpdatePlan plan)
     {
