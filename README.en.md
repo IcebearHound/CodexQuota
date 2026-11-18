@@ -4,9 +4,9 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 2.3 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.3.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 3.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
-Screenshots use demo data and include UI updates from the current development branch. Use the link above for the stable release.
+Screenshots use demo data.
 
 | Compact widget (main window) | Taskbar widget and expanded panel |
 | --- | --- |
@@ -98,7 +98,7 @@ Enable **Start with Windows** in **Settings → General → Window behavior** to
 
 The first time you open Codex Quota each day, it checks for a stable release in the background. If one is available, the update panel shows what’s new and offers **Update and restart** or **Skip this version**. In **Settings → General → Version and updates**, you can turn off automatic checks or check manually. After verifying the GitHub-provided SHA-256 digest, the app restarts briefly, replaces files in its original folder and refreshes the existing startup path. Failed startup checks automatically restore the previous version.
 
-<img src="docs/images/updates-en.png" alt="2.3 version and update settings with automatic and manual checks" width="460">
+<img src="docs/images/updates-en.png" alt="Version and update settings with automatic and manual checks" width="460">
 
 Self-updating starts with the **complete 2.3 portable ZIP**. Users of 2.2 or old Win+W packages need to download this version once. See [update architecture and recovery](docs/updates.md#english).
 

@@ -4,9 +4,9 @@
 
 在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-**[下载 2.3 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.3.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
+**[下载 3.0 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.0.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
-以下界面截图使用演示数据，包含当前开发分支的界面更新；正式版请以上方链接为准。
+以下界面截图使用演示数据。
 
 | 精简小组件（主面板） | 任务栏小组件与展开面板 |
 | --- | --- |
@@ -98,7 +98,7 @@
 
 每天首次打开时在后台检查正式版。发现新版本时，弹窗会显示版本和更新摘要，可选择「更新并重启」或「跳过此版本」。在「设置 → 通用 → 版本与更新」可关闭自动检查或手动检查。更新包通过 GitHub 提供的 SHA-256 校验后，应用短暂重启、原目录替换并刷新已有开机启动路径；新版本启动失败时自动回滚。
 
-<img src="docs/images/updates.png" alt="2.3 的版本与更新设置，提供自动检查与手动检查入口" width="460">
+<img src="docs/images/updates.png" alt="版本与更新设置，提供自动检查与手动检查入口" width="460">
 
 自更新从 **2.3 完整便携版**开始支持。2.2 及旧 Win+W 包用户需要先下载本版，之后可在应用内更新。[更新机制与恢复说明](docs/updates.md)。
 

@@ -78,6 +78,16 @@ internal static class AppearanceSmoke
                 Check(menu.Background is SolidColorBrush { Color.A: 255 }, "popup menus retain a readable opaque surface over glass");
                 menu.IsOpen = false;
             }
+            if (GlassEnabled(dialog))
+            {
+                var frost = ((SolidColorBrush)dialog.FindResource("Background")).Color;
+                var blackBackdrop = new RgbColor((byte)Math.Round(frost.R * frost.A / 255d),
+                    (byte)Math.Round(frost.G * frost.A / 255d), (byte)Math.Round(frost.B * frost.A / 255d));
+                var ink = ((SolidColorBrush)dialog.FindResource("Muted")).Color;
+                Check(ContrastColors.Contrast(blackBackdrop, Rgb(ink)) >= 4.5,
+                    "light glass keeps secondary text legible even if its native backdrop renders black");
+                Console.WriteLine("PASS light glass secondary text against a black backdrop");
+            }
             settings.Material = "solid"; Method("ApplySettings").Invoke(main, null);
             var groups = (ObservableCollection<AccountGroupViewModel>)Field("visibleAccounts").GetValue(main)!;
             var strip = new TaskbarWidget(main, groups, null);

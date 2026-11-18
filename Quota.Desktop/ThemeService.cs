@@ -40,7 +40,9 @@ internal static class ThemeService
         if (key == applied) return;
         applied = key; IsLight = light; GlassRequested = glass;
         AccentColor = light ? preset.LightAccent : preset.DarkAccent;
-        SecondaryColor = light ? preset.LightMuted : preset.DarkMuted;
+        // Light glass uses a neutral frost for every palette. Its secondary ink
+        // must also work if native blur presents a black backdrop.
+        SecondaryColor = glass && light ? "#4D525B" : light ? preset.LightMuted : preset.DarkMuted;
         var accent = Parse(AccentColor);
         var background = Parse(light ? preset.LightBackground : preset.DarkBackground);
         var surface = light ? Colors.White : Parse(preset.DarkSurface);
