@@ -15,7 +15,7 @@ public partial class MainWindow
         var tokenHint = TokenRateViewModel.Explanation + (inGuide ? L.F(" 例如：12.5 token/s。", " Example: 12.5 tokens/s.") : "");
         var quotaHint = L.F("仅统计本机当前登录账号。按同一额度窗口连续两次成功刷新的差值计算，重置或采样不足时显示「—」。",
             "Only for the active local account. Calculated from two successful readings of the same quota window. A dash indicates a reset or too few samples.")
-            + (inGuide ? L.F(" 例如：下降 2 个百分点/小时。", " Example: down 2 percentage points per hour.") : "");
+            + (inGuide ? L.F(" 例如：2.00/h。", " Example: 2.00/h.") : "");
         SettingsControls.Toggle(section, L.F("本机输出速率（TPS）", "Local output rate (TPS)"), "activity", settings.ShowTokenRate,
             on => SetMonitoringOption(true, on, inGuide), tokenHint);
         SettingsControls.Toggle(section, L.F("额度消耗速率", "Quota consumption rate"), "minus", settings.ShowQuotaPace,
@@ -58,17 +58,17 @@ public sealed class HeaderMetricsViewModel
 public sealed class ActiveQuotaPaceViewModel : Observable
 {
     public bool Enabled { get; private set; }
-    public string CompactValue { get; private set; } = "↓ —";
+    public string CompactValue { get; private set; } = "—";
     public string Hint { get; private set; } = "";
 
     public void Update(bool enabled, AccountViewModel? active)
     {
         var window = active is { HasError: false, IsCached: false, Record.IsCurrent: true }
             ? active.FocusWindow : null;
-        var value = window?.CompactQuotaPaceText ?? "↓ —";
+        var value = window?.QuotaPaceText ?? "—";
         var title = L.F("当前活动账号 · 额度消耗速率", "Active account · quota consumption rate");
         var hint = window is null ? title + "\n" + L.F("等待当前账号的有效采样。", "Waiting for samples from the active account.")
-            : $"{title}\n{active!.Name} · {window.Label} · {window.QuotaPaceText}";
+            : $"{title}\n{active!.Name} · {window.Label} · {value}";
         if ((Enabled, CompactValue, Hint) == (enabled, value, hint)) return;
         (Enabled, CompactValue, Hint) = (enabled, value, hint);
         Raise("");

@@ -106,7 +106,7 @@ internal static class GuideSmoke
         var token = Toggle(guide, "Local output rate (TPS)");
         var pace = Toggle(guide, "Quota consumption rate");
         Check(token.IsChecked == true && pace.IsChecked == true, "both metrics are on by default");
-        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "↓ 1 pp/h");
+        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "1.00/h");
         token.IsChecked = false; await Settle(main);
         Check(!RateBadge(header, "HeaderTps").IsVisible && RateBadge(header, "HeaderPace").IsVisible, "the guide can hide TPS independently");
         token.IsChecked = true; await Settle(main);
@@ -129,7 +129,7 @@ internal static class GuideSmoke
         var settings = Application.Current.Windows.OfType<Window>().Single(window => window.Title == "Settings");
         Descendants<RadioButton>(settings).Single(choice => AutomationProperties.GetName(choice) == "Overview").IsChecked = true;
         await Settle(main);
-        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "↓ 1 pp/h");
+        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "1.00/h");
         var savedHeight = main.Height;
         main.Height = main.MinHeight;
         await Settle(main);
@@ -145,7 +145,7 @@ internal static class GuideSmoke
         main.Height = savedHeight;
         main.Width = main.MinWidth;
         await Settle(main);
-        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "↓ 1 pp/h");
+        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "1.00/h");
         Check(Bounds(header, main).Right <= Bounds((Button)main.FindName("PinButton"), main).Left,
             "rates do not collide with window actions at minimum width");
         main.Width = 560;
@@ -209,10 +209,10 @@ internal static class GuideSmoke
                 compactLayout.Invoke(main, [item.Layout]);
                 flyoutLayout.Invoke(flyout, [item.Bar]);
                 await Settle(main); await Settle(flyout);
-                CheckRates(compactHeader, main, (StatusLamp)main.FindName("SimplifiedRuntimeLamp"), "TPS 12.5", "↓ 1 pp/h");
-                CheckRates(flyoutHeader, flyout, (Button)flyout.FindName("FlyoutHeartbeat"), "TPS 12.5", "↓ 1 pp/h");
+                CheckRates(compactHeader, main, (StatusLamp)main.FindName("SimplifiedRuntimeLamp"), "TPS 12.5", "1.00/h");
+                CheckRates(flyoutHeader, flyout, (Button)flyout.FindName("FlyoutHeartbeat"), "TPS 12.5", "1.00/h");
                 foreach (var scroll in new[] { (ScrollViewer)main.FindName("SimplifiedPanel"), (ScrollViewer)flyout.FindName("AccountsScroll") })
-                    Check(!Descendants<TextBlock>(scroll).Any(block => block.IsVisible && (block.Text.StartsWith("Down ") || block.Text.StartsWith("↓"))),
+                    Check(!Descendants<TextBlock>(scroll).Any(block => block.IsVisible && (block.Text.StartsWith("Down ") || block.Text.EndsWith("/h", StringComparison.Ordinal))),
                         "account cards do not repeat rates");
                 if (output is not null)
                 {
@@ -264,11 +264,11 @@ internal static class GuideSmoke
                 preferences.DetailedTaskbar = detailed;
                 select.Invoke(widget, [groups[0]]);
                 widget.Align(); await Settle(widget);
-                Check(sidecar.IsVisible && tps.IsVisible && tps.Text == "TPS 12.5" && rate.IsVisible && rate.Text == "↓ 1 pp/h", $"docked {layout} shows both rates");
+                Check(sidecar.IsVisible && tps.IsVisible && tps.Text == "TPS 12.5" && rate.IsVisible && rate.Text == "1.00/h", $"docked {layout} shows both rates");
                 CheckInside(tps, widget, "docked TPS fits the taskbar window");
                 CheckInside(rate, widget, "docked quota pace fits the taskbar window");
                 select.Invoke(widget, [groups[1]]); await Settle(widget);
-                Check(tps.Text == "TPS 12.5" && rate.Text == "↓ 1 pp/h", "browsing another account does not change the active-account rate");
+                Check(tps.Text == "TPS 12.5" && rate.Text == "1.00/h", "browsing another account does not change the active-account rate");
                 if (output is not null) Capture(widget, output, "pinned-rate-" + layout + ".png");
             }
             token.IsChecked = false; await Settle(widget);

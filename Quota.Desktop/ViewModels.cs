@@ -35,9 +35,7 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : O
     public string Caption => ShowUsed ? L.T("已用") : L.T("剩余");
     public string Percent => $"{Value:0}%";
     private double? CurrentPace => window.ResetsAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() ? pace : null;
-    public string QuotaPaceText => L.F("下降 {0}", "Down {0}", CurrentPace is { } rate
-        ? L.F("{0:0.##} 个百分点/小时", "{0:0.##} pp/h", rate) : "—");
-    public string CompactQuotaPaceText => CurrentPace is { } rate ? L.F("↓ {0:0.##} 点/时", "↓ {0:0.##} pp/h", rate) : "↓ —";
+    public string QuotaPaceText => CurrentPace is { } rate ? rate.ToString("0.00", CultureInfo.InvariantCulture) + "/h" : "—";
     public string Color => Remaining <= AlertThreshold ? ThemeService.DangerColor : Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
     public string ResetText
     {
