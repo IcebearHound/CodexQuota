@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Quota.Core;
@@ -17,6 +18,12 @@ namespace Quota.Desktop;
 
 public partial class TaskbarWidget : Window
 {
+    private static readonly DropShadowEffect LightTaskbarLampShadow = new()
+    {
+        Color = Colors.Black, BlurRadius = 2, ShadowDepth = 0.8, Direction = 270, Opacity = 0.45
+    };
+    static TaskbarWidget() => LightTaskbarLampShadow.Freeze();
+
     private readonly MainWindow main;
     private readonly ObservableCollection<AccountGroupViewModel> accounts;
     private readonly TaskbarWindowHost host = new();
@@ -170,8 +177,8 @@ public partial class TaskbarWidget : Window
         var source = (Color)ColorConverter.ConvertFromString(sourceColor);
         var accent = ContrastColors.AccentOn(new(source.R, source.G, source.B), background);
         ProgressRing.Foreground = new SolidColorBrush(Color.FromRgb(accent.Red, accent.Green, accent.Blue));
-        RuntimeLamp.ContrastBackground = Color.FromRgb(background.Red, background.Green, background.Blue);
-        FullRuntimeLamp.ContrastBackground = RuntimeLamp.ContrastBackground;
+        var lampShadow = ContrastColors.TextOn(background) == new RgbColor(0, 0, 0) ? LightTaskbarLampShadow : null;
+        RuntimeLamp.Effect = FullRuntimeLamp.Effect = lampShadow;
         lastBackground = background; lastAccent = sourceColor;
     }
     private void BarEnter(object sender, MouseEventArgs args) { closeTimer.Stop(); if (!flyoutPinned && !RuntimeLamp.IsMouseOver && !FullRuntimeLamp.IsMouseOver) openTimer.Start(); }

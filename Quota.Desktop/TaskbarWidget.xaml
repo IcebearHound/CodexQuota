@@ -2,6 +2,9 @@
  <Window.Resources>
   <FontFamily x:Key="TaskbarFont">Segoe UI Variable Text, Segoe UI</FontFamily>
   <SolidColorBrush x:Key="TaskbarText" Color="White"/>
+  <Style TargetType="local:StatusLamp">
+   <Setter Property="WarningFill" Value="#FFDA00"/>
+  </Style>
   <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
    <Setter Property="FontFamily" Value="{DynamicResource TaskbarFont}"/>
    <Setter Property="FontWeight" Value="Normal"/>

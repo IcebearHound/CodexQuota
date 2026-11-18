@@ -8,7 +8,6 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Input;
 using System.Windows.Automation.Provider;
-using Quota.Core;
 
 namespace Quota.Desktop;
 
@@ -16,8 +15,8 @@ public sealed class StatusLamp : FrameworkElement
 {
     public static readonly DependencyProperty StatusProperty = DependencyProperty.Register(nameof(Status), typeof(CodexStatusViewModel), typeof(StatusLamp), new PropertyMetadata(null, StatusChanged));
     public CodexStatusViewModel? Status { get => (CodexStatusViewModel?)GetValue(StatusProperty); set => SetValue(StatusProperty, value); }
-    public static readonly DependencyProperty ContrastBackgroundProperty = DependencyProperty.Register(nameof(ContrastBackground), typeof(Color?), typeof(StatusLamp), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
-    public Color? ContrastBackground { get => (Color?)GetValue(ContrastBackgroundProperty); set => SetValue(ContrastBackgroundProperty, value); }
+    public static readonly DependencyProperty WarningFillProperty = DependencyProperty.Register(nameof(WarningFill), typeof(Brush), typeof(StatusLamp), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public Brush? WarningFill { get => (Brush?)GetValue(WarningFillProperty); set => SetValue(WarningFillProperty, value); }
     private CodexLampAnimation animationMode;
     private readonly TextBlock tooltipText = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 280 };
     public StatusLamp()
@@ -86,13 +85,10 @@ public sealed class StatusLamp : FrameworkElement
     protected override void OnRender(DrawingContext drawing)
     {
         base.OnRender(drawing);
-        var color = (Color)ColorConverter.ConvertFromString(Status?.Color ?? "#82938D");
-        if (ContrastBackground is { } background)
-        {
-            var adjusted = ContrastColors.AccentOn(new(color.R, color.G, color.B), new(background.R, background.G, background.B), 3);
-            color = Color.FromRgb(adjusted.Red, adjusted.Green, adjusted.Blue);
-        }
-        drawing.DrawEllipse(new SolidColorBrush(color), null, new Point(ActualWidth / 2, ActualHeight / 2), ActualWidth / 2, ActualHeight / 2);
+        var fill = Status?.Signal is CodexSignal.Low or CodexSignal.NeedsInput ? WarningFill : null;
+        fill ??= new SolidColorBrush((Color)ColorConverter.ConvertFromString(Status?.Color ?? "#82938D"));
+        var center = new Point(ActualWidth / 2, ActualHeight / 2);
+        drawing.DrawEllipse(fill, null, center, center.X, center.Y);
     }
     private void Activate()
     {

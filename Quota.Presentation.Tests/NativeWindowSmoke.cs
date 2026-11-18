@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Quota.Core;
@@ -373,7 +374,7 @@ internal static class NativeWindowSmoke
         Console.WriteLine("PASS batched taskbar properties produce a usable native layout");
     }
 
-    private static void CheckTaskbarPolling(MainWindow main)
+    internal static void CheckTaskbarPolling(MainWindow main)
     {
         var accounts = new System.Collections.ObjectModel.ObservableCollection<AccountGroupViewModel>();
         var widget = new TaskbarWidget(main, accounts, null);
@@ -407,6 +408,7 @@ internal static class NativeWindowSmoke
             }
             theme.Invoke(null, ["dark"]);
             Console.WriteLine("PASS compact and full taskbar text retains contrast across independent app themes");
+            CheckTaskbarLampColors(main, widget, color => { background.SetValue(host, color); update.Invoke(widget, null); });
             var lamp = (StatusLamp)widget.FindName("RuntimeLamp");
             lamp.Opacity = 0.3; var first = JsonSerializer.Serialize(widget.DockState);
             lamp.Opacity = 0.9;
@@ -418,6 +420,49 @@ internal static class NativeWindowSmoke
             Console.WriteLine("PASS failed taskbar docking clears stale layout readiness");
         }
         finally { widget.Close(); }
+    }
+
+    private static void CheckTaskbarLampColors(MainWindow main, TaskbarWidget widget, Action<RgbColor> setBackground)
+    {
+        var settings = (WidgetSettings)typeof(MainWindow).GetField("settings", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(main)!;
+        var originalLayout = settings.DetailedTaskbar;
+        var surface = (FrameworkElement)widget.Content;
+        var status = new CodexStatusViewModel();
+        var cases = new (CodexActivityKind Activity, bool Low, Color Fill)[]
+        {
+            (CodexActivityKind.Working, true, Color.FromRgb(255, 218, 0)),
+            (CodexActivityKind.NeedsInput, false, Color.FromRgb(255, 218, 0)),
+            (CodexActivityKind.Completed, false, Color.FromRgb(0, 196, 106)),
+            (CodexActivityKind.Error, false, Color.FromRgb(240, 68, 56)),
+            (CodexActivityKind.Offline, false, Color.FromRgb(130, 147, 141)),
+        };
+        try
+        {
+            foreach (var detailed in new[] { false, true })
+            {
+                settings.DetailedTaskbar = detailed;
+                var lamp = (StatusLamp)widget.FindName(detailed ? "FullRuntimeLamp" : "RuntimeLamp");
+                lamp.Status = status;
+                foreach (var (background, light) in new[] { (new RgbColor(25, 35, 45), false), (new RgbColor(255, 243, 210), true), (new RgbColor(32, 32, 32), false) })
+                {
+                    setBackground(background);
+                    Check(light ? lamp.Effect is DropShadowEffect { BlurRadius: > 0 and <= 3, ShadowDepth: > 0 and <= 1, Opacity: > 0 and < 0.5 }
+                        : lamp.Effect is null, $"{lamp.Name} only casts a small, soft shadow on a light taskbar");
+                    foreach (var (activity, low, fill) in cases)
+                    {
+                        status.Update(new(activity), low: low);
+                        var size = new Size(detailed ? 210 : 44, 40);
+                        surface.Measure(size); surface.Arrange(new Rect(size)); surface.UpdateLayout();
+                        var dot = VisualTreeHelper.GetDrawing(lamp)?.Children.OfType<GeometryDrawing>().Single();
+                        Check(dot?.Brush is SolidColorBrush brush && brush.Color == fill, $"{lamp.Name} keeps the {status.Signal} fill on {background.Hex}");
+                        Check(dot?.Pen is null, $"{lamp.Name} does not draw an outline");
+                    }
+                }
+                lamp.Status = main.CodexStatus;
+            }
+        }
+        finally { settings.DetailedTaskbar = originalLayout; }
+        Console.WriteLine("PASS compact and detailed taskbar lamps keep unoutlined fills, with a small shadow only on light backgrounds");
     }
 
     private static async Task CheckTaskbarProcessExclusion()
