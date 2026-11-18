@@ -6,7 +6,18 @@ using System.Text.RegularExpressions;
 
 namespace Quota.Core;
 
-public sealed record AppUpdate(Version Version, string AssetName, Uri DownloadUri, long Size, string Sha256, Uri ReleaseUri);
+public sealed record AppUpdate(Version Version, string AssetName, Uri DownloadUri, long Size, string Sha256, Uri ReleaseUri)
+{
+    public string? ReleaseNotes { get; init; }
+    public DateTimeOffset? PublishedAt { get; init; }
+}
+
+public static class AppUpdatePolicy
+{
+    public static bool IsDailyCheckDue(WidgetSettings settings, DateTimeOffset now, TimeZoneInfo localZone)
+        => settings.AutoCheckUpdates && (settings.LastUpdateCheckUtc is not { } last
+            || TimeZoneInfo.ConvertTime(last, localZone).Date != TimeZoneInfo.ConvertTime(now, localZone).Date);
+}
 
 // The fixed repository is the trust source. The GitHub-provided digest is required,
 // not an optional sidecar downloaded from an arbitrary URL in release notes.
@@ -47,7 +58,12 @@ public sealed class AppUpdateClient(HttpClient http)
             if (size <= 0 || size > MaximumDownload || !Regex.IsMatch(digest, "^sha256:[a-fA-F0-9]{64}$")
                 || asset.GetProperty("browser_download_url").GetString() != expected)
                 throw new InvalidDataException("The release asset has no valid size, integrity digest or trusted download URL.");
-            return new(version, name, new Uri(expected), size, digest[7..], new Uri($"https://github.com/{Repository}/releases/tag/{tag}"));
+            return new(version, name, new Uri(expected), size, digest[7..], new Uri($"https://github.com/{Repository}/releases/tag/{tag}"))
+            {
+                ReleaseNotes = release.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.String ? body.GetString() : null,
+                PublishedAt = release.TryGetProperty("published_at", out var date) && date.ValueKind == JsonValueKind.String
+                    && date.TryGetDateTimeOffset(out var published) ? published : null
+            };
         }
         throw new InvalidDataException("The stable release has no Windows x64 update package.");
     }

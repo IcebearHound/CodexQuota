@@ -14,9 +14,24 @@ internal static class AppUpdateSmoke
             var store = new AccountStore(Path.Combine(root, "update-preferences"));
             File.WriteAllText(Path.Combine(store.Root, "settings.json"), """{"Material":"glass","TransparentGlass":true,"AutoCheckUpdates":false}""");
             var settings = store.LoadSettings(); Check(!settings.AutoCheckUpdates && settings.Material == "glass");
-            settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow; settings.LastUpdateJob = "fixture"; store.SaveSettings(settings);
-            var saved = store.LoadSettings(); Check(saved.LastUpdateCheckUtc == settings.LastUpdateCheckUtc && saved.LastUpdateJob == "fixture");
+            settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow; settings.LastUpdateJob = "fixture"; settings.SkippedUpdateVersion = "3.0.0"; store.SaveSettings(settings);
+            var saved = store.LoadSettings();
+            Check(!saved.AutoCheckUpdates && saved.LastUpdateCheckUtc == settings.LastUpdateCheckUtc && saved.LastUpdateJob == "fixture" && saved.SkippedUpdateVersion == "3.0.0");
             Check(!File.ReadAllText(Path.Combine(store.Root, "settings.json")).Contains("TransparentGlass")); return Task.CompletedTask;
+        });
+        await test("automatic updates check once per local date rather than once every 24 hours", () =>
+        {
+            var zone = TimeZoneInfo.CreateCustomTimeZone("UTC+08", TimeSpan.FromHours(8), "UTC+08", "UTC+08");
+            var dayStartUtc = new DateTimeOffset(2026, 11, 17, 16, 0, 0, TimeSpan.Zero);
+            var settings = new WidgetSettings();
+            Check(AppUpdatePolicy.IsDailyCheckDue(settings, dayStartUtc, zone));
+            settings.LastUpdateCheckUtc = dayStartUtc.AddMinutes(-1);
+            Check(AppUpdatePolicy.IsDailyCheckDue(settings, dayStartUtc, zone));
+            settings.LastUpdateCheckUtc = dayStartUtc;
+            Check(!AppUpdatePolicy.IsDailyCheckDue(settings, dayStartUtc.AddHours(23), zone));
+            settings.AutoCheckUpdates = false;
+            Check(!AppUpdatePolicy.IsDailyCheckDue(settings, dayStartUtc.AddDays(1), zone));
+            return Task.CompletedTask;
         });
         await test("updates choose newer stable x64 releases and ignore old or prerelease tags", () =>
         {
@@ -24,6 +39,14 @@ internal static class AppUpdateSmoke
             Check(AppUpdateClient.Parse(Release(), new(3, 0, 0, 0)) is null);
             Check(AppUpdateClient.Parse(Release(pre: true), new(2, 3, 0)) is null);
             Check(AppUpdateClient.Parse(Release(tag: "v3.0.0-rc.1"), new(2, 3, 0)) is null);
+            return Task.CompletedTask;
+        });
+        await test("release notes and publication date are optional update metadata", () =>
+        {
+            var update = AppUpdateClient.Parse(Release(body: "## Fixes\n- Faster startup", publishedAt: "2026-11-18T06:00:00Z"), new(2, 3, 0))!;
+            Check(update.ReleaseNotes == "## Fixes\n- Faster startup" && update.PublishedAt == new DateTimeOffset(2026, 11, 18, 6, 0, 0, TimeSpan.Zero));
+            update = AppUpdateClient.Parse(Release(body: 123, publishedAt: "unknown"), new(2, 3, 0))!;
+            Check(update.ReleaseNotes is null && update.PublishedAt is null);
             return Task.CompletedTask;
         });
         await test("update metadata requires a repository-bound URL and GitHub SHA256 digest", async () =>
@@ -177,9 +200,10 @@ internal static class AppUpdateSmoke
         if (kind == "duplicate") { using var writer = new StreamWriter(archive.CreateEntry("CodexQuota-3.0.0-win-x64/codexquota.exe").Open()); writer.Write("duplicate"); }
     }
     private static AppUpdate Update(byte[] bytes) => new(new(3, 0, 0), "CodexQuota-3.0.0-win-x64.zip", new("https://github.com/IcebearHound/CodexQuota/releases/download/v3.0.0/CodexQuota-3.0.0-win-x64.zip"), bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)), new("https://github.com/IcebearHound/CodexQuota/releases/tag/v3.0.0"));
-    private static JsonElement Release(string tag = "v3.0.0", bool pre = false, string? url = null, string? digest = null, long size = 10) => JsonSerializer.SerializeToElement(new
+    private static JsonElement Release(string tag = "v3.0.0", bool pre = false, string? url = null, string? digest = null, long size = 10,
+        object? body = null, string? publishedAt = null) => JsonSerializer.SerializeToElement(new
     {
-        draft = false, prerelease = pre, tag_name = tag,
+        draft = false, prerelease = pre, tag_name = tag, body, published_at = publishedAt,
         assets = new[] { new { name = "CodexQuota-3.0.0-win-x64.zip", size, digest = digest ?? "sha256:" + new string('a', 64), browser_download_url = url ?? "https://github.com/IcebearHound/CodexQuota/releases/download/v3.0.0/CodexQuota-3.0.0-win-x64.zip" } }
     });
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

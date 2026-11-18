@@ -23,6 +23,9 @@ internal sealed class AppUpdateState : Observable
     public bool CanCheck => !Busy;
     public bool CanInstall => Phase == "available";
     public bool CanCancel => Phase == "downloading";
+    public string PromptMessage => CanInstall
+        ? L.F("下载并校验后，应用会短暂重启；账号和设置将保留。", "After download and verification, the app will restart. Accounts and settings are kept.")
+        : Message;
     public string Message => Phase switch
     {
         "checking" => L.F("正在检查 GitHub 正式版…", "Checking stable GitHub releases…"),
@@ -40,7 +43,7 @@ internal sealed class AppUpdateState : Observable
     internal void Set(string phase, string? version = null)
     {
         Phase = phase; if (version is not null) Version = version;
-        foreach (var name in new[] { nameof(Message), nameof(Busy), nameof(CanCheck), nameof(CanInstall), nameof(CanCancel) }) Raise(name);
+        foreach (var name in new[] { nameof(Message), nameof(PromptMessage), nameof(Busy), nameof(CanCheck), nameof(CanInstall), nameof(CanCancel) }) Raise(name);
     }
 }
 
@@ -48,6 +51,9 @@ public partial class MainWindow
 {
     private readonly AppUpdateState appUpdateState = new();
     private AppUpdate? availableUpdate;
+    private AppUpdate? pendingUpdatePrompt;
+    private Window? updatePrompt;
+    private CancellationTokenSource? automaticUpdateCheck;
     private CancellationTokenSource? updateDownload;
     private static Version CurrentVersion
     {
@@ -63,9 +69,7 @@ public partial class MainWindow
             // A healthy candidate renders before the external helper commits success.
             await Task.Delay(TimeSpan.FromSeconds(3), lifetime.Token);
             if (appUpdateState.Phase == "idle") ReadUpdateOutcome();
-            await Task.Delay(TimeSpan.FromSeconds(12), lifetime.Token);
-            if (settings.AutoCheckUpdates && (settings.LastUpdateCheckUtc is null || DateTimeOffset.UtcNow - settings.LastUpdateCheckUtc >= TimeSpan.FromDays(1)))
-                await CheckAppUpdateAsync();
+            await CheckAppUpdateAsync(automatic: true);
         }
         catch (OperationCanceledException) { }
     }
@@ -86,7 +90,7 @@ public partial class MainWindow
         var section = SettingsControls.Section(parent, L.F("版本与更新", "Version and updates"), "refresh-cw",
             L.F("当前版本 {0} · Windows x64", "Current version {0} · Windows x64", CurrentVersion));
         SettingsControls.Toggle(section, L.F("自动检查更新", "Check for updates automatically"), "refresh-cw", settings.AutoCheckUpdates,
-            value => { settings.AutoCheckUpdates = value; SaveSettings(); });
+            SetAutoCheckUpdates, L.F("每天首次打开时在后台检查。", "Checks in the background the first time you open Codex Quota each day."));
         appUpdateState.Set(appUpdateState.Phase);
         var status = DialogLayout.Text(appUpdateState.Message, 12, true);
         status.SetBinding(TextBlock.TextProperty, new Binding(nameof(AppUpdateState.Message)) { Source = appUpdateState }); section.Children.Add(status);
@@ -106,38 +110,106 @@ public partial class MainWindow
             () => Process.Start(new ProcessStartInfo(job) { UseShellExecute = true })));
         AutomationProperties.SetName(section, L.F("版本与更新", "Version and updates"));
     }
-    private static HttpClient CreateUpdateHttp() => new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(10) };
-    private async Task CheckAppUpdateAsync()
+    private void SetAutoCheckUpdates(bool enabled)
     {
-        if (appUpdateState.Busy) return;
-        if (demo) { appUpdateState.Set("current"); return; }
+        settings.AutoCheckUpdates = enabled;
+        if (!enabled)
+        {
+            automaticUpdateCheck?.Cancel();
+            pendingUpdatePrompt = null;
+            if (!appUpdateState.Busy) updatePrompt?.Close();
+        }
+        SaveSettings();
+    }
+    private static HttpClient CreateUpdateHttp() => new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(10) };
+    private Task CheckAppUpdateAsync(bool automatic = false)
+    {
+        if (!demo) return CheckForAppUpdateAsync(automatic, token => Task.Run(() => FetchAppUpdateAsync(token), token));
+        if (!automatic && !appUpdateState.Busy) appUpdateState.Set("current");
+        return Task.CompletedTask;
+    }
+    private static async Task<AppUpdate?> FetchAppUpdateAsync(CancellationToken cancellation)
+    {
+        using var http = CreateUpdateHttp();
+        return await new AppUpdateClient(http).CheckAsync(CurrentVersion, cancellation).ConfigureAwait(false);
+    }
+    private async Task CheckForAppUpdateAsync(bool automatic, Func<CancellationToken, Task<AppUpdate?>> fetch)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (exiting || appUpdateState.Busy || (automatic && !AppUpdatePolicy.IsDailyCheckDue(settings, now, TimeZoneInfo.Local))) return;
+        var previousPhase = appUpdateState.Phase;
+        updatePrompt?.Close();
+        pendingUpdatePrompt = null;
         appUpdateState.Set("checking");
-        settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow; SaveSettings();
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(25));
+        settings.LastUpdateCheckUtc = now;
+        if (automatic)
+        {
+            // An unattended check must not interrupt the dashboard for a settings write failure.
+            try { store.SaveSettings(settings); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
+        else SaveSettings();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(25));
+        if (automatic) automaticUpdateCheck = timeout;
+        AppUpdate? update;
         try
         {
-            using var http = CreateUpdateHttp();
-            availableUpdate = await new AppUpdateClient(http).CheckAsync(CurrentVersion, timeout.Token);
-            appUpdateState.Set(availableUpdate is null ? "current" : "available", availableUpdate?.Version.ToString());
+            update = await fetch(timeout.Token);
+            timeout.Token.ThrowIfCancellationRequested();
         }
         catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException or FormatException)
-        { if (!exiting) appUpdateState.Set("error"); }
+        {
+            if (!exiting) appUpdateState.Set(automatic ? previousPhase : "error");
+            return;
+        }
+        finally { if (automatic) automaticUpdateCheck = null; }
+        availableUpdate = update;
+        appUpdateState.Set(update is null ? "current" : "available", update?.Version.ToString());
+        if (automatic && settings.AutoCheckUpdates && update is not null && settings.SkippedUpdateVersion != update.Version.ToString())
+        {
+            pendingUpdatePrompt = update;
+            TryShowUpdatePrompt();
+        }
     }
-    private async Task InstallAppUpdateAsync()
+    private void TryShowUpdatePrompt()
     {
-        if (demo || availableUpdate is not { } update || appUpdateState.Busy) return;
+        if (exiting || !settings.AutoCheckUpdates || updatePrompt is not null || !appUpdateState.CanInstall
+            || pendingUpdatePrompt is not { } update) return;
+        var owner = settingsWindow is { IsActive: true } preferences ? preferences : this;
+        if (!owner.IsVisible || !owner.IsActive || !owner.IsEnabled || owner.WindowState == WindowState.Minimized) return;
+        pendingUpdatePrompt = null;
+        var prompt = new UpdatePromptWindow(owner, CurrentVersion, update, appUpdateState,
+            async () => await InstallAppUpdateAsync(confirmed: true),
+            () => { settings.SkippedUpdateVersion = update.Version.ToString(); SaveSettings(); },
+            () => updateDownload?.Cancel());
+        updatePrompt = prompt;
+        void OwnerVisibilityChanged(object sender, DependencyPropertyChangedEventArgs args)
+        {
+            if (owner.IsVisible || appUpdateState.Busy) return;
+            pendingUpdatePrompt = update;
+            prompt.Close();
+        }
+        owner.IsVisibleChanged += OwnerVisibilityChanged;
+        prompt.Closed += (_, _) => { owner.IsVisibleChanged -= OwnerVisibilityChanged; updatePrompt = null; };
+        prompt.Show();
+    }
+    private async Task InstallAppUpdateAsync(bool confirmed = false)
+    {
+        if (demo || exiting || availableUpdate is not { } update || appUpdateState.Busy) return;
+        var owner = confirmed ? updatePrompt ?? AccountDialogOwner : AccountDialogOwner;
         var executable = Environment.ProcessPath!;
         var root = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         if (!Path.GetFileName(executable).Equals("CodexQuota.exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(Path.Combine(root, "install-files.json")))
         {
-            DialogLayout.Alert(AccountDialogOwner, L.F("原地更新不可用", "In-place update unavailable"),
+            DialogLayout.Alert(owner, L.F("原地更新不可用", "In-place update unavailable"),
                 L.F("请使用 2.3 或之后版本的完整便携版目录。源码运行或旧版 Windows 小组件包不支持原地更新。", "Use the complete portable folder from version 2.3 or later. Source builds and old Windows Widgets packages do not support in-place updates.")); return;
         }
         if (loggingIn || switching || refreshing)
         {
-            DialogLayout.Alert(AccountDialogOwner, L.F("请稍后更新", "Update when ready"), L.F("请等待账号连接、切换或额度刷新完成后再更新。", "Wait for account connection, switching or quota refresh to finish before updating.")); return;
+            DialogLayout.Alert(owner, L.F("请稍后更新", "Update when ready"), L.F("请等待账号连接、切换或额度刷新完成后再更新。", "Wait for account connection, switching or quota refresh to finish before updating.")); return;
         }
-        if (!DialogLayout.Confirm(AccountDialogOwner, L.F("更新到 {0}", "Update to {0}", update.Version),
+        if (!confirmed && !DialogLayout.Confirm(owner, L.F("更新到 {0}", "Update to {0}", update.Version),
             L.F("后台下载并校验后，应用会短暂退出、原地替换并重新打开。账号与设置保留，启动失败自动恢复上一版。", "After downloading and verification, the app will briefly quit, replace its files and reopen. Accounts and settings are retained; startup failure rolls back to the previous version."),
             L.F("下载并重启", "Download and restart"), L.F("取消", "Cancel"))) return;
         var job = Path.Combine(UpdateJobs, Guid.NewGuid().ToString("N"));

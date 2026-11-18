@@ -96,7 +96,7 @@ Enable **Start with Windows** in **Settings → General → Window behavior** to
 
 ## In-place updates
 
-Open **Settings → General → Version and updates** to check stable releases. Automatic checks run at most once per day. Downloading and restarting require confirmation. After verifying the GitHub-provided SHA-256 digest, the app restarts briefly, replaces files in its original folder and refreshes the existing startup path. Failed startup checks automatically restore the previous version.
+The first time you open Codex Quota each day, it checks for a stable release in the background. If one is available, the update panel shows what’s new and offers **Update and restart** or **Skip this version**. In **Settings → General → Version and updates**, you can turn off automatic checks or check manually. After verifying the GitHub-provided SHA-256 digest, the app restarts briefly, replaces files in its original folder and refreshes the existing startup path. Failed startup checks automatically restore the previous version.
 
 <img src="docs/images/updates-en.png" alt="2.3 version and update settings with automatic and manual checks" width="460">
 

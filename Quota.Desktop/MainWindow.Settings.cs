@@ -52,6 +52,7 @@ public partial class MainWindow
         };
         dialog.Activated += (_, _) =>
         {
+            TryShowUpdatePrompt();
             if (settingsPage == "小组件") { QueueSettingsRender(); taskbarWidget?.RefreshPlacement(); }
             else if (settingsPage == "通用") QueueSettingsRender();
         };

@@ -144,5 +144,5 @@ public partial class TaskbarFlyout : Window
     private void ClosePanel(object sender, RoutedEventArgs args) => strip.CloseAccounts();
     private void OpenSessionIssues(object sender, RoutedEventArgs args) { strip.CloseAccounts(); main.ShowSessionIssues(); }
     private void OpenSettings(object sender, RoutedEventArgs args) { strip.CloseAccounts(); main.OpenTaskbarSettings(); }
-    private void OpenMain(object sender, RoutedEventArgs args) { strip.CloseAccounts(); main.Show(); main.WindowState = WindowState.Normal; main.Activate(); }
+    private void OpenMain(object sender, RoutedEventArgs args) { strip.CloseAccounts(); main.ShowFromTray(); }
 }

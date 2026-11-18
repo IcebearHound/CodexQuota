@@ -27,6 +27,9 @@ public static class DialogLayout
         window.Loaded += (_, _) => WindowPlacementGuard.EnsureVisible(window);
     }
     public static void Frame(Window window, StackPanel content, UIElement? navigation = null)
+        => Frame(window, content, navigation, null);
+
+    internal static void Frame(Window window, StackPanel content, UIElement? navigation, UIElement? footer)
     {
         window.WindowStyle = WindowStyle.None;
         window.MaxHeight = Math.Min(640, Math.Max(1, SystemParameters.WorkArea.Height - 32));
@@ -43,6 +46,7 @@ public static class DialogLayout
         header.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
         DockPanel.SetDock(header, Dock.Top); outer.Children.Add(header);
         if (navigation is not null) { DockPanel.SetDock(navigation, Dock.Top); outer.Children.Add(navigation); }
+        if (footer is not null) { DockPanel.SetDock(footer, Dock.Bottom); outer.Children.Add(footer); }
         outer.Children.Add(new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         var border = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Child = outer };
         border.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");

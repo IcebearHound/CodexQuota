@@ -118,6 +118,7 @@ public sealed class WidgetSettings
     public string Material { get; set; } = "solid";
     public bool AutoCheckUpdates { get; set; } = true;
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+    public string? SkippedUpdateVersion { get; set; }
     public string? LastUpdateJob { get; set; }
     public string Language { get; set; } = "zh-CN";
     public bool CcSwitchPromptShown { get; set; }

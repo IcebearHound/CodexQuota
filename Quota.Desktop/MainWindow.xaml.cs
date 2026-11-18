@@ -74,6 +74,7 @@ public partial class MainWindow : Window
         PreviewKeyDown += OnKeyDown;
         MouseMove += (_, args) => { if (settings.DesktopOnly && desktopHost.IsDragging && args.LeftButton == MouseButtonState.Pressed) { desktopHost.MoveDrag(this); SnapSimplifiedPanel(); } };
         MouseLeftButtonUp += (_, _) => { if (desktopHost.IsDragging) { desktopHost.EndDrag(this); SnapSimplifiedPanel(); SavePlacement(); } };
+        Activated += (_, _) => TryShowUpdatePrompt();
         Loaded += async (_, _) =>
         {
             WindowPlacementGuard.EnsureVisible(this); ApplySettings();
@@ -113,7 +114,7 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplaySettingsChanged;
         Microsoft.Win32.SystemEvents.UserPreferenceChanged -= SystemThemeChanged;
         trayMenu?.SetCurrentValue(System.Windows.Controls.ContextMenu.IsOpenProperty, false); trayMenuAnchor?.Close();
-        settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close(); attentionNotification?.Close();
+        updatePrompt?.Close(); settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close(); attentionNotification?.Close();
         foreach (var group in visibleAccounts) group.Dispose();
         foreach (var source in observedSources) source.PropertyChanged -= AccountSourceChanged;
         lifetime.Cancel(); activityTimer.Stop(); taskbarMonitor.Stop(); taskbarWidget?.Close(); tray.Visible = false;
@@ -255,7 +256,11 @@ public partial class MainWindow : Window
     private void TitleDrag(object sender, MouseButtonEventArgs e) => PanelDrag(sender, e);
     private void CloseWindow(object sender, RoutedEventArgs e) => Close();
     private void MinimizeWindow(object sender, RoutedEventArgs e) => Hide();
-    private void ShowFromTray() { Show(); WindowState = WindowState.Normal; WindowPlacementGuard.EnsureVisible(this); Activate(); }
+    internal void ShowFromTray()
+    {
+        Show(); WindowState = WindowState.Normal; WindowPlacementGuard.EnsureVisible(this); Activate();
+        _ = CheckAppUpdateAsync(automatic: true);
+    }
     private void DisplaySettingsChanged(object? sender, EventArgs args)
     {
         if (!exiting && !Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(() =>

@@ -22,11 +22,7 @@ public partial class App : System.Windows.Application
     {
         if (shuttingDown || Dispatcher.HasShutdownStarted) return;
         if (desktopRecovery is not null) { showAfterDesktopRecovery = true; return; }
-        if (MainWindow is { IsLoaded: true } window)
-        {
-            window.Show(); window.WindowState = WindowState.Normal;
-            WindowPlacementGuard.EnsureVisible(window); window.Activate();
-        }
+        if (MainWindow is MainWindow { IsLoaded: true } window) window.ShowFromTray();
     }
     internal void RecoverDesktopWindow(MainWindow previous, bool demo, bool show)
     {

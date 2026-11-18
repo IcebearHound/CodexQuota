@@ -43,6 +43,7 @@ internal static class GuideSmoke
             LayoutVersion = 4, TaskbarVersion = 1, GuideVersion = 0, Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
             DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = args.Contains("--visibility-smoke"),
             Material = args.Contains("--visibility-smoke") ? "glass" : "solid",
+            AutoCheckUpdates = !args.Contains("--update-prompt"),
             NotifyLowQuota = false, NotifyExhausted = false, NotifyReset = false, NotifyCardExpiry = false,
             CodexPath = demo ? null : Path.GetFullPath(args[fakeIndex + 1])
         });
@@ -66,6 +67,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--taskbar-colors")) NativeWindowSmoke.CheckTaskbarPolling((MainWindow)app.MainWindow);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);
+                    else if (args.Contains("--update-prompt")) await UpdatePromptSmoke.Run(guide, (MainWindow)app.MainWindow, store, args);
                     else if (args.Contains("--monitoring-smoke") && demo) await CheckMonitoring(guide, (MainWindow)app.MainWindow, store, args);
                     else if (args.Contains("--screenshots") && demo) await ProductScreenshotSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (demo) await CheckLayouts(guide, args);
