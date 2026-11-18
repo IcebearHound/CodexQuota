@@ -141,6 +141,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public bool NoSnapshot => Snapshot is null || Snapshot.Buckets.Count == 0;
     public bool Blocked => Snapshot?.OrdinaryUsageAllowed == false;
     public ObservableCollection<BucketViewModel> Buckets { get; } = [];
+    public WindowViewModel? FocusWindow => Buckets.SelectMany(bucket => bucket.Windows).MinBy(window => window.Remaining);
     public string Updated
     {
         get
@@ -154,7 +155,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public string UpdatedTooltip => Snapshot is null ? L.T("尚无成功读取记录") : L.F("最后成功读取 {0:yyyy-MM-dd HH:mm:ss zzz}", "Last successful update {0:yyyy-MM-dd HH:mm:ss zzz}", Snapshot.FetchedAt.ToLocalTime());
     public void SetSnapshot(UsageSnapshot snapshot, bool fromCache = false)
     {
-        quotaPace = fromCache || loadedFromCache || HasError ? null : QuotaPace.Measure(Snapshot, snapshot);
+        quotaPace = !Record.IsCurrent || fromCache || loadedFromCache || HasError ? null : QuotaPace.Measure(Snapshot, snapshot);
         Snapshot = snapshot;
         loadedFromCache = fromCache;
         error = null;

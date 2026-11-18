@@ -37,6 +37,7 @@ public partial class TaskbarWidget : Window
     private bool flyoutPinned;
     internal bool FlyoutPinned => flyoutPinned;
     public TokenRateViewModel TokenRate => main.TokenRate;
+    public ActiveQuotaPaceViewModel ActiveQuotaPace => main.HeaderMetrics.QuotaPace;
     private bool openPending;
     private bool pendingActivation;
     private bool closed;

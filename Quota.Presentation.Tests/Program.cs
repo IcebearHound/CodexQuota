@@ -3,6 +3,10 @@ using Quota.Desktop;
 
 if (args.FirstOrDefault() == "--update-lifecycle") { Environment.ExitCode = await UpdateLifecycleSmoke.Run(args); return; }
 if (args.FirstOrDefault() == "--close-update-fixture") { await UpdateLifecycleSmoke.CloseFixture(args[1]); return; }
+if (args is ["--setup-ui", _, ""])
+{
+    Environment.ExitCode = InstallerFlowSmoke.Run(); return;
+}
 
 if (args.FirstOrDefault() == "--external-parent") { ExternalHostSmoke.RunParent(); return; }
 if (args.FirstOrDefault() == "--taskbar-lifecycle") { Environment.ExitCode = TaskbarLifecycleSmoke.Run(args); return; }
@@ -96,9 +100,11 @@ var cases = new (string Name, Action Verify)[]
         Check(group.FocusWindow.Value == 27);
         group.ShowUsed = false; Check(group.FocusWindow.Value == 73);
     }),
-    ("quota decline ignores cached readings and resets the baseline after errors", () =>
+    ("active quota consumption never uses another account or an unverified sample", () =>
     {
-        var vm = Account();
+        var vm = new AccountViewModel(new() { Id = "current", Name = "Current" });
+        var managed = Account();
+        var pace = new ActiveQuotaPaceViewModel();
         var now = DateTimeOffset.UtcNow;
         UsageSnapshot Sample(int minutes, double used) => new()
         {
@@ -107,14 +113,16 @@ var cases = new (string Name, Action Verify)[]
         };
         vm.SetSnapshot(Sample(-60, 21), fromCache: true);
         vm.SetSnapshot(Sample(-45, 22));
-        using var group = new AccountGroupViewModel(AccountGroupViewModel.KeyFor(vm), [vm]) { ShowQuotaPace = true };
-        Check(group.QuotaPaceText == "下降 —");
+        pace.Update(true, vm); Check(pace.CompactValue == "↓ —");
         vm.SetSnapshot(Sample(-30, 23));
-        Check(group.QuotaPaceText == "下降 4 个百分点/小时" && group.MetricTooltip.Contains(group.QuotaPaceText));
-        group.ShowQuotaPace = false; Check(!group.MetricTooltip.Contains(group.QuotaPaceText));
-        vm.SetError("网络不可用"); Check(group.QuotaPaceText == "下降 —");
-        vm.SetSnapshot(Sample(-15, 24)); Check(group.QuotaPaceText == "下降 —");
-        vm.SetSnapshot(Sample(0, 24)); Check(group.QuotaPaceText == "下降 0 个百分点/小时");
+        pace.Update(true, vm); Check(pace.CompactValue == "↓ 4 点/时" && pace.Hint.Contains("Current"));
+        managed.SetSnapshot(Sample(-45, 70)); managed.SetSnapshot(Sample(-30, 75));
+        pace.Update(true, managed); Check(pace.CompactValue == "↓ —");
+        vm.SetError("网络不可用"); pace.Update(true, vm); Check(pace.CompactValue == "↓ —");
+        vm.SetSnapshot(Sample(-15, 24)); pace.Update(true, vm); Check(pace.CompactValue == "↓ —");
+        vm.SetSnapshot(Sample(0, 24)); pace.Update(true, vm); Check(pace.CompactValue == "↓ 0 点/时");
+        var switched = Sample(1, 80); switched.AccountId = "new workspace";
+        vm.SetSnapshot(switched); pace.Update(true, vm); Check(pace.CompactValue == "↓ —");
     }),
     ("current-account email obeys privacy preference", () =>
     {

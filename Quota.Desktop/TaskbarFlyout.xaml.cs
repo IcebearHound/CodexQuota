@@ -22,7 +22,7 @@ public partial class TaskbarFlyout : Window
     internal bool IsTransitioning => transitioning;
     internal bool IsHiding => hiding;
     public CodexStatusViewModel CodexStatus => main.CodexStatus;
-    public TokenRateViewModel TokenRate => main.TokenRate;
+    public HeaderMetricsViewModel HeaderMetrics => main.HeaderMetrics;
     internal Border Body => FlyoutBody;
 
     public TaskbarFlyout(TaskbarWidget strip, MainWindow main, ObservableCollection<AccountGroupViewModel> accounts)

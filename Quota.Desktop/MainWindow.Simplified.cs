@@ -84,10 +84,8 @@ public partial class MainWindow
 
     private void ResizeSimplifiedPanel()
     {
-        // The ring fits the third line in its existing row; bars add a 16-DIP row.
-        var rowHeight = settings.SimplifiedLayout == "bar" ? 46 + (settings.ShowQuotaPace ? 16 : 0) : 72;
-        var metricsHeight = settings.ShowTokenRate ? SimplifiedTokenRate.Height + SimplifiedTokenRate.Margin.Bottom : 0;
-        Height = Math.Min(Math.Max(84, 44 + metricsHeight + Math.Max(1, visibleAccounts.Count) * rowHeight), Math.Min(450, SystemParameters.WorkArea.Height - 24));
+        var rowHeight = settings.SimplifiedLayout == "bar" ? 46 : 72;
+        Height = Math.Min(Math.Max(84, 44 + Math.Max(1, visibleAccounts.Count) * rowHeight), Math.Min(450, SystemParameters.WorkArea.Height - 24));
     }
 
     private void SimplifiedMenuOpening(object sender, ContextMenuEventArgs args)

@@ -1,0 +1,89 @@
+<Window x:Class="Quota.Desktop.InstallerWindow" x:ClassModifier="internal" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Quota.Desktop"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Codex Quota" Width="724" Height="472" MinWidth="570" MinHeight="420" ResizeMode="NoResize"
+        WindowStyle="None" WindowStartupLocation="CenterScreen" Icon="Assets/app.ico" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        Foreground="{DynamicResource Text}" FontFamily="Segoe UI, Microsoft YaHei UI">
+ <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="0" UseAeroCaptionButtons="False"/></shell:WindowChrome.WindowChrome>
+ <Window.Resources>
+  <Style x:Key="InstallerStep" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+   <Setter Property="FontSize" Value="12"/><Setter Property="Margin" Value="0,0,0,16"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+  </Style>
+  <Style x:Key="InstallerCard" TargetType="Border">
+   <Setter Property="Padding" Value="16"/><Setter Property="CornerRadius" Value="10"/><Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Background" Value="{DynamicResource Surface}"/><Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+  </Style>
+ </Window.Resources>
+ <Border Background="{DynamicResource Background}" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
+  <Grid>
+   <Grid.RowDefinitions><RowDefinition Height="56"/><RowDefinition/><RowDefinition Height="64"/></Grid.RowDefinitions>
+   <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource BorderBrush}" Background="Transparent" MouseLeftButtonDown="DragHeader">
+    <DockPanel Margin="20,0,14,0">
+     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+      <Button x:Name="LanguageButton" Click="SwitchLanguage" Style="{StaticResource QuietButton}" Margin="0,0,6,0"/>
+      <Button x:Name="CloseButton" Click="CancelClick" Style="{StaticResource IconButton}" Width="32" Height="32"><local:AppIcon Kind="x"/></Button>
+     </StackPanel>
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <local:BrandIcon Width="27" Height="27" Margin="0,0,9,0"/>
+      <TextBlock Text="Codex Quota" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+     </StackPanel>
+    </DockPanel>
+   </Border>
+   <Grid Grid.Row="1">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="166"/><ColumnDefinition/></Grid.ColumnDefinitions>
+    <Border Background="{DynamicResource SidebarFill}" BorderThickness="0,0,1,0" BorderBrush="{DynamicResource BorderBrush}" Padding="20,24,14,18">
+     <DockPanel>
+      <TextBlock x:Name="BuildLabel" DockPanel.Dock="Bottom" FontSize="11" Foreground="{DynamicResource Muted}"/>
+      <StackPanel>
+       <TextBlock x:Name="SidebarLabel" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,0,0,18"/>
+       <TextBlock x:Name="LocationStep" Style="{StaticResource InstallerStep}"/>
+       <TextBlock x:Name="CopyStep" Style="{StaticResource InstallerStep}"/>
+       <TextBlock x:Name="ReadyStep" Style="{StaticResource InstallerStep}"/>
+      </StackPanel>
+     </DockPanel>
+    </Border>
+    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="25,23,25,12">
+     <StackPanel>
+      <TextBlock x:Name="Heading" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap"/>
+      <TextBlock x:Name="Description" FontSize="13" LineHeight="19" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,6,0,18"/>
+      <Border x:Name="PathCard" Style="{StaticResource InstallerCard}">
+       <StackPanel>
+        <TextBlock x:Name="ParentLabel" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+        <DockPanel>
+         <Button x:Name="BrowseButton" DockPanel.Dock="Right" Click="Browse" Margin="8,0,0,0" MinWidth="72"/>
+         <TextBox x:Name="ParentBox" TextChanged="ParentChanged" Padding="9,6" FontSize="13" VerticalContentAlignment="Center"/>
+        </DockPanel>
+        <TextBlock x:Name="DestinationLabel" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,15,0,3"/>
+        <TextBlock x:Name="DestinationText" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+       </StackPanel>
+      </Border>
+      <Border x:Name="ProgressCard" Style="{StaticResource InstallerCard}" Visibility="Collapsed">
+       <StackPanel>
+        <TextBlock x:Name="InstallingPath" TextWrapping="Wrap" FontSize="13" FontWeight="SemiBold"/>
+        <ProgressBar x:Name="InstallProgress" Height="5" Margin="0,13,0,0"/>
+       </StackPanel>
+      </Border>
+      <Border x:Name="ReadyCard" Style="{StaticResource InstallerCard}" Visibility="Collapsed">
+       <StackPanel>
+        <TextBlock x:Name="InstalledLocation" FontSize="13" Margin="0,0,0,10" TextWrapping="Wrap"/>
+        <CheckBox x:Name="OpenGuide" IsChecked="True" Margin="0,5,0,0"/>
+       </StackPanel>
+      </Border>
+      <TextBlock x:Name="Feedback" FontSize="12" LineHeight="17" Margin="1,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Error}" Visibility="Collapsed"/>
+      <Button x:Name="LogButton" Style="{StaticResource QuietButton}" Click="OpenLog" HorizontalAlignment="Left" Margin="-6,2,0,0" Visibility="Collapsed"/>
+     </StackPanel>
+    </ScrollViewer>
+   </Grid>
+   <Border Grid.Row="2" Background="{DynamicResource Surface}" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrush}">
+    <DockPanel Margin="20,0,19,0">
+     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+      <Button x:Name="CancelButton" Click="CancelClick" Style="{StaticResource QuietButton}" Margin="0,0,8,0" MinWidth="68"/>
+      <Button x:Name="ContinueButton" Click="ContinueClick" IsDefault="True" MinWidth="112" FontWeight="SemiBold"
+              Background="{DynamicResource SelectedFill}" BorderBrush="{DynamicResource Accent}"/>
+     </StackPanel>
+     <TextBlock x:Name="FooterNote" FontSize="11" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"/>
+    </DockPanel>
+   </Border>
+  </Grid>
+ </Border>
+</Window>

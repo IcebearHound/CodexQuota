@@ -20,7 +20,7 @@ public partial class MainWindow
         }
     }
 
-    private void BuildStartupSetting(Panel parent)
+    internal void BuildStartupSetting(Panel parent)
     {
         var registration = StartupRegistration.ForCurrentProcess();
         var toggle = new CheckBox { Content = SettingsControls.Label("开机启动", "power"), Margin = new Thickness(0, 6, 0, 6) };

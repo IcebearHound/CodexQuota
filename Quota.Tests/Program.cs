@@ -74,6 +74,28 @@ CodexClient Client(string mode = "normal", string? profile = null) => new(Enviro
 var testRoot = Path.Combine(Path.GetTempPath(), "CodexQuotaTests-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(testRoot);
 
+await Test("setup appends CodexQuota once and accepts localized parent paths", () =>
+{
+    if (!OperatingSystem.IsWindows()) return Task.CompletedTask;
+    Check(InstallLocation.Resolve(InstallLocation.DefaultParent) == @"D:\Program Files\CodexQuota");
+    Check(InstallLocation.Resolve(@" D:/工具 目录/ ") == @"D:\工具 目录\CodexQuota");
+    Check(InstallLocation.Resolve(@"D:\工具 目录\codexquota\") == @"D:\工具 目录\codexquota");
+    Check(InstallLocation.Resolve(@"D:\") == @"D:\CodexQuota");
+    Check(InstallLocation.Resolve("relative") is null && InstallLocation.Resolve(@"D:relative") is null);
+    Check(InstallLocation.Resolve(@"D:\invalid|name") is null && InstallLocation.Resolve("") is null);
+    return Task.CompletedTask;
+});
+await Test("missing monitoring preferences default on and explicit opt-outs survive", () =>
+{
+    var directory = Path.Combine(testRoot, "monitoring-defaults");
+    var store = new AccountStore(directory);
+    Check(store.LoadSettings() is { ShowTokenRate: true, ShowQuotaPace: true });
+    File.WriteAllText(Path.Combine(directory, "settings.json"), "{\"ShowTokenRate\":false}");
+    Check(store.LoadSettings() is { ShowTokenRate: false, ShowQuotaPace: true });
+    store.SaveSettings(new() { ShowQuotaPace = false });
+    Check(store.LoadSettings() is { ShowTokenRate: true, ShowQuotaPace: false });
+    return Task.CompletedTask;
+});
 await Test("quota decline rate isolates account and reset windows", () =>
 {
     MonitoringSmoke.CheckQuotaPace();

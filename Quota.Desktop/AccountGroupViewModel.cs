@@ -14,20 +14,6 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     private AccountViewModel primary;
     private bool disposed;
     private bool showUsed;
-    private bool showQuotaPace;
-    public bool ShowQuotaPace
-    {
-        get => showQuotaPace;
-        set
-        {
-            if (showQuotaPace == value) return;
-            showQuotaPace = value;
-            Raise();
-            Raise(nameof(MetricTooltip));
-        }
-    }
-    public string QuotaPaceText => FocusWindow?.QuotaPaceText ?? L.F("下降 —", "Down —");
-    public string CompactQuotaPaceText => FocusWindow?.CompactQuotaPaceText ?? "↓ —";
     public bool ShowUsed
     {
         get => showUsed;
@@ -37,7 +23,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public string FocusCaption => FocusWindow is { } window ? window.Caption + " · " + window.Label : "";
     public string ResetCardSummary => selected.Length > 1 ? string.Join(Environment.NewLine, selected.Select((source, index) => L.F("工作区 {0} · {1}", "Workspace {0} · {1}", index + 1, source.ResetCardSummary))) : primary.ResetCardSummary;
     public bool HasMetric => FocusWindow is not null;
-    public string MetricTooltip => Identity + Environment.NewLine + SourceSummary + Environment.NewLine + ResetCardSummary + Environment.NewLine + string.Join(Environment.NewLine, Buckets.SelectMany(bucket => bucket.Windows.Select(window => $"{bucket.Name} · {window.Label} · {window.Caption} {window.Percent} · {window.ResetText}" + (ShowQuotaPace ? $" · {window.QuotaPaceText}" : "")))) + (Error is { } error ? Environment.NewLine + error : "");
+    public string MetricTooltip => Identity + Environment.NewLine + SourceSummary + Environment.NewLine + ResetCardSummary + Environment.NewLine + string.Join(Environment.NewLine, Buckets.SelectMany(bucket => bucket.Windows.Select(window => $"{bucket.Name} · {window.Label} · {window.Caption} {window.Percent} · {window.ResetText}"))) + (Error is { } error ? Environment.NewLine + error : "");
 
     public string Key { get; }
     public IReadOnlyList<AccountViewModel> Sources => sources;
@@ -120,7 +106,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
         if (args.PropertyName == nameof(AccountViewModel.Updated))
         {
             foreach (var bucket in Buckets) bucket.UpdateClock();
-            Raise(nameof(Updated)); Raise(nameof(Status)); Raise(nameof(UpdatedTooltip)); Raise(nameof(MetricTooltip)); Raise(nameof(QuotaPaceText)); Raise(nameof(CompactQuotaPaceText));
+            Raise(nameof(Updated)); Raise(nameof(Status)); Raise(nameof(UpdatedTooltip)); Raise(nameof(MetricTooltip));
             return;
         }
         if (args.PropertyName is nameof(AccountViewModel.Identity) or nameof(AccountViewModel.Status) or nameof(AccountViewModel.Name) or nameof(AccountViewModel.ShowDetails)) Refresh();
@@ -147,7 +133,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
             nameof(Name), nameof(Initial), nameof(ShowDetails), nameof(ShowCompact), nameof(Identity),
             nameof(SourceSummary), nameof(SourceTooltip), nameof(Plan), nameof(IsRefreshing), nameof(HasError),
             nameof(Error), nameof(NoSnapshot), nameof(Blocked), nameof(BlockMessage), nameof(HasLowQuota), nameof(IsCurrent), nameof(CanSwitch),
-            nameof(Updated), nameof(UpdatedTooltip), nameof(StatusColor), nameof(Status), nameof(FocusWindow), nameof(FocusCaption), nameof(HasMetric), nameof(MetricTooltip), nameof(ActionHint), nameof(ResetCardSummary), nameof(QuotaPaceText), nameof(CompactQuotaPaceText)
+            nameof(Updated), nameof(UpdatedTooltip), nameof(StatusColor), nameof(Status), nameof(FocusWindow), nameof(FocusCaption), nameof(HasMetric), nameof(MetricTooltip), nameof(ActionHint), nameof(ResetCardSummary)
         }) Raise(property);
     }
 

@@ -26,7 +26,9 @@ public sealed class GuideWindow : Window
     private readonly StackPanel body = new();
     private readonly ScrollViewer scroll;
     private readonly CancellationTokenSource lifetime = new();
-    private readonly string[] chapterIcons = ["info", "log-in", "sun", "monitor"];
+    private const int PlacementChapter = 3;
+    private const int LastChapter = 4;
+    private readonly string[] chapterIcons = ["info", "log-in", "sun", "monitor", "power"];
     private int page;
     private bool busy, closed;
     private AccountConnectionResult? connectionResult;
@@ -92,7 +94,7 @@ public sealed class GuideWindow : Window
     public void ShowPage(int index)
     {
         if (busy || closed) return;
-        page = Math.Clamp(index, 0, 3);
+        page = Math.Clamp(index, 0, LastChapter);
         Render();
         scroll.ScrollToTop();
         if (SystemParameters.ClientAreaAnimation)
@@ -101,19 +103,19 @@ public sealed class GuideWindow : Window
             var slide = new TranslateTransform(); body.RenderTransform = slide;
             slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(240)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
-        if (page == 3)
+        if (page == PlacementChapter)
         {
             main.BeginGuidePlacement();
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
             {
-                if (closed || page != 3) return;
+                if (closed || page != PlacementChapter) return;
 
                 Render();
             });
         }
     }
 
-    private string[] Chapters => [L.F("额度监测", "Quota monitoring"), L.F("连接账号", "Connect accounts"), L.F("状态灯", "Status lights"), L.F("放置小组件", "Widget placement")];
+    private string[] Chapters => [L.F("额度监测", "Quota monitoring"), L.F("连接账号", "Connect accounts"), L.F("状态灯", "Status lights"), L.F("放置小组件", "Widget placement"), L.F("开机自启", "Start with Windows")];
 
     private void Render()
     {
@@ -132,20 +134,24 @@ public sealed class GuideWindow : Window
         Grid.SetColumn(tools, 1); header.Children.Add(tools);
         header.MouseLeftButtonDown += (_, args) => { if (args.OriginalSource is TextBlock || args.OriginalSource == header) DragMove(); };
         frame.Children.Add(header);
-        var navigationColumns = Narrow && !(Short && (IsLoaded ? ActualWidth : Width) >= 540) ? 2 : 4;
+        var navWidth = IsLoaded ? ActualWidth : Width;
+        var compactNavigation = navWidth < 460;
+        var navigationColumns = Narrow ? 3 : Chapters.Length;
         var nav = new UniformGrid { Columns = navigationColumns, Margin = new Thickness(28, 0, 21, Short ? 12 : 24) };
         for (var i = 0; i < Chapters.Length; i++)
         {
             var destination = i;
             var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(Glyph(chapterIcons[i]));
+            if (!compactNavigation) content.Children.Add(Glyph(chapterIcons[i]));
             content.Children.Add(new TextBlock
             {
-                Text = Chapters[i], FontSize = 11, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                TextWrapping = TextWrapping.Wrap, MaxWidth = Math.Max(50, ((IsLoaded ? ActualWidth : Width) - 56) / nav.Columns - 60)
+                Text = Chapters[i], FontSize = 11, Margin = new Thickness(compactNavigation ? 0 : 7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                TextAlignment = compactNavigation ? TextAlignment.Center : TextAlignment.Left,
+                TextWrapping = TextWrapping.Wrap, MaxWidth = Math.Max(44, (navWidth - 56) / nav.Columns - (compactNavigation ? 20 : 60))
             });
             var choice = new RadioButton { Content = content, IsChecked = page == i, GroupName = "guide-chapters", Style = (Style)FindResource("IntervalChoice"), IsEnabled = !busy };
-            if (navigationColumns == 2) choice.Margin = new Thickness(0, 0, 7, 6);
+            if (Narrow) choice.Margin = new Thickness(0, 0, 7, 6);
+            if (compactNavigation) choice.Padding = new Thickness(5, 6, 5, 6);
             AutomationProperties.SetName(choice, Chapters[i]);
             choice.Checked += (_, _) => ShowPage(destination); nav.Children.Add(choice);
         }
@@ -156,13 +162,14 @@ public sealed class GuideWindow : Window
             case 1: ConnectionPage(); break;
             case 2: StatusPage(); break;
             case 3: PlacementPage(); break;
+            case LastChapter: StartupPage(); break;
         }
         var footer = new Grid { Margin = Short ? new Thickness(28, 10, 28, 12) : new Thickness(28, 18, 28, 22) };
         footer.ColumnDefinitions.Add(new()); footer.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         var skip = Button(L.F("稍后设置", "Set up later"), Dismiss, true); footer.Children.Add(skip); skip.HorizontalAlignment = HorizontalAlignment.Left;
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         if (page > 0) { var previous = Button(L.F("上一步", "Back"), () => ShowPage(page - 1), true); previous.IsEnabled = !busy; actions.Children.Add(previous); }
-        var next = Button(page == 3 ? L.F("完成", "Finish") : L.F("下一步", "Next"), () => { if (page == 3) Dismiss(); else ShowPage(page + 1); });
+        var next = Button(page == LastChapter ? L.F("完成", "Finish") : L.F("下一步", "Next"), () => { if (page == LastChapter) Dismiss(); else ShowPage(page + 1); });
         next.SetResourceReference(Control.BackgroundProperty, "SelectedFill"); next.SetResourceReference(Control.BorderBrushProperty, "Accent"); next.MinWidth = 94; next.IsEnabled = !busy;
         actions.Children.Add(next); Grid.SetColumn(actions, 1); footer.Children.Add(actions); Grid.SetRow(footer, 3); frame.Children.Add(footer);
         if ((IsLoaded ? ActualWidth : Width) < 320)
@@ -237,6 +244,16 @@ public sealed class GuideWindow : Window
         Heading(L.F("让信息出现在顺手的位置", "Keep your widgets within reach"), L.F("双击主面板的空白处切换精简或完整界面。主面板和任务栏小组件可各自选择圆环或状态条。", "Double-click an empty area of the main window to toggle compact mode. Choose ring or status-bar layouts independently for the main window and taskbar widget."));
         body.Children.Add(new WidgetPlacementPanel(main));
         body.Children.Add(Text(L.F("任务栏小组件自动避开天气、应用按钮与系统托盘。", "The taskbar widget avoids weather, app buttons and the system tray."), 11, true));
+    }
+
+    private void StartupPage()
+    {
+        Heading(L.F("登录 Windows，额度监控就绪", "Have quota monitoring ready when you sign in"),
+            L.F("经常使用 Codex？推荐开启开机启动。Codex Quota 会在登录后进入托盘，不弹出主面板。",
+                "Use Codex often? We recommend starting Codex Quota with Windows. It opens in the tray without showing the main window."));
+        var section = SettingsControls.Section(body, L.F("随 Windows 启动", "Launch at sign-in"), "power");
+        main.BuildStartupSetting(section);
+        body.Children.Add(Text(L.F("之后可在「设置 → 通用 → 窗口行为」随时更改。", "Change this any time in Settings → General → Window behavior."), 11, true));
     }
 
     private void Heading(string title, string description)

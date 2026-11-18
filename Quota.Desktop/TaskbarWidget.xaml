@@ -42,8 +42,9 @@
                 Text="{Binding TokenRate.CompactValue,RelativeSource={RelativeSource AncestorType=local:TaskbarWidget}}"
                 ToolTip="{Binding TokenRate.Hint,RelativeSource={RelativeSource AncestorType=local:TaskbarWidget}}"/>
      <TextBlock x:Name="StripPace" FontSize="11" Foreground="{DynamicResource TaskbarText}" TextTrimming="CharacterEllipsis"
-                Visibility="{Binding ShowQuotaPace,Converter={StaticResource Visible}}"
-                Text="{Binding CompactQuotaPaceText}" ToolTip="{Binding MetricTooltip}"/>
+                Visibility="{Binding ActiveQuotaPace.Enabled,RelativeSource={RelativeSource AncestorType=local:TaskbarWidget},Converter={StaticResource Visible}}"
+                Text="{Binding ActiveQuotaPace.CompactValue,RelativeSource={RelativeSource AncestorType=local:TaskbarWidget}}"
+                ToolTip="{Binding ActiveQuotaPace.Hint,RelativeSource={RelativeSource AncestorType=local:TaskbarWidget}}"/>
     </StackPanel>
    </Border>
   </Grid>

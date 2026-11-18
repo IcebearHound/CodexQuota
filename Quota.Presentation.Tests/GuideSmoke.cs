@@ -40,10 +40,11 @@ internal static class GuideSmoke
         File.WriteAllText(fixtureMarker, "Quota.Presentation.Tests guide fixture");
         store.SaveSettings(new()
         {
-            LayoutVersion = 4, TaskbarVersion = 1, GuideVersion = 0, Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
+            LayoutVersion = 4, TaskbarVersion = 1, GuideVersion = args.Contains("--installed-guide") ? 1 : 0,
+            Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
             DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = args.Contains("--visibility-smoke"),
             Material = args.Contains("--visibility-smoke") ? "glass" : "solid",
-            AutoCheckUpdates = !args.Contains("--update-prompt"),
+            AutoCheckUpdates = !args.Contains("--update-prompt") && !args.Contains("--installed-guide"),
             NotifyLowQuota = false, NotifyExhausted = false, NotifyReset = false, NotifyCardExpiry = false,
             CodexPath = demo ? null : Path.GetFullPath(args[fakeIndex + 1])
         });
@@ -68,6 +69,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (args.Contains("--update-prompt")) await UpdatePromptSmoke.Run(guide, (MainWindow)app.MainWindow, store, args);
+                    else if (args.Contains("--installed-guide")) await CheckInstalledGuide(guide, store);
                     else if (args.Contains("--monitoring-smoke") && demo) await CheckMonitoring(guide, (MainWindow)app.MainWindow, store, args);
                     else if (args.Contains("--screenshots") && demo) await ProductScreenshotSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (demo) await CheckLayouts(guide, args);
@@ -84,61 +86,106 @@ internal static class GuideSmoke
         return result;
     }
 
+    private static async Task CheckInstalledGuide(GuideWindow guide, AccountStore store)
+    {
+        Check(guide.IsVisible && store.LoadSettings().GuideVersion == 1, "--guide opens even when onboarding was already completed");
+        var chapter = Descendants<RadioButton>(guide).Single(button => AutomationProperties.GetName(button) == "Start with Windows");
+        chapter.IsChecked = true; await Settle(guide);
+        Check(Descendants<CheckBox>(guide).Any(box => AutomationProperties.GetName(box) == "Start with Windows"), "the installer guide exposes the Windows startup setting");
+        Descendants<Button>(guide).Single(button => Equals(button.Content, "Finish")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(!guide.IsVisible && store.LoadSettings().GuideVersion == 1, "the last chapter finishes onboarding");
+        Console.WriteLine("PASS installer launch opens the guide after previous onboarding, with a startup recommendation");
+    }
+
     private static async Task CheckMonitoring(GuideWindow guide, MainWindow main, AccountStore store, string[] args)
     {
         CheckBox Toggle(Window window, string name) => Descendants<CheckBox>(window).Single(box => AutomationProperties.GetName(box) == name);
-        var tps = (FrameworkElement)main.FindName("TokenRatePanel");
-        bool VisiblePace(string text) => Descendants<TextBlock>(main).Any(block => block.IsVisible && block.Text == text);
+        var header = (ContentControl)main.FindName("FullHeaderRates");
         guide.Width = 480;
-        guide.ShowPage(0); await Settle(guide);
+        guide.ShowPage(0); await Settle(guide); await Settle(main);
         var token = Toggle(guide, "Local output rate (TPS)");
-        var pace = Toggle(guide, "Quota decline rate");
-        Check(token.IsChecked == false && pace.IsChecked == false && tps.Visibility == Visibility.Collapsed && !VisiblePace("Down 1 pp/h"), "both metrics are absent by default");
+        var pace = Toggle(guide, "Quota consumption rate");
+        Check(token.IsChecked == true && pace.IsChecked == true, "both metrics are on by default");
+        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "↓ 1 pp/h");
+        token.IsChecked = false; await Settle(main);
+        Check(!RateBadge(header, "HeaderTps").IsVisible && RateBadge(header, "HeaderPace").IsVisible, "the guide can hide TPS independently");
         token.IsChecked = true; await Settle(main);
-        Check(tps.IsVisible && TokenRateText(tps) == "12.5 tokens/s" && !VisiblePace("Down 1 pp/h"), "the guide enables TPS independently");
-        pace.IsChecked = true; await Settle(main);
-        Check(VisiblePace("Down 1 pp/h") && VisiblePace("Down 2.5 pp/h") && VisiblePace("Down —"), "account cards show measured and unavailable rates");
-        var saved = store.LoadSettings();
-        Check(saved.ShowTokenRate && saved.ShowQuotaPace, "guide choices are persisted immediately");
         var previewIndex = Array.IndexOf(args, "--preview-dir");
-        if (previewIndex >= 0 && previewIndex + 1 < args.Length)
+        var output = previewIndex >= 0 && previewIndex + 1 < args.Length ? args[previewIndex + 1] : null;
+        if (output is not null)
         {
-            await Settle(guide); await Task.Delay(280);
-            Capture(guide, args[previewIndex + 1], "guide-monitoring-en.png");
-            Capture(main, args[previewIndex + 1], "dashboard-monitoring-en.png");
+            await Task.Delay(280);
+            Capture(guide, output, "guide-monitoring-en.png");
+            Capture(main, output, "dashboard-monitoring-en.png");
+            guide.ShowPage(4); await Settle(guide); await Task.Delay(280);
+            Capture(guide, output, "guide-startup-en.png");
+            guide.ShowPage(0); await Settle(guide);
+            token = Toggle(guide, "Local output rate (TPS)");
+            pace = Toggle(guide, "Quota consumption rate");
         }
-        await CheckWidgetMonitoring(main, token, pace, previewIndex >= 0 && previewIndex + 1 < args.Length ? args[previewIndex + 1] : null);
+        await CheckWidgetMonitoring(main, token, pace, output);
 
         ((Button)main.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var settings = Application.Current.Windows.OfType<Window>().Single(window => window.Title == "Settings");
         Descendants<RadioButton>(settings).Single(choice => AutomationProperties.GetName(choice) == "Overview").IsChecked = true;
         await Settle(main);
-        Check(((FrameworkElement)main.FindName("NormalPanel")).IsVisible && VisiblePace("Down 1 pp/h") && VisiblePace("Down 2.5 pp/h"), "overview keeps the focused and other accounts' rates visible");
+        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "↓ 1 pp/h");
+        var savedHeight = main.Height;
+        main.Height = main.MinHeight;
+        await Settle(main);
         var focus = (ContentControl)main.FindName("FocusAccount");
-        var plan = Descendants<TextBlock>(focus).Single(block => block.Text == "Pro100");
-        Check(Bounds(plan, focus).Bottom <= focus.ActualHeight - 4, "quota pace does not clip the focused account's plan");
+        var plan = Descendants<TextBlock>(focus).Single(block => block.Name == "FocusPlan");
+        var card = Descendants<Border>(focus).Single(border => border.Name == "FocusCard");
+        var ring = Descendants<QuotaRing>(focus).Single();
+        var normal = (FrameworkElement)main.FindName("NormalPanel");
+        Check(plan.Text == "Pro100" && plan.IsVisible && Bounds(plan, main).Bottom <= Bounds(ring, main).Top
+            && Bounds(card, main).Bottom <= Bounds(normal, main).Bottom,
+            "Pro100 is above the ring and the entire card fits at minimum window height");
+        if (output is not null) Capture(main, output, "pro100-short-overview.png");
+        main.Height = savedHeight;
+        main.Width = main.MinWidth;
+        await Settle(main);
+        CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "↓ 1 pp/h");
+        Check(Bounds(header, main).Right <= Bounds((Button)main.FindName("PinButton"), main).Left,
+            "rates do not collide with window actions at minimum width");
+        main.Width = 560;
         Descendants<RadioButton>(settings).Single(tab => AutomationProperties.GetName(tab) == "Quota monitoring").IsChecked = true;
         await Settle(settings);
         Check(Toggle(settings, "Local output rate (TPS)").IsChecked == true, "settings reflect the guide's saved TPS choice");
-        Toggle(settings, "Quota decline rate").IsChecked = false; await Settle(main);
-        Check(!VisiblePace("Down 1 pp/h") && tps.IsVisible && !store.LoadSettings().ShowQuotaPace, "settings disable only quota pace");
-        Check(Toggle(guide, "Quota decline rate").IsChecked == false, "the open guide reflects changes from settings");
+        Toggle(settings, "Quota consumption rate").IsChecked = false; await Settle(main);
+        Check(RateBadge(header, "HeaderTps").IsVisible && !RateBadge(header, "HeaderPace").IsVisible && !store.LoadSettings().ShowQuotaPace,
+            "settings disable and persist only quota pace");
+        Check(Toggle(guide, "Quota consumption rate").IsChecked == false, "the open guide reflects changes from settings");
         settings.Close();
         Descendants<Button>(guide).Single(button => Equals(button.Content, "中文")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Settle(guide); await Settle(main);
-        Check(Toggle(guide, "本机输出速率（TPS）").IsChecked == true && Toggle(guide, "额度下降速度").IsChecked == false, "language switching preserves both choices");
-        if (previewIndex >= 0 && previewIndex + 1 < args.Length)
+        Check(Toggle(guide, "本机输出速率（TPS）").IsChecked == true && Toggle(guide, "额度消耗速率").IsChecked == false, "language switching preserves both choices");
+        if (output is not null)
         {
-            Toggle(guide, "额度下降速度").IsChecked = true; await Settle(main);
-            Capture(guide, args[previewIndex + 1], "guide-monitoring.png");
-            Capture(main, args[previewIndex + 1], "dashboard-monitoring.png");
+            Toggle(guide, "额度消耗速率").IsChecked = true; await Settle(main);
+            Capture(main, output, "dashboard-monitoring.png");
+            guide.ShowPage(4); await Settle(guide); await Task.Delay(280);
+            Capture(guide, output, "guide-startup.png"); guide.ShowPage(0); await Settle(guide);
         }
         Toggle(guide, "本机输出速率（TPS）").IsChecked = false; await Settle(main);
-        Check(tps.Visibility == Visibility.Collapsed && !store.LoadSettings().ShowTokenRate, "TPS can be switched off again");
-        Console.WriteLine("PASS optional measurements in guide, settings, dashboard, and persisted preferences");
+        Check(!RateBadge(header, "HeaderTps").IsVisible && !store.LoadSettings().ShowTokenRate, "TPS can be switched off again");
+        Console.WriteLine("PASS default rates beside the heartbeat, independent preferences, and startup guide previews");
     }
 
-    private static string TokenRateText(FrameworkElement panel) => Descendants<TextBlock>(panel).Single(block => block.Name == "TokenRateValue").Text;
+    private static Border RateBadge(ContentControl header, string name) => (Border)header.Template.FindName(name, header);
+
+    private static void CheckRates(ContentControl header, Window window, FrameworkElement heartbeat, string tps, string pace)
+    {
+        var tpsBadge = RateBadge(header, "HeaderTps");
+        var paceBadge = RateBadge(header, "HeaderPace");
+        Check(tpsBadge.IsVisible && paceBadge.IsVisible && ((TextBlock)tpsBadge.Child).Text == tps && ((TextBlock)paceBadge.Child).Text == pace,
+            "display one local TPS and one active-account consumption rate");
+        var tpsBounds = Bounds(tpsBadge, window);
+        var paceBounds = Bounds(paceBadge, window);
+        Check(tpsBounds.Left >= Bounds(heartbeat, window).Right && paceBounds.Left >= tpsBounds.Right
+            && Math.Abs(tpsBounds.Top - paceBounds.Top) <= 1, "both rates sit to the right of the heartbeat on the same header row");
+        CheckInside(paceBadge, window, "active-account rate fits in the window");
+    }
 
     private static async Task CheckWidgetMonitoring(MainWindow main, CheckBox token, CheckBox pace, string? output)
     {
@@ -155,22 +202,18 @@ internal static class GuideSmoke
         {
             compactMode.Invoke(main, [true]);
             flyout.Show();
-            var compactRate = (FrameworkElement)main.FindName("SimplifiedTokenRate");
-            var flyoutRate = (FrameworkElement)flyout.FindName("TokenRatePanel");
-            var compactScroll = (ScrollViewer)main.FindName("SimplifiedPanel");
-            var flyoutScroll = (ScrollViewer)flyout.FindName("AccountsScroll");
+            var compactHeader = (ContentControl)main.FindName("CompactHeaderRates");
+            var flyoutHeader = (ContentControl)flyout.FindName("FlyoutHeaderRates");
             foreach (var item in new[] { (Layout: "ring", Bar: false), (Layout: "bar", Bar: true) })
             {
                 compactLayout.Invoke(main, [item.Layout]);
                 flyoutLayout.Invoke(flyout, [item.Bar]);
                 await Settle(main); await Settle(flyout);
-                foreach (var (ratePanel, scroll) in new[] { (compactRate, compactScroll), (flyoutRate, flyoutScroll) })
-                {
-                    Check(ratePanel.IsVisible && TokenRateText(ratePanel) == "12.5 tokens/s", $"TPS visible once on the {item.Layout} panel");
-                    Check(VisiblePaceCount(scroll) == groups.Count, $"each {item.Layout} account shows its own pace, including unavailable data");
-                    Check(Descendants<TextBlock>(scroll).Any(block => block.IsVisible && block.Text == "Down 2.5 pp/h"), "widget pace shows a measured account value");
-                    Check(Bounds(ratePanel, (Window)Window.GetWindow(scroll)).Bottom <= Bounds(scroll, (Window)Window.GetWindow(scroll)).Top, "TPS stays above the scrolling accounts");
-                }
+                CheckRates(compactHeader, main, (StatusLamp)main.FindName("SimplifiedRuntimeLamp"), "TPS 12.5", "↓ 1 pp/h");
+                CheckRates(flyoutHeader, flyout, (Button)flyout.FindName("FlyoutHeartbeat"), "TPS 12.5", "↓ 1 pp/h");
+                foreach (var scroll in new[] { (ScrollViewer)main.FindName("SimplifiedPanel"), (ScrollViewer)flyout.FindName("AccountsScroll") })
+                    Check(!Descendants<TextBlock>(scroll).Any(block => block.IsVisible && (block.Text.StartsWith("Down ") || block.Text.StartsWith("↓"))),
+                        "account cards do not repeat rates");
                 if (output is not null)
                 {
                     Capture(main, output, "compact-monitoring-" + item.Layout + ".png");
@@ -180,22 +223,10 @@ internal static class GuideSmoke
             activity.SetValue(main, original with { OutputTokensPerSecond = 24 });
             update.Invoke(main, null);
             await Settle(main); await Settle(flyout);
-            Check(TokenRateText(compactRate) == "24 tokens/s" && TokenRateText(flyoutRate) == "24 tokens/s", "both open widgets follow live TPS updates");
-            var compactHeight = main.ActualHeight;
-            token.IsChecked = false; await Settle(main); await Settle(flyout);
-            Check(!compactRate.IsVisible && !flyoutRate.IsVisible && main.ActualHeight < compactHeight
-                && VisiblePaceCount(compactScroll) == groups.Count && VisiblePaceCount(flyoutScroll) == groups.Count,
-                "hiding TPS reclaims space and leaves both widgets' account rates visible");
-            pace.IsChecked = false; await Settle(main); await Settle(flyout);
-            Check(VisiblePaceCount(compactScroll) == 0 && VisiblePaceCount(flyoutScroll) == 0, "quota pace also collapses independently");
-            activity.SetValue(main, original with { OutputTokensPerSecond = null });
-            update.Invoke(main, null);
-            token.IsChecked = true; await Settle(main); await Settle(flyout);
-            Check(TokenRateText(compactRate) == "—" && TokenRateText(flyoutRate) == "—", "widgets show missing TPS without substituting zero");
+            foreach (var header in new[] { compactHeader, flyoutHeader })
+                Check(((TextBlock)RateBadge(header, "HeaderTps").Child).Text == "TPS 24", "open widgets follow live TPS updates");
             activity.SetValue(main, original); update.Invoke(main, null);
-            pace.IsChecked = true;
             await CheckPinnedRates(main, widget, groups, token, pace, output);
-            Console.WriteLine("PASS live TPS and per-account quota pace in both compact and taskbar panel layouts");
         }
         finally
         {
@@ -205,7 +236,6 @@ internal static class GuideSmoke
             token.IsChecked = true; pace.IsChecked = true;
             await Settle(main);
         }
-        static int VisiblePaceCount(DependencyObject parent) => Descendants<TextBlock>(parent).Count(block => block.IsVisible && block.Text.StartsWith("Down ", StringComparison.Ordinal));
     }
 
     private static async Task CheckPinnedRates(MainWindow main, TaskbarWidget widget, ObservableCollection<AccountGroupViewModel> groups, CheckBox token, CheckBox pace, string? output)
@@ -238,14 +268,14 @@ internal static class GuideSmoke
                 CheckInside(tps, widget, "docked TPS fits the taskbar window");
                 CheckInside(rate, widget, "docked quota pace fits the taskbar window");
                 select.Invoke(widget, [groups[1]]); await Settle(widget);
-                Check(tps.Text == "TPS 12.5" && rate.Text == "↓ 2.5 pp/h", "quota pace follows the selected account, unlike local TPS");
+                Check(tps.Text == "TPS 12.5" && rate.Text == "↓ 1 pp/h", "browsing another account does not change the active-account rate");
                 if (output is not null) Capture(widget, output, "pinned-rate-" + layout + ".png");
             }
             token.IsChecked = false; await Settle(widget);
             Check(!tps.IsVisible && rate.IsVisible, "pinned TPS can be hidden independently");
             pace.IsChecked = false; widget.Align(); await Settle(widget);
             Check(widget.DockVisible && !sidecar.IsVisible, "both switches off restore the original docked widget");
-            Console.WriteLine("PASS pinned taskbar TPS and selected-account pace in both native layouts");
+            Console.WriteLine("PASS pinned taskbar TPS and active-account pace in both native layouts");
         }
         finally
         {
@@ -268,19 +298,19 @@ internal static class GuideSmoke
         {
             var width = size.Width;
             guide.Width = width; guide.Height = size.Height;
-            for (var page = 0; page < 4; page++)
+            for (var page = 0; page < 5; page++)
             {
                 guide.ShowPage(page); await Settle(guide);
                 var surface = (Border)guide.Content;
                 Check(surface.CornerRadius == new CornerRadius(8) && surface.Clip is RectangleGeometry { RadiusX: 8, RadiusY: 8 } clip && Math.Abs(clip.Rect.Width - surface.ActualWidth) < 1, "guide corners and content clip stay consistent on every page and size");
                 var navigation = Descendants<RadioButton>(guide).Where(button => button.GroupName == "guide-chapters").ToArray();
-                Check(navigation.Length == 4 && navigation.All(button => AutomationProperties.GetName(button).Length > 0), "chapter navigation names");
+                Check(navigation.Length == 5 && navigation.All(button => AutomationProperties.GetName(button).Length > 0), "chapter navigation names");
                 var close = Descendants<Button>(guide).Single(button => Equals(button.ToolTip, L.T("关闭")));
                 Check(AutomationProperties.GetName(close) == L.T("关闭") && close.Padding == new Thickness(0), "guide close icon has a localized accessible name and centered content");
                 var navGrid = (UniformGrid)VisualTreeHelper.GetParent(navigation[0]);
-                Check(navGrid.Columns == (width < 700 && !(size.Height < 480 && width >= 540) ? 2 : 4), "responsive chapter columns");
+                Check(navGrid.Columns == (width >= 700 ? 5 : 3), "responsive chapter columns");
                 foreach (var button in navigation) CheckInside(button, guide, "chapter bounds");
-                var next = Descendants<Button>(guide).Single(button => Equals(button.Content, page == 3 ? "Finish" : "Next"));
+                var next = Descendants<Button>(guide).Single(button => Equals(button.Content, page == 4 ? "Finish" : "Next"));
                 var skip = Descendants<Button>(guide).Single(button => Equals(button.Content, "Set up later"));
                 CheckInside(next, guide, "next button bounds"); CheckInside(skip, guide, "skip button bounds");
                 Check(!Bounds(next, guide).IntersectsWith(Bounds(skip, guide)), "footer buttons overlap");
@@ -299,7 +329,13 @@ internal static class GuideSmoke
                 Console.WriteLine($"PASS guide chapter {page + 1} at {width} × {size.Height} DIP");
             }
         }
-        guide.Width = 480; guide.ShowPage(1); await Settle(guide);
+        guide.Width = 480; guide.ShowPage(4); await Settle(guide);
+        var startup = Descendants<CheckBox>(guide).Single(box => AutomationProperties.GetName(box) == "Start with Windows");
+        Check(startup.IsChecked == false, "guide recommends without enabling startup");
+        startup.IsChecked = true; await Settle(guide);
+        Check(Descendants<TextBlock>(guide).Any(text => text.Text.Contains("Startup changes are previewed here.")),
+            "the startup page uses the existing settings control");
+        guide.ShowPage(1); await Settle(guide);
         var import = Descendants<Button>(guide).Single(button => AutomationProperties.GetName(button) == "Import from CC Switch");
         import.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(guide);
         Check(Descendants<TextBlock>(guide).Any(text => text.Text.Contains("demo mode")), "demo connection feedback");

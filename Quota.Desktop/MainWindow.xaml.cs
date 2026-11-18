@@ -84,7 +84,7 @@ public partial class MainWindow : Window
             else
             {
                 if (store.RecoveryNotice is { } notice) ShowNotice(notice);
-                if (settings.GuideVersion < 1) ShowUserGuide();
+                if (settings.GuideVersion < 1 || Array.IndexOf(arguments, "--guide") >= 0) ShowUserGuide();
                 startupRefresh = RefreshAllAsync(); await startupRefresh;
             }
         };
@@ -150,6 +150,8 @@ public partial class MainWindow : Window
 
     }
     private void SaveSettings() { try { store.SaveSettings(settings); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { ShowNotice(L.T("设置未能保存，请检查本地文件权限。")); } }
+    private void ResizeFocusCard(object sender, SizeChangedEventArgs args)
+        => FocusAccount.Height = Math.Min(NormalPanel.ActualHeight, Math.Max(216, OtherAccountList.ActualHeight));
     private void ShowNotice(string message, bool cli = false) { noticeIsCli = cli; Notice.Text = L.T(message); NoticeBorder.Visibility = Visibility.Visible; }
     private void DismissNotice(object sender, RoutedEventArgs e) => NoticeBorder.Visibility = Visibility.Collapsed;
     private string? GetCli()
@@ -208,6 +210,7 @@ public partial class MainWindow : Window
     private void UpdateSummary()
     {
         UpdateCodexStatus();
+        UpdateActiveQuotaPace();
         var busy = visibleAccounts.Count(account => account.IsRefreshing);
         var low = visibleAccounts.Count(account => account.HasLowQuota);
         var errors = visibleAccounts.Sum(group => group.Sources.Count(source => source.HasError));
@@ -225,7 +228,7 @@ public partial class MainWindow : Window
             if (observedSources.Add(source)) source.PropertyChanged += AccountSourceChanged;
         foreach (var group in visibleAccounts) group.Dispose();
         visibleAccounts.Clear();
-        foreach (var group in AccountGroupViewModel.Build(accounts)) { group.ShowUsed = settings.ShowUsed; group.ShowQuotaPace = settings.ShowQuotaPace; visibleAccounts.Add(group); }
+        foreach (var group in AccountGroupViewModel.Build(accounts)) { group.ShowUsed = settings.ShowUsed; visibleAccounts.Add(group); }
         var current = visibleAccounts.FirstOrDefault(group => group.Sources.Any(source => source.Record.IsCurrent)) ?? visibleAccounts.FirstOrDefault();
         FocusAccount.Content = current;
         OtherAccountList.ItemsSource = visibleAccounts.Where(group => group != current).ToArray();

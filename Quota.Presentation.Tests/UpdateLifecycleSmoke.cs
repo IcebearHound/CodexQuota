@@ -45,7 +45,7 @@ internal static class UpdateLifecycleSmoke
         if (broken) File.WriteAllText(Path.Combine(job, "stage", "CodexQuota.exe"), "deliberately invalid executable");
         if (healthFailure is not null) File.Copy(healthFailure, Path.Combine(job, "stage", "CodexQuota.exe"), true);
         var store = new AccountStore(profile);
-        store.SaveSettings(new() { GuideVersion = 1, LayoutVersion = 4, TaskbarVersion = 1, TaskbarWidgetEnabled = false, CloseToTray = false, AutoCheckUpdates = false, LowQuotaThreshold = 12.5, Language = name == "success" ? "zh-CN" : "en" });
+        store.SaveSettings(new() { GuideVersion = 1, LayoutVersion = 4, TaskbarVersion = 1, TaskbarWidgetEnabled = false, CloseToTray = false, AutoCheckUpdates = false, LowQuotaThreshold = 12.5, Language = name == "success" ? "zh-CN" : "en", Material = recover ? "glass" : "solid", Topmost = recover });
         File.WriteAllText(Path.Combine(profile, "auth-sentinel.txt"), "untouched account data");
         var parentNonce = Guid.NewGuid().ToString("N"); var nonce = Guid.NewGuid().ToString("N");
         using var parentHealth = new EventWaitHandle(false, EventResetMode.ManualReset, Event(parentNonce, "Health"));
@@ -56,7 +56,10 @@ internal static class UpdateLifecycleSmoke
         var startup = Stopwatch.StartNew(); using var parent = Process.Start(start)!;
         Check(await Task.Run(() => parentHealth.WaitOne(TimeSpan.FromSeconds(25))), "fixture parent starts and renders");
         Console.WriteLine($"MEASURE {name} startup to rendered UI {startup.Elapsed.TotalMilliseconds:0} ms");
-        var plan = new UpdatePlan(root, job, manifest.Version, parent.Id, parent.StartTime.ToUniversalTime().Ticks, nonce, ["--demo", "--data-dir", profile]);
+        string[] launchArgs = ["--demo", "--data-dir", profile];
+        // An update started from settings while the main panel is hidden restarts in the tray.
+        var plan = new UpdatePlan(root, job, manifest.Version, parent.Id, parent.StartTime.ToUniversalTime().Ticks, nonce,
+            recover ? [.. launchArgs, "--background"] : launchArgs);
         var planPath = Path.Combine(job, "plan.json"); UpdateInstaller.Write(planPath, plan);
         using var ready = new EventWaitHandle(false, EventResetMode.ManualReset, Event(nonce, "Ready"));
         var helperStart = new ProcessStartInfo(Path.Combine(job, "Updater.exe")) { UseShellExecute = false, CreateNoWindow = true };
@@ -75,7 +78,8 @@ internal static class UpdateLifecycleSmoke
         Check(File.ReadAllText(Path.Combine(profile, "auth-sentinel.txt")) == "untouched account data" && store.LoadSettings().LowQuotaThreshold == 12.5, "account data and preferences survive");
         Check(File.ReadAllText(Path.Combine(root, "user-file.txt")) == "keep this user file", "unknown install files survive");
         Check(!UpdateMaintenance.BlocksStartup(root), "completed jobs release their maintenance lease");
-        await CloseFixture(root);
+        if (recover) await WakeAndCloseFixture(checkHidden: true);
+        else await CloseFixture(root);
         if (recover)
         {
             File.Delete(installedExe);
@@ -84,9 +88,41 @@ internal static class UpdateLifecycleSmoke
             using var recovery = Process.Start(restore)!; await recovery.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
             Check(recovery.ExitCode == 0 && File.ReadAllText(Path.Combine(root, "README.md")) == "old readme", "external recovery restores and restarts the previous payload");
             Check(FileVersionInfo.GetVersionInfo(installedExe).ProductVersion == previousManifest.Version, "external recovery restores the previous executable version");
-            await CloseFixture(root);
+            await WakeAndCloseFixture(checkHidden: false);
         }
         Console.WriteLine("PASS update lifecycle " + name + (recover ? " and external recovery" : ""));
+
+        async Task WakeAndCloseFixture(bool checkHidden)
+        {
+            using var candidate = FindFixtureProcess(root);
+            Check(candidate is not null, "the background restart is still running");
+            var wasHidden = candidate!.MainWindowHandle == 0;
+            var wakeStart = new ProcessStartInfo(installedExe) { UseShellExecute = false };
+            foreach (var argument in launchArgs) wakeStart.ArgumentList.Add(argument);
+            using var wake = Process.Start(wakeStart)!;
+            await wake.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            await CloseFixture(root);
+            if (checkHidden)
+            {
+                Check(wasHidden, "the background update leaves no visible native main window before wake");
+                Console.WriteLine("PASS background update restart stays hidden until explicitly opened");
+            }
+        }
+    }
+    private static Process? FindFixtureProcess(string root)
+    {
+        Process? process = null;
+        foreach (var candidate in Process.GetProcessesByName("CodexQuota"))
+        {
+            try
+            {
+                if (process is null && candidate.MainModule?.FileName.Equals(Path.Combine(root, "CodexQuota.exe"), StringComparison.OrdinalIgnoreCase) == true)
+                    process = candidate;
+            }
+            catch (System.ComponentModel.Win32Exception) { }
+            if (!ReferenceEquals(candidate, process)) candidate.Dispose();
+        }
+        return process;
     }
     internal static async Task CloseFixture(string root)
     {
@@ -94,12 +130,7 @@ internal static class UpdateLifecycleSmoke
         Process? process = null;
         for (var retry = 0; retry < 100; retry++)
         {
-            foreach (var candidate in Process.GetProcessesByName("CodexQuota"))
-            {
-                try { if (candidate.MainModule?.FileName.Equals(Path.Combine(root, "CodexQuota.exe"), StringComparison.OrdinalIgnoreCase) == true) { process = candidate; break; } }
-                catch (System.ComponentModel.Win32Exception) { }
-                if (!ReferenceEquals(candidate, process)) candidate.Dispose();
-            }
+            process = FindFixtureProcess(root);
             if (process is not null && process.MainWindowHandle != 0) break;
             process?.Dispose(); process = null; await Task.Delay(100);
         }

@@ -1,10 +1,15 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory, [string]$Dotnet = 'dotnet')
+param([Parameter(Mandatory=$true)][string]$OutputDirectory, [string]$Dotnet = 'dotnet', [string]$InstallerCompiler)
 $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot 'Quota.Desktop/Quota.Desktop.csproj'
 $version = ([xml](Get-Content -LiteralPath $project -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 $name = "CodexQuota-$version-win-x64"
 $payload = Join-Path $output $name
+$setup = Join-Path $output "$name-setup.exe"
+if ($InstallerCompiler) {
+    $iscc = (Get-Command $InstallerCompiler -CommandType Application -ErrorAction Stop).Source
+    if (Test-Path -LiteralPath $setup) { throw 'Installer already exists; use a fresh output directory.' }
+}
 if (Test-Path -LiteralPath $payload) { throw 'Use a fresh output directory; existing releases are never overwritten.' }
 New-Item -ItemType Directory -Force -Path $payload | Out-Null
 & $Dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -p:IncludeSourceRevisionInInformationalVersion=false -o $payload
@@ -27,3 +32,9 @@ $zip = Join-Path $output ($name + '.zip')
 if (Test-Path -LiteralPath $zip) { throw 'Release ZIP already exists' }
 [IO.Compression.ZipFile]::CreateFromDirectory($payload, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
 Write-Output $zip
+if ($InstallerCompiler) {
+    $installer = Join-Path $PSScriptRoot 'installer/CodexQuota.iss'
+    & $iscc '/Qp' "/DReleaseVersion=$version" "/DPayloadDir=$payload" "/O$output" $installer | Out-Host
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $setup)) { throw 'Installer compilation failed.' }
+    Write-Output $setup
+}

@@ -137,8 +137,11 @@ internal static class WindowSurface
         window.Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
         {
             window.SetValue(BlurPendingProperty, false);
-            if (!window.IsVisible || window.Dispatcher.HasShutdownStarted ||
+            if (window.Dispatcher.HasShutdownStarted ||
                 HwndSource.FromHwnd(handle)?.CompositionTarget is not { } target) return;
+            // Hide during Loaded can finish before WPF's outer Show finishes
+            // presenting the HWND. Remove the native frame even without content.
+            if (!window.IsVisible) { DesktopWindowHost.SynchronizeVisibility(window, handle); return; }
             var topLevel = (GetWindowLongPtr(handle, -16).ToInt64() & 0x40000000L) == 0;
             var material = (Backdrop)window.GetValue(NativeMaterialProperty);
             ExtendFrame(handle, topLevel);

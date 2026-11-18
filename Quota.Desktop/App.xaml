@@ -8,37 +8,29 @@
   <SolidColorBrush x:Key="ToggleThumb" Color="#10231C"/><SolidColorBrush x:Key="Error" Color="#FFB4AB"/>
   <SolidColorBrush x:Key="SelectedFill" Color="#263E35"/><local:BoolVisibility x:Key="Visible"/><SolidColorBrush x:Key="ButtonFill" Color="#25333A"/><SolidColorBrush x:Key="InputFill" Color="#10191E"/><SolidColorBrush x:Key="Track" Color="#304048"/>
   <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Text}"/><Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI"/></Style>
-  <Style x:Key="QuotaPaceLine" TargetType="TextBlock">
-   <Setter Property="Visibility" Value="Collapsed"/>
-   <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
-   <Setter Property="FontSize" Value="11"/>
-   <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-   <Style.Triggers>
-    <DataTrigger Binding="{Binding ShowQuotaPace}" Value="True">
-     <Setter Property="Visibility" Value="Visible"/>
-     <Setter Property="Text" Value="{Binding QuotaPaceText}"/>
-     <Setter Property="ToolTip" Value="{Binding MetricTooltip}"/>
-    </DataTrigger>
-   </Style.Triggers>
+  <Style x:Key="HeaderRateBadge" TargetType="Border">
+   <Setter Property="Margin" Value="4,0,0,0"/><Setter Property="Padding" Value="5,2"/><Setter Property="CornerRadius" Value="5"/>
+   <Setter Property="Background" Value="{DynamicResource ButtonFill}"/><Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
-  <Style x:Key="TokenRateDisplay" TargetType="ContentControl">
+  <Style x:Key="HeaderRateText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+   <Setter Property="FontSize" Value="10"/><Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="VerticalAlignment" Value="Center"/><Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+  </Style>
+  <Style x:Key="HeaderRates" TargetType="ContentControl">
    <Setter Property="Focusable" Value="False"/>
-   <Setter Property="Height" Value="30"/>
-   <Setter Property="Visibility" Value="{Binding Content.Enabled,RelativeSource={RelativeSource Self},Converter={StaticResource Visible}}"/>
    <Setter Property="Template">
-    <Setter.Value>
-     <ControlTemplate TargetType="ContentControl">
-      <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="9,0">
-       <Grid DataContext="{TemplateBinding Content}" Background="Transparent">
-        <Grid.ToolTip><ToolTip MaxWidth="320" DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}"><TextBlock Text="{Binding Hint}" TextWrapping="Wrap"/></ToolTip></Grid.ToolTip>
-        <Grid.ColumnDefinitions><ColumnDefinition Width="19"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <local:AppIcon Kind="activity" Width="13" Height="13" HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="{DynamicResource Accent}"/>
-        <TextBlock Grid.Column="1" Text="{Binding Label}" Foreground="{DynamicResource Muted}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-        <TextBlock x:Name="TokenRateValue" Grid.Column="2" Text="{Binding Value}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0"/>
-       </Grid>
+    <Setter.Value><ControlTemplate TargetType="ContentControl">
+     <StackPanel Orientation="Horizontal" DataContext="{TemplateBinding Content}">
+      <Border x:Name="HeaderTps" Style="{StaticResource HeaderRateBadge}" MaxWidth="66"
+              Visibility="{Binding TokenRate.Enabled,Converter={StaticResource Visible}}" ToolTip="{Binding TokenRate.Hint}">
+       <TextBlock Style="{StaticResource HeaderRateText}" Text="{Binding TokenRate.CompactValue}"/>
       </Border>
-     </ControlTemplate>
-    </Setter.Value>
+      <Border x:Name="HeaderPace" Style="{StaticResource HeaderRateBadge}" MaxWidth="80"
+              Visibility="{Binding QuotaPace.Enabled,Converter={StaticResource Visible}}" ToolTip="{Binding QuotaPace.Hint}">
+       <TextBlock Style="{StaticResource HeaderRateText}" Text="{Binding QuotaPace.CompactValue}"/>
+      </Border>
+     </StackPanel>
+    </ControlTemplate></Setter.Value>
    </Setter>
   </Style>
   <Style TargetType="Button">

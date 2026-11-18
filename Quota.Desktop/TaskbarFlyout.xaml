@@ -14,7 +14,7 @@
   <DataTemplate x:Key="TaskbarRingAccount">
    <Border Style="{StaticResource FlyoutCard}">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <TextBlock x:Name="RingAccountName" Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -30,8 +30,7 @@
       </Grid>
      </Button>
      <TextBlock x:Name="RingReset" Grid.Row="2" Text="{Binding FocusWindow.ResetText,FallbackValue=—}" FontSize="10" Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding FocusWindow.ResetText}"/>
-     <TextBlock Grid.Row="3" Style="{StaticResource QuotaPaceLine}" Margin="0,3,0,0" TextAlignment="Center"/>
-     <Button x:Name="RingStatus" Grid.Row="4" Tag="{Binding}" Click="ShowIssue" Style="{StaticResource QuietButton}" Padding="4,2" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="{Binding ActionHint}">
+     <Button x:Name="RingStatus" Grid.Row="3" Tag="{Binding}" Click="ShowIssue" Style="{StaticResource QuietButton}" Padding="4,2" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="{Binding ActionHint}">
       <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{Binding StatusColor}" TextTrimming="CharacterEllipsis"/>
      </Button>
     </Grid>
@@ -40,7 +39,7 @@
   <DataTemplate x:Key="TaskbarBarAccount">
    <Border Style="{StaticResource FlyoutCard}">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <Button x:Name="BarAccountName" Tag="{Binding}" Click="SelectAccount" Style="{StaticResource QuietButton}" Padding="0,2" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Name}" ToolTip="{Binding MetricTooltip}">
@@ -61,15 +60,26 @@
        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{Binding StatusColor}" TextTrimming="CharacterEllipsis" MaxWidth="106"/>
       </Button>
      </Grid>
-     <TextBlock Grid.Row="4" Style="{StaticResource QuotaPaceLine}" Margin="0,3,0,0"/>
     </Grid>
    </Border>
   </DataTemplate>
  </Window.Resources>
    <Border x:Name="FlyoutBody" Width="332" Background="{DynamicResource Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="9" MouseEnter="FlyoutEnter" MouseLeave="LeaveArea">
-    <DockPanel><Grid DockPanel.Dock="Top" Height="30" Margin="3,0,3,5"><StackPanel Orientation="Horizontal" VerticalAlignment="Center"><local:BrandIcon Width="21" Height="21"/><TextBlock Text="Codex Quota" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0"/><local:StatusLamp Width="7" Height="7" VerticalAlignment="Center" Status="{Binding CodexStatus,RelativeSource={RelativeSource AncestorType=local:TaskbarFlyout}}"/></StackPanel><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Click="OpenSessionIssues" Style="{StaticResource IconButton}" ToolTip="{local:Loc 异常会话}"><local:AppIcon Kind="activity" Width="14" Height="14"/></Button><Button Click="RefreshAccounts" Style="{StaticResource IconButton}" ToolTip="{local:Loc 刷新额度}"><local:AppIcon Kind="refresh-cw" Width="14" Height="14"/></Button><Button Click="OpenSettings" Style="{StaticResource IconButton}" ToolTip="{local:Loc 设置}"><local:AppIcon Kind="settings-2" Width="14" Height="14"/></Button><Button Click="OpenMain" Style="{StaticResource IconButton}" ToolTip="{local:Loc 打开额度监控}"><local:AppIcon Kind="monitor" Width="14" Height="14"/></Button><Button Click="ClosePanel" Style="{StaticResource IconButton}" ToolTip="{local:Loc 关闭}"><local:AppIcon Kind="x" Width="14" Height="14"/></Button></StackPanel></Grid>
+    <DockPanel>
+     <DockPanel DockPanel.Dock="Top" Height="30" Margin="3,0,3,5">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Click="RefreshAccounts" Style="{StaticResource IconButton}" ToolTip="{local:Loc 刷新额度}"><local:AppIcon Kind="refresh-cw" Width="14" Height="14"/></Button><Button Click="OpenSettings" Style="{StaticResource IconButton}" ToolTip="{local:Loc 设置}"><local:AppIcon Kind="settings-2" Width="14" Height="14"/></Button><Button Click="OpenMain" Style="{StaticResource IconButton}" ToolTip="{local:Loc 打开额度监控}"><local:AppIcon Kind="monitor" Width="14" Height="14"/></Button><Button Click="ClosePanel" Style="{StaticResource IconButton}" ToolTip="{local:Loc 关闭}"><local:AppIcon Kind="x" Width="14" Height="14"/></Button></StackPanel>
+      <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <local:BrandIcon Width="21" Height="21" Margin="0,0,4,0" ToolTip="Codex Quota"/>
+       <TextBlock Grid.Column="1" Text="Codex" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+       <StackPanel Grid.Column="2" Orientation="Horizontal">
+        <local:StatusLamp Width="7" Height="7" Margin="4,0,0,0" VerticalAlignment="Center" Status="{Binding CodexStatus,RelativeSource={RelativeSource AncestorType=local:TaskbarFlyout}}"/>
+        <Button x:Name="FlyoutHeartbeat" Click="OpenSessionIssues" Style="{StaticResource IconButton}" ToolTip="{local:Loc 异常会话}"><local:AppIcon Kind="activity" Width="14" Height="14"/></Button>
+       </StackPanel>
+       <ContentControl Grid.Column="3" x:Name="FlyoutHeaderRates" Style="{StaticResource HeaderRates}" Content="{Binding HeaderMetrics,RelativeSource={RelativeSource AncestorType=local:TaskbarFlyout}}"/>
+      </Grid>
+     </DockPanel>
      <Border DockPanel.Dock="Top" Background="{DynamicResource ButtonFill}" CornerRadius="8" Padding="9" Margin="3,0,3,6" Visibility="{Binding CodexStatus.NeedsInput,RelativeSource={RelativeSource AncestorType=local:TaskbarFlyout},Converter={StaticResource Visible}}"><TextBlock Text="{Binding CodexStatus.InputMessage,RelativeSource={RelativeSource AncestorType=local:TaskbarFlyout}}" TextWrapping="Wrap" FontSize="11"/></Border>
-     <ContentControl x:Name="TokenRatePanel" DockPanel.Dock="Top" Margin="3,0,3,6" Style="{StaticResource TokenRateDisplay}" Content="{Binding TokenRate,RelativeSource={RelativeSource AncestorType=local:TaskbarFlyout}}"/>
      <ScrollViewer x:Name="AccountsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="432">
       <ItemsControl x:Name="AccountCards"/>
      </ScrollViewer>

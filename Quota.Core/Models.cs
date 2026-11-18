@@ -126,8 +126,8 @@ public sealed class WidgetSettings
     public string TaskbarPlacement { get; set; } = "auto";
     public string? CurrentAccountName { get; set; }
     public bool ShowUsed { get; set; }
-    public bool ShowTokenRate { get; set; }
-    public bool ShowQuotaPace { get; set; }
+    public bool ShowTokenRate { get; set; } = true;
+    public bool ShowQuotaPace { get; set; } = true;
     public bool DesktopOnly { get; set; }
     public bool NotifyLowQuota { get; set; } = true;
     public double LowQuotaThreshold { get; set; } = 5;

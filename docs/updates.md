@@ -34,6 +34,10 @@
 
 源码 ZIP 与截图不放入程序安装清单。未来若改变单文件分发格式或清单协议，需要明确安排兼容迁移，不能静默放宽客户端的文件白名单。
 
+发布安装版时向同一脚本传入 `-InstallerCompiler`，将生成的 `CodexQuota-<版本>-win-x64-setup.exe` 作为额外附件。安装版仍下载同名便携 ZIP 原地更新；安装程序的卸载器和开始菜单快捷方式不属于 ZIP 清单。卸载保留账号和设置。
+
+交互式安装由应用自身绘制界面，Inno Setup 只在后台执行安装。首次安装默认 `D:\Program Files\CodexQuota`，可更换上级目录；已注册的安装沿用原目录。自动部署可使用 `/VERYSILENT /NORESTART /DIR="D:\Program Files\CodexQuota"`，其中 `/DIR` 是确切的最终目录。静默安装不会打开应用或导览。
+
 发布前可用上一版的便携 EXE 做跨版本验收，测试只替换新建临时目录中的副本：
 
 ```powershell

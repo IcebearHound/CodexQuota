@@ -41,6 +41,17 @@ public partial class App : System.Windows.Application
     }
     protected override async void OnStartup(StartupEventArgs e)
     {
+        if (e.Args is ["--setup-ui", var engine, var existing])
+        {
+            base.OnStartup(e);
+            L.Apply(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh" ? "zh-CN" : "en");
+            ThemeService.ApplyAppearance("system", "monochrome", "solid");
+            var installer = new InstallerWindow(engine, string.IsNullOrWhiteSpace(existing) ? null : existing);
+            MainWindow = installer;
+            installer.Closed += (_, _) => Shutdown();
+            installer.Show();
+            return;
+        }
         if (e.Args.Length == 2 && e.Args[0] is "--apply-update" or "--recover-update")
         {
             Shutdown(await System.Threading.Tasks.Task.Run(() => UpdateRunner.RunAsync(e.Args[1], e.Args[0] == "--recover-update"))); return;

@@ -1,23 +1,24 @@
-using System.Windows;
+using System.Linq;
 using System.Windows.Controls;
 
 namespace Quota.Desktop;
 
 public partial class MainWindow
 {
-    public TokenRateViewModel TokenRate { get; } = new();
+    public HeaderMetricsViewModel HeaderMetrics { get; } = new();
+    public TokenRateViewModel TokenRate => HeaderMetrics.TokenRate;
 
     internal void BuildMonitoringOptions(Panel parent, bool inGuide = false)
     {
-        var section = SettingsControls.Section(parent, L.F("可选监控", "Optional metrics"), "activity",
-            L.F("开启后显示在主面板和小组件。任务栏空间不足时，展开面板仍可查看。", "Enabled metrics appear in the dashboard and widgets. Open the taskbar panel if space on the taskbar is limited."));
+        var section = SettingsControls.Section(parent, L.F("顶栏速率", "Header metrics"), "activity",
+            L.F("两项默认开启，显示在顶栏状态心跳右侧。任务栏空间不足时，展开面板仍可查看。", "Both are on by default and appear beside the status heartbeat. Open the taskbar panel if the taskbar is crowded."));
         var tokenHint = TokenRateViewModel.Explanation + (inGuide ? L.F(" 例如：12.5 token/s。", " Example: 12.5 tokens/s.") : "");
-        var quotaHint = L.F("按同一窗口连续两次成功刷新的差值计算，单位是百分点/小时。重置或采样不足时显示「—」。",
-            "Percentage points per hour, based on two consecutive successful readings of the same window. A dash means a reset or insufficient data.")
+        var quotaHint = L.F("仅统计本机当前登录账号。按同一额度窗口连续两次成功刷新的差值计算，重置或采样不足时显示「—」。",
+            "Only for the active local account. Calculated from two successful readings of the same quota window. A dash indicates a reset or too few samples.")
             + (inGuide ? L.F(" 例如：下降 2 个百分点/小时。", " Example: down 2 percentage points per hour.") : "");
         SettingsControls.Toggle(section, L.F("本机输出速率（TPS）", "Local output rate (TPS)"), "activity", settings.ShowTokenRate,
             on => SetMonitoringOption(true, on, inGuide), tokenHint);
-        SettingsControls.Toggle(section, L.F("额度下降速度", "Quota decline rate"), "minus", settings.ShowQuotaPace,
+        SettingsControls.Toggle(section, L.F("额度消耗速率", "Quota consumption rate"), "minus", settings.ShowQuotaPace,
             on => SetMonitoringOption(false, on, inGuide), quotaHint);
     }
 
@@ -30,14 +31,6 @@ public partial class MainWindow
         }
         else settings.ShowQuotaPace = enabled;
         ApplyMonitoringOptions();
-        if (settings.SimplifiedMode)
-        {
-            ResizeSimplifiedPanel();
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
-            {
-                if (!exiting && settings.SimplifiedMode && WindowPlacementGuard.EnsureVisible(this)) SavePlacement();
-            });
-        }
         taskbarWidget?.QueueAlignment();
         SaveSettings();
         if (tokenRate && enabled && !demo) _ = ReadActivityAsync();
@@ -47,11 +40,39 @@ public partial class MainWindow
 
     private void ApplyMonitoringOptions()
     {
-        foreach (var group in visibleAccounts) group.ShowQuotaPace = settings.ShowQuotaPace;
         UpdateTokenRate();
+        UpdateActiveQuotaPace();
     }
 
     private void UpdateTokenRate() => TokenRate.Update(settings.ShowTokenRate, activity.OutputTokensPerSecond);
+    private void UpdateActiveQuotaPace() => HeaderMetrics.QuotaPace.Update(settings.ShowQuotaPace,
+        accounts.FirstOrDefault(account => account.Record.IsCurrent));
+}
+
+public sealed class HeaderMetricsViewModel
+{
+    public TokenRateViewModel TokenRate { get; } = new();
+    public ActiveQuotaPaceViewModel QuotaPace { get; } = new();
+}
+
+public sealed class ActiveQuotaPaceViewModel : Observable
+{
+    public bool Enabled { get; private set; }
+    public string CompactValue { get; private set; } = "↓ —";
+    public string Hint { get; private set; } = "";
+
+    public void Update(bool enabled, AccountViewModel? active)
+    {
+        var window = active is { HasError: false, IsCached: false, Record.IsCurrent: true }
+            ? active.FocusWindow : null;
+        var value = window?.CompactQuotaPaceText ?? "↓ —";
+        var title = L.F("当前活动账号 · 额度消耗速率", "Active account · quota consumption rate");
+        var hint = window is null ? title + "\n" + L.F("等待当前账号的有效采样。", "Waiting for samples from the active account.")
+            : $"{title}\n{active!.Name} · {window.Label} · {window.QuotaPaceText}";
+        if ((Enabled, CompactValue, Hint) == (enabled, value, hint)) return;
+        (Enabled, CompactValue, Hint) = (enabled, value, hint);
+        Raise("");
+    }
 }
 
 public sealed class TokenRateViewModel : Observable
@@ -74,7 +95,7 @@ public sealed class TokenRateViewModel : Observable
         var label = L.F("本机输出 TPS", "Local output TPS");
         var value = rate is { } measured ? L.F("{0:0.##} token/s", "{0:0.##} tokens/s", measured) : "—";
         var compactValue = rate is { } output ? $"TPS {output:0.##}" : "TPS —";
-        var hint = Explanation + (rate is null ? L.F(" 正在等待可用的用量样本。", " Waiting for usable usage samples.") : "");
+        var hint = rate is null ? Explanation + L.F(" 正在等待可用的用量样本。", " Waiting for usable usage samples.") : value + "\n" + Explanation;
         if (Enabled && Label == label && Value == value && Hint == hint) return;
         (Enabled, Label, Value, CompactValue, Hint) = (true, label, value, compactValue, hint);
         Raise("");

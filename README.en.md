@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 3.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 3.1 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.1.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -26,8 +26,8 @@ Open the issue list from the main window, a status light or the taskbar menu. Re
 
 ## Quick start
 
-1. Download the Windows x64 portable ZIP, extract it and run `CodexQuota.exe`. The .NET runtime is included. Usage is queried through your locally installed Codex application.
-2. Follow the first-run interactive guide to connect accounts, explore quota examples and enable the taskbar widget.
+1. If the release includes a `-setup.exe`, run it. Setup defaults to `D:\Program Files\CodexQuota`. When you choose another parent folder, it appends `CodexQuota`. Alternatively, extract the entire Windows x64 portable ZIP and run `CodexQuota.exe`. Both include .NET. Usage is queried through the locally installed Codex app.
+2. Open the guide from the installer’s finish page. Connect accounts, place the taskbar widget, and choose whether Codex Quota should start in the tray when you sign in to Windows.
 3. Reopen the guide from **Settings → General → Guide and manual**. You can switch chapters freely.
 
 ### CC Switch import and native sign-in
@@ -41,12 +41,12 @@ Open the issue list from the main window, a status light or the taskbar menu. Re
 
 The quota example switches between remaining and used quota and explains independent reset windows. Select a status example to explore working, completed, waiting for input, low quota, exhausted, error, interrupted and offline signals.
 
-In the guide's **Quota monitoring** chapter or **Settings → Quota monitoring**, you can turn on two metrics independently. Both are off by default:
+Two rates appear beside the status heartbeat by default. Turn either off in the guide’s **Quota monitoring** chapter or **Settings → Quota monitoring**:
 
 - **Local output rate (TPS)**: The dashboard shows the average output tokens per second logged by local Codex sessions over the last 60 seconds. Logs update in batches, so this is not live generation speed.
-- **Quota decline rate**: Account cards show the rate for their highlighted quota window. Hover for rates for each window. The change between two consecutive successful readings is shown in percentage points per hour, with no extra quota requests. A dash appears after a reset or when there is insufficient data.
+- **Quota consumption rate**: Shows the signed-in local account’s most constrained quota window. The change between two consecutive successful readings of the same window is shown in percentage points per hour, with no extra requests. A dash appears after a reset or when there is insufficient data.
 
-These options apply to the dashboard, compact widget, and both the pinned and expanded taskbar widgets. The pinned ring and status bar show local TPS and the selected account's quota decline rate. If the taskbar is crowded, the widget keeps its original size and the rates remain in the expanded panel.
+The full dashboard, compact widget, and expanded taskbar panel show rates in their headers, not on account cards. The pinned widget also shows them when there is room. Browsing another account does not change the active account’s rate.
 
 <details>
 <summary>View the quota and status guide</summary>
@@ -133,6 +133,8 @@ Publish a self-contained single-file build.
 ```
 
 The release script packages the self-contained single-file app, licenses and `install-files.json` for future in-place updates. The updater reuses the app executable instead of shipping another .NET runtime.
+
+With Inno Setup 6.7.3 or newer, pass `-InstallerCompiler` and the path to `ISCC.exe` to also build the installer from the same files.
 
 </details>
 
