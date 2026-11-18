@@ -24,11 +24,24 @@ internal static class InterruptedTaskSmoke
         var update = typeof(MainWindow).GetMethod("UpdateCodexStatus", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var groups = (ObservableCollection<AccountGroupViewModel>)typeof(MainWindow).GetField("visibleAccounts", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(main)!;
         var latest = Guid.NewGuid().ToString("D"); var earlier = Guid.NewGuid().ToString("D");
-        var first = new CodexSessionIssue(latest, latest, CodexActivityKind.Paused, DateTimeOffset.UtcNow, "first");
-        var second = new CodexSessionIssue(earlier, earlier, CodexActivityKind.Paused, DateTimeOffset.UtcNow.AddHours(-1), "earlier");
         var originalHome = Environment.GetEnvironmentVariable("CODEX_HOME");
         var fixture = Path.Combine(Path.GetTempPath(), "session-list-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(fixture);
         File.WriteAllText(Path.Combine(fixture, "session_index.jsonl"), "incomplete\n" + JsonSerializer.Serialize(new { id = latest, thread_name = "代码生成与结果核对" }) + "\n" + JsonSerializer.Serialize(new { id = earlier, thread_name = "多会话分析任务" }) + "\n");
+        var sessions = Directory.CreateDirectory(Path.Combine(fixture, "sessions")).FullName;
+        var now = DateTimeOffset.UtcNow;
+        void WriteRollout(string id, string threadSource, string activityType, DateTimeOffset timestamp)
+        {
+            File.WriteAllLines(Path.Combine(sessions, id + ".jsonl"),
+                [JsonSerializer.Serialize(new { timestamp, type = "session_meta", payload = new { id, thread_source = threadSource } }),
+                 JsonSerializer.Serialize(new { timestamp, type = "event_msg", payload = new { type = activityType } })]);
+        }
+        WriteRollout(latest, "user", "turn_aborted", now);
+        WriteRollout(earlier, "agent_created_thread", "turn_aborted", now.AddHours(-1));
+        WriteRollout(Guid.NewGuid().ToString("D"), "user", "task_started", now);
+        WriteRollout(Guid.NewGuid().ToString("D"), "subagent", "turn_aborted", now.AddSeconds(1));
+        var snapshot = new CodexActivityMonitor(fixture).ReadSince(now.AddHours(-2));
+        var first = snapshot.SessionIssues!.Single(issue => issue.ThreadId == latest);
+        var second = snapshot.SessionIssues!.Single(issue => issue.ThreadId == earlier);
         Environment.SetEnvironmentVariable("CODEX_HOME", fixture);
         var links = new List<Uri>(); opener.SetValue(main, (Action<Uri>)links.Add);
         var strip = new TaskbarWidget(main, groups, null);
@@ -38,7 +51,7 @@ internal static class InterruptedTaskSmoke
         {
             flyout.Left = SystemParameters.WorkArea.Left + 20; flyout.Top = SystemParameters.WorkArea.Top + 20; flyout.Show();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            activityField.SetValue(main, new CodexActivitySnapshot(CodexActivityKind.Paused, Running: 1, SessionIssues: [first, second]));
+            activityField.SetValue(main, snapshot);
             update.Invoke(main, null);
             var lamps = new[] { (StatusLamp)main.FindName("RuntimeLamp"),
                 (StatusLamp)strip.FindName("RuntimeLamp"), (StatusLamp)strip.FindName("FullRuntimeLamp"), Descendants<StatusLamp>(flyout).Single() };
@@ -63,7 +76,9 @@ internal static class InterruptedTaskSmoke
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
                 using var stream = File.Create(Path.Combine(arguments[previewIndex + 1], "session-issues.png")); encoder.Save(stream);
             }
-            Check(links.Count == 0 && parentClicks == 0 && main.CodexStatus.UnreadSessionCount == 2, "all surfaces open one list without launching a chat");
+            Check(links.Count == 0 && parentClicks == 0, "all surfaces open one list without launching a chat");
+            Check(main.CodexStatus.UnreadSessionCount == 2 && Buttons(dialog, L.F("打开会话", "Open chat")).Count() == 2,
+                "only real chats contribute to the count and rendered rows, even when a newer subagent interruption exists");
             Click(Buttons(dialog, L.F("打开会话", "Open chat")).First());
             Check(links.Single().AbsoluteUri == "codex://threads/" + latest, "a list row opens its own chat");
             Console.WriteLine("PASS main taskbar and flyout lamps open one actionable session issue list");

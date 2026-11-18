@@ -36,6 +36,7 @@ public sealed class CodexSessionActivity(string? threadId = null)
     public DateTimeOffset? IssueAt { get; private set; }
     public string? IssueToken { get; private set; }
     public string? AttachedParentId { get; private set; }
+    internal bool IsInternal { get; private set; }
     private readonly Dictionary<string, bool> inputs = [];
     private CodexActivityKind activity;
     private bool terminal;
@@ -52,6 +53,8 @@ public sealed class CodexSessionActivity(string? threadId = null)
         {
             ThreadId = CodexThreadLink.NormalizeId(data.Str("id")) ?? ThreadId;
             if (data.Bool("attached_thread") == true) AttachedParentId = CodexThreadLink.NormalizeId(data.Str("forked_from_id"));
+            data.TryGetProperty("source", out var source);
+            IsInternal |= CodexSessionCatalog.IsInternalSource(data.Str("thread_source"), source);
             return;
         }
         var observedAt = DateTimeOffset.TryParse(record.Str("timestamp"), out var timestamp) ? timestamp : DateTimeOffset.MinValue;
@@ -229,7 +232,7 @@ public sealed class CodexActivityMonitor
     public CodexActivitySnapshot ReadSince(DateTimeOffset? started, CancellationToken cancellationToken, bool includeTokenRate)
     {
         catalog.Refresh();
-        foreach (var entry in journal.Sessions.Where(entry => catalog.IsAttached(entry.Value.ThreadId)
+        foreach (var entry in journal.Sessions.Where(entry => catalog.IsInternal(entry.Value.ThreadId) || catalog.IsAttached(entry.Value.ThreadId)
             || catalog.CurrentRollout(entry.Value.ThreadId) is { } current && SessionKey(current) != entry.Key).ToArray())
             journal.Sessions.Remove(entry.Key);
         if (started is null)
@@ -289,15 +292,22 @@ public sealed class CodexActivityMonitor
                 journal.Sessions.TryGetValue(key, out var checkpoint);
                 entry.Value.Read(entry.Key, checkpoint is null ? started.Value : DateTimeOffset.MinValue, includeTokenRate ? started : null, clock, cancellationToken);
                 var observed = entry.Value.Activity;
+                var threadId = observed.ThreadId ?? checkpoint?.ThreadId;
                 catalog.RegisterAttachment(observed.ThreadId, observed.AttachedParentId);
-                if (!catalog.IsCurrentRollout(observed.ThreadId ?? checkpoint?.ThreadId, entry.Key))
+                if (!catalog.IsCurrentRollout(threadId, entry.Key))
                 {
                     journal.Sessions.Remove(key);
                     continue;
                 }
-                if (catalog.IsArchived(observed.ThreadId ?? checkpoint?.ThreadId)) continue;
+                if (catalog.IsArchived(threadId)) continue;
                 if (entry.Value.TokenRate?.At(clock.GetUtcNow()) is { } rate)
                     tokensPerSecond = (tokensPerSecond ?? 0) + rate;
+                // Internal work still contributes to local TPS, but is not an independently actionable chat.
+                if (observed.IsInternal || catalog.IsInternal(threadId))
+                {
+                    journal.Sessions.Remove(key);
+                    continue;
+                }
                 if (checkpoint?.InterruptedAt is { } interruption && observed.Kind is not CodexActivityKind.Completed and not CodexActivityKind.Error)
                 {
                     if (observed.LastStartedAt > interruption || observed.InterruptedAt > interruption

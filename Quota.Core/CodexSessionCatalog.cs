@@ -1,16 +1,39 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Quota.Core;
 
 internal sealed class CodexSessionCatalog(string home)
 {
-    private sealed record ThreadEntry(bool Archived, string Title, string? Parent, string? Rollout);
+    private sealed record ThreadEntry(bool Archived, string Title, string? Parent, string? Rollout, bool Internal);
     private Dictionary<string, ThreadEntry> threads = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> attachedParents = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> archivedFiles = new(StringComparer.OrdinalIgnoreCase);
     public bool IsArchived(string? id) => id is not null && (threads.TryGetValue(id, out var thread) ? thread.Archived : archivedFiles.Contains(id));
     public string? Title(string? id) => id is not null && threads.TryGetValue(id, out var thread) ? thread.Title : null;
     public bool IsAttached(string? id) => id is not null && (attachedParents.ContainsKey(id) || threads.TryGetValue(id, out var thread) && thread.Parent is not null);
+    public bool IsInternal(string? id) => id is not null && threads.TryGetValue(id, out var thread) && thread.Internal;
+
+    internal static bool IsInternalSource(string? threadSource, JsonElement source) => IsInternalThreadSource(threadSource) || source.ValueKind switch
+    {
+        JsonValueKind.Object => source.TryGetProperty("subagent", out _),
+        JsonValueKind.String => source.GetString() == "subagent",
+        _ => false
+    };
+
+    private static bool IsInternalThreadSource(string? source) => source is "subagent" or "guardian_review";
+
+    private static bool IsInternalSource(string? threadSource, string? source)
+    {
+        if (IsInternalThreadSource(threadSource) || source is "subagent" or "\"subagent\"") return true;
+        if (source is null || !source.AsSpan().TrimStart().StartsWith("{")) return false;
+        try
+        {
+            using var parsed = JsonDocument.Parse(source);
+            return IsInternalSource(null, parsed.RootElement);
+        }
+        catch (JsonException) { return false; }
+    }
     public void RegisterAttachment(string? id, string? parent)
     {
         if (id is not null && parent is not null && id != parent) attachedParents[id] = parent;
@@ -20,6 +43,7 @@ internal sealed class CodexSessionCatalog(string home)
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (id is not null && visited.Add(id))
         {
+            if (IsInternal(id)) return null;
             var parent = threads.TryGetValue(id, out var thread) ? thread.Parent : null;
             parent ??= attachedParents.GetValueOrDefault(id);
             if (parent is null) return IsArchived(id) ? null : id;
@@ -60,22 +84,27 @@ internal sealed class CodexSessionCatalog(string home)
         {
             if (sqlite3_open_v2(path, out database, 1, 0) != 0) return;
             sqlite3_busy_timeout(database, 100);
-            var bindings = sqlite3_prepare_v2(database, "SELECT id, title, archived, attached_thread_parent_id, rollout_path FROM threads", -1, out statement, 0) == 0;
-            if (!bindings)
-            {
-                if (statement != 0) { sqlite3_finalize(statement); statement = 0; }
-                if (sqlite3_prepare_v2(database, "SELECT id, title, archived FROM threads", -1, out statement, 0) != 0) return;
-            }
-            var updated = new Dictionary<string, ThreadEntry>(StringComparer.OrdinalIgnoreCase);
+            if (sqlite3_prepare_v2(database, "PRAGMA table_info(threads)", -1, out statement, 0) != 0) return;
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             int result;
+            while ((result = sqlite3_step(statement)) == 100)
+                if (Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 1)) is { } name) columns.Add(name);
+            if (result != 101) return;
+            sqlite3_finalize(statement); statement = 0;
+            // Codex versions add these columns independently. Keep the same projection for older schemas.
+            var optional = new[] { "attached_thread_parent_id", "rollout_path", "thread_source", "source" };
+            var query = "SELECT id, title, archived, " + string.Join(", ", optional.Select(column => columns.Contains(column) ? column : "NULL")) + " FROM threads";
+            if (sqlite3_prepare_v2(database, query, -1, out statement, 0) != 0) return;
+            var updated = new Dictionary<string, ThreadEntry>(StringComparer.OrdinalIgnoreCase);
             while ((result = sqlite3_step(statement)) == 100)
             {
                 var id = CodexThreadLink.NormalizeId(Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 0)));
                 if (id is null) continue;
                 var title = Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 1)) ?? "";
-                var parent = bindings ? CodexThreadLink.NormalizeId(Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 3))) : null;
-                var rollout = bindings ? Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 4)) : null;
-                updated[id] = new(sqlite3_column_int(statement, 2) != 0, title.Replace('\r', ' ').Replace('\n', ' '), parent, rollout);
+                var parent = CodexThreadLink.NormalizeId(Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 3)));
+                var rollout = Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 4));
+                var internalThread = IsInternalSource(Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 5)), Marshal.PtrToStringUTF8(sqlite3_column_text(statement, 6)));
+                updated[id] = new(sqlite3_column_int(statement, 2) != 0, title.Replace('\r', ' ').Replace('\n', ' '), parent, rollout, internalThread);
             }
             if (result == 101) threads = updated;
         }

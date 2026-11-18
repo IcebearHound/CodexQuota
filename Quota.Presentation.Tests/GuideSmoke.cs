@@ -68,6 +68,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--taskbar-colors")) NativeWindowSmoke.CheckTaskbarPolling((MainWindow)app.MainWindow);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);
+                    else if (args.Contains("--session-issues-smoke")) await InterruptedTaskSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--update-prompt")) await UpdatePromptSmoke.Run(guide, (MainWindow)app.MainWindow, store, args);
                     else if (args.Contains("--installed-guide")) await CheckInstalledGuide(guide, store);
                     else if (args.Contains("--monitoring-smoke") && demo) await CheckMonitoring(guide, (MainWindow)app.MainWindow, store, args);

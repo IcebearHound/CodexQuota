@@ -255,6 +255,8 @@ await Test("archive state and session titles refresh from the live WAL database"
     return Task.CompletedTask;
 });
 await Test("restored chats bind canonical rollouts and exclude hidden attached snapshots", () => SessionBindingRegression.Run(testRoot));
+await Test("internal Codex threads do not become independent session issues", () => SessionSourceRegression.CheckRollouts(testRoot));
+await Test("catalog thread sources remove persisted internal issues even offline", () => SessionSourceRegression.CheckJournal(testRoot));
 await Test("archived rollout files suppress stale journal entries when no database exists", () =>
 {
     var home = Path.Combine(testRoot, "archive-files"); Directory.CreateDirectory(Path.Combine(home, "sessions"));
