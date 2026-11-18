@@ -281,8 +281,8 @@ internal static class NativeWindowSmoke
                 Check(scroll.ViewportHeight >= 100 && scroll.ExtentWidth <= scroll.ViewportWidth + 1, "every settings page remains vertically accessible");
                 if (page == "额度监测")
                 {
-                    Check(Descendants<QuotaPreviewPanel>(window).Count() == 1, "settings exposes the shared quota demo");
-                    var toggle = Descendants<CheckBox>(window).Single(); toggle.IsChecked = true; await Settle(window);
+                    var preview = Descendants<QuotaPreviewPanel>(window).Single();
+                    var toggle = Descendants<CheckBox>(preview).Single(); toggle.IsChecked = true; await Settle(window);
                     Check(Descendants<TextBlock>(window).Any(text => text.Text == "28%"), "quota demo is interactive in settings");
                 }
                 if (page == "状态检测")

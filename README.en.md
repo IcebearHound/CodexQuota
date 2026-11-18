@@ -41,6 +41,13 @@ Open the issue list from the main window, a status light or the taskbar menu. Re
 
 The quota example switches between remaining and used quota and explains independent reset windows. Select a status example to explore working, completed, waiting for input, low quota, exhausted, error, interrupted and offline signals.
 
+In the guide's **Quota monitoring** chapter or **Settings → Quota monitoring**, you can turn on two metrics independently. Both are off by default:
+
+- **Local output rate (TPS)**: The dashboard shows the average output tokens per second logged by local Codex sessions over the last 60 seconds. Logs update in batches, so this is not live generation speed.
+- **Quota decline rate**: Account cards show the rate for their highlighted quota window. Hover for rates for each window. The change between two consecutive successful readings is shown in percentage points per hour, with no extra quota requests. A dash appears after a reset or when there is insufficient data.
+
+These options apply to the dashboard, compact widget, and both the pinned and expanded taskbar widgets. The pinned ring and status bar show local TPS and the selected account's quota decline rate. If the taskbar is crowded, the widget keeps its original size and the rates remain in the expanded panel.
+
 <details>
 <summary>View the quota and status guide</summary>
 

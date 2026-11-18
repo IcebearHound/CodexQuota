@@ -31,6 +31,7 @@ public sealed class QuotaWindow
 }
 public sealed class QuotaBucket
 {
+    public string? LimitId { get; set; }
     public string Name { get; set; } = "Codex";
     public string? Plan { get; set; }
     public List<QuotaWindow> Windows { get; set; } = [];
@@ -87,7 +88,7 @@ public sealed class UsageSnapshot
     }
     private static QuotaBucket ParseBucket(JsonElement data, string key)
     {
-        var bucket = new QuotaBucket { Name = data.Str("limitName") ?? key, Plan = data.Str("planType") };
+        var bucket = new QuotaBucket { LimitId = data.Str("limitId") ?? key, Name = data.Str("limitName") ?? key, Plan = data.Str("planType") };
         foreach (var name in new[] { "primary", "secondary" })
         {
             if (!data.TryGetProperty(name, out var w) || w.ValueKind != JsonValueKind.Object || !w.TryGetProperty("usedPercent", out var percent) || percent.ValueKind != JsonValueKind.Number || !percent.TryGetDouble(out var used) || !double.IsFinite(used) || used < 0) continue;
@@ -124,6 +125,8 @@ public sealed class WidgetSettings
     public string TaskbarPlacement { get; set; } = "auto";
     public string? CurrentAccountName { get; set; }
     public bool ShowUsed { get; set; }
+    public bool ShowTokenRate { get; set; }
+    public bool ShowQuotaPace { get; set; }
     public bool DesktopOnly { get; set; }
     public bool NotifyLowQuota { get; set; } = true;
     public double LowQuotaThreshold { get; set; } = 5;

@@ -48,7 +48,7 @@ public sealed class AccountName : Grid
                 foreach (var window in bucket.Windows)
                 {
                     body.Children.Add(DialogLayout.Text(bucket.Name + " · " + window.Label + " · " + window.Caption + " " + window.Percent, 11));
-                    body.Children.Add(DialogLayout.Text(window.ResetText, 10, true));
+                    body.Children.Add(DialogLayout.Text(window.ResetText + (group.ShowQuotaPace ? " · " + window.QuotaPaceText : ""), 10, true));
                 }
             if (group.HasError) { body.Children.Add(DialogLayout.Text(group.Error ?? "", 11)); body.Children.Add(DialogLayout.Text(group.ActionHint, 11, true)); }
             body.Children.Add(DialogLayout.Text(group.Updated, 10, true));

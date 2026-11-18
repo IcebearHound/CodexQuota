@@ -36,6 +36,7 @@ public partial class TaskbarWidget : Window
     private TaskbarFlyout? flyout;
     private bool flyoutPinned;
     internal bool FlyoutPinned => flyoutPinned;
+    public TokenRateViewModel TokenRate => main.TokenRate;
     private bool openPending;
     private bool pendingActivation;
     private bool closed;
@@ -96,7 +97,7 @@ public partial class TaskbarWidget : Window
 
     public TaskbarWidget(MainWindow main, ObservableCollection<AccountGroupViewModel> accounts, string? proofDirectory)
     {
-        InitializeComponent(); this.main = main; this.accounts = accounts; this.proofDirectory = proofDirectory;
+        this.main = main; this.accounts = accounts; this.proofDirectory = proofDirectory; InitializeComponent();
         ShowInTaskbar = proofDirectory is not null;
         Bar.MouseRightButtonUp += (_, args) =>
         {
@@ -129,7 +130,7 @@ public partial class TaskbarWidget : Window
         if (closed) return;
         try
         {
-            var attached = host.Dock(this, main.DetailedTaskbar, main.TaskbarPosition);
+            var attached = host.Dock(this, main.DetailedTaskbar, main.TaskbarPosition, main.TaskbarMetricsRequested);
             DockError = null;
             if (!attached) flyout?.HideImmediately();
             if (attached)
@@ -165,6 +166,7 @@ public partial class TaskbarWidget : Window
     {
         CompactPanel.Visibility = main.DetailedTaskbar ? Visibility.Collapsed : Visibility.Visible;
         FullPanel.Visibility = main.DetailedTaskbar ? Visibility.Visible : Visibility.Collapsed;
+        StripMetrics.Visibility = host.ShowsMetrics ? Visibility.Visible : Visibility.Collapsed;
         DataContext = accounts.FirstOrDefault(account => account.Key == selectedKey) ?? accounts.FirstOrDefault(account => account.IsCurrent) ?? accounts.FirstOrDefault();
         if (host.BackgroundColor is not { } background) return;
         var sourceColor = (DataContext as AccountGroupViewModel)?.FocusWindow?.Color ?? "#82938D";

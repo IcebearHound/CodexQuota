@@ -74,6 +74,22 @@ CodexClient Client(string mode = "normal", string? profile = null) => new(Enviro
 var testRoot = Path.Combine(Path.GetTempPath(), "CodexQuotaTests-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(testRoot);
 
+await Test("quota decline rate isolates account and reset windows", () =>
+{
+    MonitoringSmoke.CheckQuotaPace();
+    return Task.CompletedTask;
+});
+await Test("output TPS tracks recent usage and expires without new events", () =>
+{
+    MonitoringSmoke.CheckTokenRate(Path.Combine(testRoot, "output-rate"));
+    return Task.CompletedTask;
+});
+await Test("taskbar rates reserve space without displacing essential quota", () =>
+{
+    MonitoringSmoke.CheckTaskbarSpace();
+    return Task.CompletedTask;
+});
+
 await Test("native process metadata reads quoted Unicode commands without COM", async () =>
 {
     if (!OperatingSystem.IsWindows()) return;

@@ -123,7 +123,7 @@ public partial class MainWindow
                 body.Children.Add(SettingsControls.Action(L.F("异常会话", "Session issues"), "activity", ShowSessionIssues));
                 body.Children.Add(new StatusPreviewPanel()); break;
             case "额度监测":
-
+                BuildMonitoringOptions(body);
                 body.Children.Add(new QuotaPreviewPanel(settings.ShowUsed));
                 body.Children.Add(SettingsControls.Action("额度口径", "settings-2", () => OpenSettingsPage("外观")));
                 break;

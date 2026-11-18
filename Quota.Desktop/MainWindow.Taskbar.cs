@@ -10,6 +10,7 @@ public partial class MainWindow
 {
     private TaskbarWidget? taskbarWidget;
     internal bool DetailedTaskbar => settings.DetailedTaskbar;
+    internal bool TaskbarMetricsRequested => settings.ShowTokenRate || settings.ShowQuotaPace;
     internal string TaskbarPosition => settings.TaskbarPlacement;
     private readonly DispatcherTimer taskbarMonitor = new() { Interval = TimeSpan.FromSeconds(2) };
     private bool taskbarMonitoring;

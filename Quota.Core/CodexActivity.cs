@@ -9,7 +9,10 @@ namespace Quota.Core;
 public enum CodexActivityKind { Unknown, Offline, Working, NeedsInput, Completed, Error, Paused, Idle }
 public enum CodexActivityReadIssue { None, ProcessMetadataUnavailable, SessionsMissing, NoSessionEvents, SessionsInaccessible, ReadFailed }
 public sealed record CodexInterruptedTask(string ThreadId, DateTimeOffset? InterruptedAt);
-public sealed record CodexActivitySnapshot(CodexActivityKind Kind, int Running = 0, int Waiting = 0, int Tracked = 0, string AttentionToken = "", IReadOnlyList<CodexInterruptedTask>? InterruptedTasks = null, CodexActivityReadIssue ReadIssue = CodexActivityReadIssue.None, IReadOnlyList<CodexSessionIssue>? SessionIssues = null);
+public sealed record CodexActivitySnapshot(CodexActivityKind Kind, int Running = 0, int Waiting = 0, int Tracked = 0, string AttentionToken = "", IReadOnlyList<CodexInterruptedTask>? InterruptedTasks = null, CodexActivityReadIssue ReadIssue = CodexActivityReadIssue.None, IReadOnlyList<CodexSessionIssue>? SessionIssues = null)
+{
+    public double? OutputTokensPerSecond { get; init; }
+}
 
 public sealed class CodexActivityCheckpoint
 {
@@ -172,12 +175,15 @@ public sealed class CodexActivityMonitor
     private long lastDiscovery;
     private readonly AccountStore? persistence;
     private readonly CodexActivityJournal journal;
+    private readonly TimeProvider clock;
     private string? savedJournal;
-    public CodexActivityMonitor(string? codexHome = null, AccountStore? persistence = null)
+    public CodexActivityMonitor(string? codexHome = null, AccountStore? persistence = null) : this(codexHome, persistence, TimeProvider.System) { }
+    public CodexActivityMonitor(string? codexHome, AccountStore? persistence, TimeProvider clock)
     {
         sessionsRoot = Path.Combine(codexHome ?? Environment.GetEnvironmentVariable("CODEX_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex"), "sessions");
         catalog = new(Path.GetDirectoryName(sessionsRoot)!);
         this.persistence = persistence;
+        this.clock = clock;
         var homeKey = SessionKey(sessionsRoot);
         journal = persistence?.LoadActivityJournal() is { } saved && saved.HomeKey == homeKey ? saved : new() { HomeKey = homeKey };
         journal.Sessions ??= [];
@@ -205,12 +211,13 @@ public sealed class CodexActivityMonitor
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { PersistenceHealthy = false; }
     }
 
-    public CodexActivitySnapshot Read(CancellationToken cancellationToken = default)
+    public CodexActivitySnapshot Read(CancellationToken cancellationToken = default) => Read(cancellationToken, includeTokenRate: false);
+    public CodexActivitySnapshot Read(CancellationToken cancellationToken, bool includeTokenRate)
     {
         var process = CodexProcessMonitor.Read();
         if (process.Found && process.Started is null)
             return new(CodexActivityKind.Unknown, ReadIssue: CodexActivityReadIssue.ProcessMetadataUnavailable);
-        try { return ReadSince(process.Started, cancellationToken); }
+        try { return ReadSince(process.Started, cancellationToken, includeTokenRate); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             return new(CodexActivityKind.Unknown, ReadIssue: CodexActivityReadIssue.SessionsInaccessible);
@@ -218,6 +225,8 @@ public sealed class CodexActivityMonitor
     }
 
     public CodexActivitySnapshot ReadSince(DateTimeOffset? started, CancellationToken cancellationToken = default)
+        => ReadSince(started, cancellationToken, includeTokenRate: false);
+    public CodexActivitySnapshot ReadSince(DateTimeOffset? started, CancellationToken cancellationToken, bool includeTokenRate)
     {
         catalog.Refresh();
         foreach (var entry in journal.Sessions.Where(entry => catalog.IsAttached(entry.Value.ThreadId)
@@ -229,7 +238,8 @@ public sealed class CodexActivityMonitor
             var interrupted = journal.Sessions.Values.Where(checkpoint => checkpoint.Kind == CodexActivityKind.Paused && !catalog.IsArchived(checkpoint.ThreadId) && CodexThreadLink.NormalizeId(checkpoint.ThreadId) is not null)
                 .Select(checkpoint => new CodexInterruptedTask(CodexThreadLink.NormalizeId(checkpoint.ThreadId)!, checkpoint.InterruptedAt))
                 .OrderByDescending(task => task.InterruptedAt).DistinctBy(task => task.ThreadId).ToArray();
-            return new(CodexActivityKind.Offline, InterruptedTasks: interrupted.Length > 0 ? interrupted : null, SessionIssues: JournalIssues());
+            return new(CodexActivityKind.Offline, InterruptedTasks: interrupted.Length > 0 ? interrupted : null, SessionIssues: JournalIssues())
+            { OutputTokensPerSecond = includeTokenRate ? 0 : null };
         }
         if (journal.ProcessStarted is { } previousStart && previousStart != started) InterruptUnfinished(started);
         journal.ProcessStarted = started;
@@ -269,6 +279,7 @@ public sealed class CodexActivityMonitor
         var readable = new List<CodexSessionActivity>();
         var observedKeys = new HashSet<string>(StringComparer.Ordinal);
         var unavailable = false;
+        double? tokensPerSecond = null;
         foreach (var entry in files)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -276,7 +287,7 @@ public sealed class CodexActivityMonitor
             {
                 var key = entry.Value.Key;
                 journal.Sessions.TryGetValue(key, out var checkpoint);
-                entry.Value.Read(entry.Key, checkpoint is null ? started.Value : DateTimeOffset.MinValue, cancellationToken);
+                entry.Value.Read(entry.Key, checkpoint is null ? started.Value : DateTimeOffset.MinValue, includeTokenRate ? started : null, clock, cancellationToken);
                 var observed = entry.Value.Activity;
                 catalog.RegisterAttachment(observed.ThreadId, observed.AttachedParentId);
                 if (!catalog.IsCurrentRollout(observed.ThreadId ?? checkpoint?.ThreadId, entry.Key))
@@ -285,6 +296,8 @@ public sealed class CodexActivityMonitor
                     continue;
                 }
                 if (catalog.IsArchived(observed.ThreadId ?? checkpoint?.ThreadId)) continue;
+                if (entry.Value.TokenRate?.At(clock.GetUtcNow()) is { } rate)
+                    tokensPerSecond = (tokensPerSecond ?? 0) + rate;
                 if (checkpoint?.InterruptedAt is { } interruption && observed.Kind is not CodexActivityKind.Completed and not CodexActivityKind.Error)
                 {
                     if (observed.LastStartedAt > interruption || observed.InterruptedAt > interruption
@@ -311,7 +324,7 @@ public sealed class CodexActivityMonitor
             var interrupted = new CodexSessionActivity(entry.Value.ThreadId); interrupted.MarkInterrupted(entry.Value.InterruptedAt, entry.Value.IssueToken); readable.Add(interrupted);
         }
         SaveJournal();
-        var result = CodexSessionActivity.Aggregate(readable) with { SessionIssues = JournalIssues() };
+        var result = CodexSessionActivity.Aggregate(readable) with { SessionIssues = JournalIssues(), OutputTokensPerSecond = unavailable ? null : tokensPerSecond };
         if (unavailable && result.Kind is CodexActivityKind.Completed or CodexActivityKind.Unknown)
             return result with { Kind = CodexActivityKind.Unknown, ReadIssue = CodexActivityReadIssue.SessionsInaccessible };
         return result.Kind == CodexActivityKind.Unknown ? result with { ReadIssue = CodexActivityReadIssue.NoSessionEvents } : result;
@@ -335,22 +348,27 @@ public sealed class CodexActivityMonitor
         private DateTime lastWrite;
         private ArrayBufferWriter<byte> pending = new(8192);
         public CodexSessionActivity Activity { get; private set; } = new(threadId);
-        public void Read(string path, DateTimeOffset started, CancellationToken cancellationToken)
+        public CodexOutputRate? TokenRate { get; private set; }
+        public void Read(string path, DateTimeOffset started, DateTimeOffset? tokenSince, TimeProvider clock, CancellationToken cancellationToken)
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             var length = stream.Length;
             var modified = File.GetLastWriteTimeUtc(path);
+            if (tokenSince is null) TokenRate = null;
             if (initialized && length == offset && modified == lastWrite) return;
             if (!initialized || length < offset || length == offset && modified != lastWrite)
             {
                 Activity = new(threadId);
-                ReadMetadata(stream, Activity); pending = new(8192);
+                TokenRate = null;
+                var newSession = ReadMetadata(stream, Activity); pending = new(8192);
                 offset = Math.Max(0, length - MaximumRecord); skipLine = offset > 0; initialized = true;
+                if (tokenSince is not null && offset == 0 && newSession) TokenRate = new(true);
                 if (skipLine) { stream.Position = offset - 1; skipLine = stream.ReadByte() != '\n'; }
             }
             stream.Position = offset;
             var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
             var end = Math.Min(length, offset + MaximumRecord * 2L);
+            var now = clock.GetUtcNow();
             try
             {
                 while (stream.Position < end)
@@ -371,7 +389,12 @@ public sealed class CodexActivityMonitor
                             try
                             {
                                 using var json = JsonDocument.Parse(pending.WrittenMemory);
-                                if (DateTimeOffset.TryParse(json.RootElement.Str("timestamp"), out var time) && time >= started) Activity.Apply(json.RootElement, stream.Position - remaining.Length + newline);
+                                if (DateTimeOffset.TryParse(json.RootElement.Str("timestamp"), out var time))
+                                {
+                                    if (time >= started) Activity.Apply(json.RootElement, stream.Position - remaining.Length + newline);
+                                    if (tokenSince is { } processStarted)
+                                        (TokenRate ??= new(false)).Observe(json.RootElement, time, now, processStarted);
+                                }
                             }
                             catch (JsonException) { }
                         }
@@ -389,7 +412,7 @@ public sealed class CodexActivityMonitor
             if (pending.Capacity > MaximumRetainedBuffer) pending = new(8192);
             else pending.Clear();
         }
-        private static void ReadMetadata(Stream stream, CodexSessionActivity activity)
+        private static bool ReadMetadata(Stream stream, CodexSessionActivity activity)
         {
             var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
             try
@@ -406,9 +429,12 @@ public sealed class CodexActivityMonitor
                 }
                 using var document = JsonDocument.Parse(metadata.GetBuffer().AsMemory(0, (int)metadata.Length));
                 var record = document.RootElement;
-                if (record.Str("type") == "session_meta") activity.Apply(record);
+                if (record.Str("type") != "session_meta") return false;
+                activity.Apply(record);
+                return record.TryGetProperty("payload", out var data) && data.ValueKind == JsonValueKind.Object
+                    && data.Str("forked_from_id") is null && data.Bool("attached_thread") != true;
             }
-            catch (JsonException) { }
+            catch (JsonException) { return false; }
             finally { ArrayPool<byte>.Shared.Return(buffer, clearArray: true); }
         }
     }

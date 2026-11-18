@@ -96,6 +96,26 @@ var cases = new (string Name, Action Verify)[]
         Check(group.FocusWindow.Value == 27);
         group.ShowUsed = false; Check(group.FocusWindow.Value == 73);
     }),
+    ("quota decline ignores cached readings and resets the baseline after errors", () =>
+    {
+        var vm = Account();
+        var now = DateTimeOffset.UtcNow;
+        UsageSnapshot Sample(int minutes, double used) => new()
+        {
+            AccountId = "workspace", FetchedAt = now.AddMinutes(minutes),
+            Buckets = [new() { Windows = [new() { UsedPercent = used, ResetsAt = now.AddHours(3).ToUnixTimeSeconds() }] }]
+        };
+        vm.SetSnapshot(Sample(-60, 21), fromCache: true);
+        vm.SetSnapshot(Sample(-45, 22));
+        using var group = new AccountGroupViewModel(AccountGroupViewModel.KeyFor(vm), [vm]) { ShowQuotaPace = true };
+        Check(group.QuotaPaceText == "下降 —");
+        vm.SetSnapshot(Sample(-30, 23));
+        Check(group.QuotaPaceText == "下降 4 个百分点/小时" && group.MetricTooltip.Contains(group.QuotaPaceText));
+        group.ShowQuotaPace = false; Check(!group.MetricTooltip.Contains(group.QuotaPaceText));
+        vm.SetError("网络不可用"); Check(group.QuotaPaceText == "下降 —");
+        vm.SetSnapshot(Sample(-15, 24)); Check(group.QuotaPaceText == "下降 —");
+        vm.SetSnapshot(Sample(0, 24)); Check(group.QuotaPaceText == "下降 0 个百分点/小时");
+    }),
     ("current-account email obeys privacy preference", () =>
     {
         var vm = new AccountViewModel(new() { Id = "current" }); var snapshot = Snapshot(DateTimeOffset.Now); snapshot.Email = "current@example.com"; vm.SetSnapshot(snapshot);

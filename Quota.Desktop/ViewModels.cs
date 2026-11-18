@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -19,7 +20,7 @@ public sealed class BoolVisibility : IValueConverter
     public object Convert(object value, Type t, object p, CultureInfo culture) => value is true ? Visibility.Visible : Visibility.Collapsed;
     public object ConvertBack(object value, Type t, object p, CultureInfo culture) => value is Visibility.Visible;
 }
-public sealed class WindowViewModel(QuotaWindow window) : Observable
+public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : Observable
 {
     public static double AlertThreshold { get; set; } = 5;
     private bool showUsed;
@@ -33,6 +34,10 @@ public sealed class WindowViewModel(QuotaWindow window) : Observable
     public double Value => ShowUsed ? Math.Clamp(window.UsedPercent, 0, 100) : Remaining;
     public string Caption => ShowUsed ? L.T("已用") : L.T("剩余");
     public string Percent => $"{Value:0}%";
+    private double? CurrentPace => window.ResetsAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() ? pace : null;
+    public string QuotaPaceText => L.F("下降 {0}", "Down {0}", CurrentPace is { } rate
+        ? L.F("{0:0.##} 个百分点/小时", "{0:0.##} pp/h", rate) : "—");
+    public string CompactQuotaPaceText => CurrentPace is { } rate ? L.F("↓ {0:0.##} 点/时", "↓ {0:0.##} pp/h", rate) : "↓ —";
     public string Color => Remaining <= AlertThreshold ? ThemeService.DangerColor : Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
     public string ResetText
     {
@@ -62,10 +67,10 @@ public sealed class WindowViewModel(QuotaWindow window) : Observable
     }
     public void UpdateClock() { Raise(nameof(ResetText)); Raise(nameof(CompactResetText)); }
 }
-public sealed class BucketViewModel(QuotaBucket bucket, string? displayName = null)
+public sealed class BucketViewModel(QuotaBucket bucket, string? displayName = null, IReadOnlyDictionary<QuotaWindow, double>? quotaPace = null)
 {
     public string Name => displayName ?? (bucket.Name.Equals("codex", StringComparison.OrdinalIgnoreCase) ? "CODEX" : bucket.Name);
-    public ObservableCollection<WindowViewModel> Windows { get; } = new(bucket.Windows.Select(x => new WindowViewModel(x)));
+    public ObservableCollection<WindowViewModel> Windows { get; } = new(bucket.Windows.Select(x => new WindowViewModel(x, quotaPace?.TryGetValue(x, out var rate) == true ? rate : null)));
     public bool NoWindows => Windows.Count == 0;
     public bool HasCredits => bucket.UnlimitedCredits || bucket.CreditBalance is not null;
     public string Credits => bucket.UnlimitedCredits ? L.T("额外额度：不限量") : L.T("额外额度余额：") + bucket.CreditBalance;
@@ -97,6 +102,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public string Initial => Name.Length > 0 ? StringInfo.GetNextTextElement(Name).ToUpperInvariant() : "C";
     private bool privacy = true, compact, refreshing, loadedFromCache;
     private string? error;
+    private Dictionary<QuotaWindow, double>? quotaPace;
     public bool Privacy { set { privacy = value; Raise(nameof(Name)); Raise(nameof(Identity)); } }
     public bool Compact { set { compact = value; Raise(nameof(ShowDetails)); Raise(nameof(ShowCompact)); } }
     public bool ShowDetails => !compact;
@@ -148,18 +154,20 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public string UpdatedTooltip => Snapshot is null ? L.T("尚无成功读取记录") : L.F("最后成功读取 {0:yyyy-MM-dd HH:mm:ss zzz}", "Last successful update {0:yyyy-MM-dd HH:mm:ss zzz}", Snapshot.FetchedAt.ToLocalTime());
     public void SetSnapshot(UsageSnapshot snapshot, bool fromCache = false)
     {
+        quotaPace = fromCache || loadedFromCache || HasError ? null : QuotaPace.Measure(Snapshot, snapshot);
         Snapshot = snapshot;
         loadedFromCache = fromCache;
         error = null;
         if (!string.IsNullOrWhiteSpace(snapshot.Email)) Record.Email = snapshot.Email;
         RefreshDerived();
     }
-    public void SetError(string message) { error = message; RefreshDerived(); }
-    public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; RefreshDerived(); }
+    public void SetError(string message) { error = message; quotaPace = null; RefreshDerived(); }
+    public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; quotaPace = null; RefreshDerived(); }
+    internal BucketViewModel BuildBucket(QuotaBucket bucket, string? displayName = null) => new(bucket, displayName, quotaPace);
     public void Rename(string name) { Record.Name = AccountStore.CleanName(name); Raise(nameof(Name)); Raise(nameof(Initial)); }
     public void RefreshDerived()
     {
-        Buckets.Clear(); if (Snapshot is not null) foreach (var b in Snapshot.Buckets) Buckets.Add(new(b));
+        Buckets.Clear(); if (Snapshot is not null) foreach (var b in Snapshot.Buckets) Buckets.Add(BuildBucket(b));
         foreach (var name in new[] { nameof(Identity), nameof(Plan), nameof(Status), nameof(StatusColor), nameof(HasError), nameof(Error), nameof(NoSnapshot), nameof(Blocked), nameof(Updated), nameof(UpdatedTooltip), nameof(ActionHint), nameof(ResetCardSummary) }) Raise(name);
     }
     public void UpdateClock() { foreach (var bucket in Buckets) bucket.UpdateClock(); Raise(nameof(Status)); Raise(nameof(Updated)); }

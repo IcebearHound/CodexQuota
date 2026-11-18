@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -65,6 +66,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--taskbar-colors")) NativeWindowSmoke.CheckTaskbarPolling((MainWindow)app.MainWindow);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);
+                    else if (args.Contains("--monitoring-smoke") && demo) await CheckMonitoring(guide, (MainWindow)app.MainWindow, store, args);
                     else if (args.Contains("--screenshots") && demo) await ProductScreenshotSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (demo) await CheckLayouts(guide, args);
                     else await CheckCancel(app, guide, store);
@@ -78,6 +80,184 @@ internal static class GuideSmoke
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
         if (!thread.Join(TimeSpan.FromSeconds(70))) { Console.Error.WriteLine("FAIL guide UI thread did not finish"); return 1; }
         return result;
+    }
+
+    private static async Task CheckMonitoring(GuideWindow guide, MainWindow main, AccountStore store, string[] args)
+    {
+        CheckBox Toggle(Window window, string name) => Descendants<CheckBox>(window).Single(box => AutomationProperties.GetName(box) == name);
+        var tps = (FrameworkElement)main.FindName("TokenRatePanel");
+        bool VisiblePace(string text) => Descendants<TextBlock>(main).Any(block => block.IsVisible && block.Text == text);
+        guide.Width = 480;
+        guide.ShowPage(0); await Settle(guide);
+        var token = Toggle(guide, "Local output rate (TPS)");
+        var pace = Toggle(guide, "Quota decline rate");
+        Check(token.IsChecked == false && pace.IsChecked == false && tps.Visibility == Visibility.Collapsed && !VisiblePace("Down 1 pp/h"), "both metrics are absent by default");
+        token.IsChecked = true; await Settle(main);
+        Check(tps.IsVisible && TokenRateText(tps) == "12.5 tokens/s" && !VisiblePace("Down 1 pp/h"), "the guide enables TPS independently");
+        pace.IsChecked = true; await Settle(main);
+        Check(VisiblePace("Down 1 pp/h") && VisiblePace("Down 2.5 pp/h") && VisiblePace("Down —"), "account cards show measured and unavailable rates");
+        var saved = store.LoadSettings();
+        Check(saved.ShowTokenRate && saved.ShowQuotaPace, "guide choices are persisted immediately");
+        var previewIndex = Array.IndexOf(args, "--preview-dir");
+        if (previewIndex >= 0 && previewIndex + 1 < args.Length)
+        {
+            await Settle(guide); await Task.Delay(280);
+            Capture(guide, args[previewIndex + 1], "guide-monitoring-en.png");
+            Capture(main, args[previewIndex + 1], "dashboard-monitoring-en.png");
+        }
+        await CheckWidgetMonitoring(main, token, pace, previewIndex >= 0 && previewIndex + 1 < args.Length ? args[previewIndex + 1] : null);
+
+        ((Button)main.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var settings = Application.Current.Windows.OfType<Window>().Single(window => window.Title == "Settings");
+        Descendants<RadioButton>(settings).Single(choice => AutomationProperties.GetName(choice) == "Overview").IsChecked = true;
+        await Settle(main);
+        Check(((FrameworkElement)main.FindName("NormalPanel")).IsVisible && VisiblePace("Down 1 pp/h") && VisiblePace("Down 2.5 pp/h"), "overview keeps the focused and other accounts' rates visible");
+        var focus = (ContentControl)main.FindName("FocusAccount");
+        var plan = Descendants<TextBlock>(focus).Single(block => block.Text == "Pro100");
+        Check(Bounds(plan, focus).Bottom <= focus.ActualHeight - 4, "quota pace does not clip the focused account's plan");
+        Descendants<RadioButton>(settings).Single(tab => AutomationProperties.GetName(tab) == "Quota monitoring").IsChecked = true;
+        await Settle(settings);
+        Check(Toggle(settings, "Local output rate (TPS)").IsChecked == true, "settings reflect the guide's saved TPS choice");
+        Toggle(settings, "Quota decline rate").IsChecked = false; await Settle(main);
+        Check(!VisiblePace("Down 1 pp/h") && tps.IsVisible && !store.LoadSettings().ShowQuotaPace, "settings disable only quota pace");
+        Check(Toggle(guide, "Quota decline rate").IsChecked == false, "the open guide reflects changes from settings");
+        settings.Close();
+        Descendants<Button>(guide).Single(button => Equals(button.Content, "中文")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Settle(guide); await Settle(main);
+        Check(Toggle(guide, "本机输出速率（TPS）").IsChecked == true && Toggle(guide, "额度下降速度").IsChecked == false, "language switching preserves both choices");
+        if (previewIndex >= 0 && previewIndex + 1 < args.Length)
+        {
+            Toggle(guide, "额度下降速度").IsChecked = true; await Settle(main);
+            Capture(guide, args[previewIndex + 1], "guide-monitoring.png");
+            Capture(main, args[previewIndex + 1], "dashboard-monitoring.png");
+        }
+        Toggle(guide, "本机输出速率（TPS）").IsChecked = false; await Settle(main);
+        Check(tps.Visibility == Visibility.Collapsed && !store.LoadSettings().ShowTokenRate, "TPS can be switched off again");
+        Console.WriteLine("PASS optional measurements in guide, settings, dashboard, and persisted preferences");
+    }
+
+    private static string TokenRateText(FrameworkElement panel) => Descendants<TextBlock>(panel).Single(block => block.Name == "TokenRateValue").Text;
+
+    private static async Task CheckWidgetMonitoring(MainWindow main, CheckBox token, CheckBox pace, string? output)
+    {
+        var groups = (ObservableCollection<AccountGroupViewModel>)typeof(MainWindow).GetField("visibleAccounts", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(main)!;
+        var activity = typeof(MainWindow).GetField("activity", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var original = (CodexActivitySnapshot)activity.GetValue(main)!;
+        var update = typeof(MainWindow).GetMethod("UpdateCodexStatus", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var compactLayout = typeof(MainWindow).GetMethod("SetSimplifiedLayout", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var compactMode = typeof(MainWindow).GetMethod("SetSimplifiedMode", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var flyoutLayout = typeof(TaskbarFlyout).GetMethod("SetAccountLayout", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var widget = new TaskbarWidget(main, groups, null);
+        var flyout = new TaskbarFlyout(widget, main, groups);
+        try
+        {
+            compactMode.Invoke(main, [true]);
+            flyout.Show();
+            var compactRate = (FrameworkElement)main.FindName("SimplifiedTokenRate");
+            var flyoutRate = (FrameworkElement)flyout.FindName("TokenRatePanel");
+            var compactScroll = (ScrollViewer)main.FindName("SimplifiedPanel");
+            var flyoutScroll = (ScrollViewer)flyout.FindName("AccountsScroll");
+            foreach (var item in new[] { (Layout: "ring", Bar: false), (Layout: "bar", Bar: true) })
+            {
+                compactLayout.Invoke(main, [item.Layout]);
+                flyoutLayout.Invoke(flyout, [item.Bar]);
+                await Settle(main); await Settle(flyout);
+                foreach (var (ratePanel, scroll) in new[] { (compactRate, compactScroll), (flyoutRate, flyoutScroll) })
+                {
+                    Check(ratePanel.IsVisible && TokenRateText(ratePanel) == "12.5 tokens/s", $"TPS visible once on the {item.Layout} panel");
+                    Check(VisiblePaceCount(scroll) == groups.Count, $"each {item.Layout} account shows its own pace, including unavailable data");
+                    Check(Descendants<TextBlock>(scroll).Any(block => block.IsVisible && block.Text == "Down 2.5 pp/h"), "widget pace shows a measured account value");
+                    Check(Bounds(ratePanel, (Window)Window.GetWindow(scroll)).Bottom <= Bounds(scroll, (Window)Window.GetWindow(scroll)).Top, "TPS stays above the scrolling accounts");
+                }
+                if (output is not null)
+                {
+                    Capture(main, output, "compact-monitoring-" + item.Layout + ".png");
+                    Capture(flyout, output, "taskbar-monitoring-" + item.Layout + ".png");
+                }
+            }
+            activity.SetValue(main, original with { OutputTokensPerSecond = 24 });
+            update.Invoke(main, null);
+            await Settle(main); await Settle(flyout);
+            Check(TokenRateText(compactRate) == "24 tokens/s" && TokenRateText(flyoutRate) == "24 tokens/s", "both open widgets follow live TPS updates");
+            var compactHeight = main.ActualHeight;
+            token.IsChecked = false; await Settle(main); await Settle(flyout);
+            Check(!compactRate.IsVisible && !flyoutRate.IsVisible && main.ActualHeight < compactHeight
+                && VisiblePaceCount(compactScroll) == groups.Count && VisiblePaceCount(flyoutScroll) == groups.Count,
+                "hiding TPS reclaims space and leaves both widgets' account rates visible");
+            pace.IsChecked = false; await Settle(main); await Settle(flyout);
+            Check(VisiblePaceCount(compactScroll) == 0 && VisiblePaceCount(flyoutScroll) == 0, "quota pace also collapses independently");
+            activity.SetValue(main, original with { OutputTokensPerSecond = null });
+            update.Invoke(main, null);
+            token.IsChecked = true; await Settle(main); await Settle(flyout);
+            Check(TokenRateText(compactRate) == "—" && TokenRateText(flyoutRate) == "—", "widgets show missing TPS without substituting zero");
+            activity.SetValue(main, original); update.Invoke(main, null);
+            pace.IsChecked = true;
+            await CheckPinnedRates(main, widget, groups, token, pace, output);
+            Console.WriteLine("PASS live TPS and per-account quota pace in both compact and taskbar panel layouts");
+        }
+        finally
+        {
+            flyout.Close(); widget.Close();
+            compactMode.Invoke(main, [false]); compactLayout.Invoke(main, ["ring"]);
+            activity.SetValue(main, original); update.Invoke(main, null);
+            token.IsChecked = true; pace.IsChecked = true;
+            await Settle(main);
+        }
+        static int VisiblePaceCount(DependencyObject parent) => Descendants<TextBlock>(parent).Count(block => block.IsVisible && block.Text.StartsWith("Down ", StringComparison.Ordinal));
+    }
+
+    private static async Task CheckPinnedRates(MainWindow main, TaskbarWidget widget, ObservableCollection<AccountGroupViewModel> groups, CheckBox token, CheckBox pace, string? output)
+    {
+        var preferences = (WidgetSettings)typeof(MainWindow).GetField("settings", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(main)!;
+        var select = typeof(TaskbarWidget).GetMethod("SelectDisplayedAccount", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var (originalLayout, originalPlacement) = (preferences.DetailedTaskbar, preferences.TaskbarPlacement);
+        widget.Show();
+        try
+        {
+            var tps = (TextBlock)widget.FindName("StripTps");
+            var rate = (TextBlock)widget.FindName("StripPace");
+            var sidecar = (Border)widget.FindName("StripMetrics");
+            preferences.TaskbarPlacement = "left";
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+            do
+            {
+                widget.Align();
+                if (widget.DockVisible) break;
+                await Task.Delay(100);
+            }
+            while (DateTimeOffset.UtcNow < deadline);
+            Check(widget.DockVisible, "taskbar widget docks for the rates smoke check");
+            foreach (var (layout, detailed) in new[] { ("ring", false), ("bar", true) })
+            {
+                preferences.DetailedTaskbar = detailed;
+                select.Invoke(widget, [groups[0]]);
+                widget.Align(); await Settle(widget);
+                Check(sidecar.IsVisible && tps.IsVisible && tps.Text == "TPS 12.5" && rate.IsVisible && rate.Text == "↓ 1 pp/h", $"docked {layout} shows both rates");
+                CheckInside(tps, widget, "docked TPS fits the taskbar window");
+                CheckInside(rate, widget, "docked quota pace fits the taskbar window");
+                select.Invoke(widget, [groups[1]]); await Settle(widget);
+                Check(tps.Text == "TPS 12.5" && rate.Text == "↓ 2.5 pp/h", "quota pace follows the selected account, unlike local TPS");
+                if (output is not null) Capture(widget, output, "pinned-rate-" + layout + ".png");
+            }
+            token.IsChecked = false; await Settle(widget);
+            Check(!tps.IsVisible && rate.IsVisible, "pinned TPS can be hidden independently");
+            pace.IsChecked = false; widget.Align(); await Settle(widget);
+            Check(widget.DockVisible && !sidecar.IsVisible, "both switches off restore the original docked widget");
+            Console.WriteLine("PASS pinned taskbar TPS and selected-account pace in both native layouts");
+        }
+        finally
+        {
+            (preferences.DetailedTaskbar, preferences.TaskbarPlacement) = (originalLayout, originalPlacement);
+        }
+    }
+
+    private static void Capture(Window window, string folder, string filename)
+    {
+        Directory.CreateDirectory(folder);
+        var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(Path.Combine(folder, filename)); png.Save(stream);
     }
 
     private static async Task CheckLayouts(GuideWindow guide, string[] args)

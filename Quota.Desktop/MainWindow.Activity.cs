@@ -38,7 +38,8 @@ public partial class MainWindow
                 var arguments = Environment.GetCommandLineArgs();
                 var index = Array.IndexOf(arguments, "--demo-status");
                 var kind = index >= 0 && index + 1 < arguments.Length && Enum.TryParse<CodexActivityKind>(arguments[index + 1], true, out var parsed) ? parsed : CodexActivityKind.Working;
-                activity = new(kind, kind == CodexActivityKind.Working ? 1 : 0, kind == CodexActivityKind.NeedsInput ? 1 : 0, 1, "demo-input");
+                activity = new(kind, kind == CodexActivityKind.Working ? 1 : 0, kind == CodexActivityKind.NeedsInput ? 1 : 0, 1, "demo-input")
+                { OutputTokensPerSecond = kind == CodexActivityKind.Working ? 12.5 : 0 };
             }
             else { activityTimer.Start(); _ = ReadActivityAsync(); }
         }
@@ -94,7 +95,13 @@ public partial class MainWindow
     {
         if (activityReading || exiting) return;
         activityReading = true;
-        try { var monitor = activityMonitor ??= new(persistence: store); activity = await Task.Run(() => monitor.Read(lifetime.Token), lifetime.Token); }
+        var includeTokenRate = settings.ShowTokenRate;
+        try
+        {
+            var monitor = activityMonitor ??= new(persistence: store);
+            var observed = await Task.Run(() => monitor.Read(lifetime.Token, includeTokenRate), lifetime.Token);
+            activity = settings.ShowTokenRate ? observed : observed with { OutputTokensPerSecond = null };
+        }
         catch (OperationCanceledException) { return; }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or InvalidOperationException) { activity = new(CodexActivityKind.Unknown, ReadIssue: CodexActivityReadIssue.ReadFailed); }
         finally { activityReading = false; }
@@ -111,6 +118,7 @@ public partial class MainWindow
         var error = current?.HasError == true;
         var display = (sessionIssues ??= new(store)).Apply(activity);
         CodexStatus.Update(display, remaining <= 0, error, remaining <= settings.LowQuotaThreshold);
+        UpdateTokenRate();
         sessionIssuesWindow?.SetIssues(CodexStatus.SessionIssues);
         UpdateActivityNotification(display);
     }

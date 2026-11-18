@@ -176,8 +176,10 @@ public sealed class GuideWindow : Window
     private void QuotaPage()
     {
         Heading(L.F("每个账号的额度，一眼掌握", "Every account, at a glance"), L.F("同时查看多个账号的剩余额度与下次重置时间。", "Track quota and the next reset across your accounts."));
+        main.BuildMonitoringOptions(body, inGuide: true);
         quotaPreview.RefreshContent(); body.Children.Add(quotaPreview);
     }
+    internal void RefreshMonitoringOptions() { if (page == 0 && !closed) Render(); }
     private void StatusPage()
     {
         Heading(L.F("用一盏灯，了解任务进展", "Follow your work with one light"), L.F("点击任意状态查看演示。任务栏小组件与主面板使用相同状态灯。", "Select a state to preview it. The taskbar widget and main panel share these lights."));

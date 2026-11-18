@@ -224,7 +224,7 @@ public partial class MainWindow : Window
             if (observedSources.Add(source)) source.PropertyChanged += AccountSourceChanged;
         foreach (var group in visibleAccounts) group.Dispose();
         visibleAccounts.Clear();
-        foreach (var group in AccountGroupViewModel.Build(accounts)) { group.ShowUsed = settings.ShowUsed; visibleAccounts.Add(group); }
+        foreach (var group in AccountGroupViewModel.Build(accounts)) { group.ShowUsed = settings.ShowUsed; group.ShowQuotaPace = settings.ShowQuotaPace; visibleAccounts.Add(group); }
         var current = visibleAccounts.FirstOrDefault(group => group.Sources.Any(source => source.Record.IsCurrent)) ?? visibleAccounts.FirstOrDefault();
         FocusAccount.Content = current;
         OtherAccountList.ItemsSource = visibleAccounts.Where(group => group != current).ToArray();
@@ -403,7 +403,17 @@ public partial class MainWindow : Window
         AccountViewModel Sample(string id, string name, double primary, double weekly)
         {
             var account = new AccountViewModel(new() { Id = id, Name = name, Email = id + "@example.com" });
-            account.SetSnapshot(new() { Email = id + "@example.com", AccountId = id, Buckets = [new() { Name = "Codex", Plan = primary < 30 ? "prolite" : primary > 80 ? "pro" : "promax", Windows = [new() { UsedPercent = primary, DurationMinutes = 300, ResetsAt = DateTimeOffset.UtcNow.AddHours(2.5).ToUnixTimeSeconds() }, new() { UsedPercent = weekly, DurationMinutes = 10080, ResetsAt = DateTimeOffset.UtcNow.AddDays(3.5).ToUnixTimeSeconds() }] }] }); return account;
+            var now = DateTimeOffset.UtcNow;
+            UsageSnapshot Snapshot(DateTimeOffset time, double shortUsed, double weeklyUsed) => new()
+            {
+                FetchedAt = time, Email = id + "@example.com", AccountId = id,
+                Buckets = [new() { Name = "Codex", Plan = primary < 30 ? "prolite" : primary > 80 ? "pro" : "promax", Windows =
+                    [new() { Kind = "primary", UsedPercent = shortUsed, DurationMinutes = 300, ResetsAt = now.AddHours(2.5).ToUnixTimeSeconds() },
+                     new() { Kind = "secondary", UsedPercent = weeklyUsed, DurationMinutes = 10080, ResetsAt = now.AddDays(3.5).ToUnixTimeSeconds() }] }]
+            };
+            account.SetSnapshot(Snapshot(now.AddMinutes(-15), primary - .625, weekly - .25));
+            account.SetSnapshot(Snapshot(now, primary, weekly));
+            return account;
         }
         accounts.Add(Sample("current", L.T("日常工作"), 22, 47)); accounts.Add(Sample(Guid.NewGuid().ToString("N"), L.T("个人项目"), 86, 64));
         var offline = Sample(Guid.NewGuid().ToString("N"), L.T("备用账号"), 43, 68); offline.SetError("连接暂时不可用。保留上次额度，稍后可重试。"); accounts.Add(offline);
