@@ -22,9 +22,9 @@ internal static class SettingsControls
         return label;
     }
 
-    internal static Border Card(UIElement content, int padding = 18)
+    internal static Border Card(UIElement content, int padding = 16)
     {
-        var card = new Border { Child = content, Padding = new Thickness(padding), CornerRadius = new CornerRadius(WindowSurface.CornerRadius), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 14) };
+        var card = new Border { Child = content, Padding = new Thickness(padding), CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 10) };
         card.SetResourceReference(Border.BackgroundProperty, "Surface");
         card.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
         return card;
@@ -34,7 +34,7 @@ internal static class SettingsControls
     {
         var content = new StackPanel();
         var heading = new Grid { Margin = new Thickness(0, 0, 0, 12) };
-        heading.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
+        heading.ColumnDefinitions.Add(new() { Width = new GridLength(26) });
         heading.ColumnDefinitions.Add(new());
         var glyph = new AppIcon { Kind = icon, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 0, 0) };
         glyph.SetResourceReference(AppIcon.ForegroundProperty, "Accent"); heading.Children.Add(glyph);
@@ -42,7 +42,7 @@ internal static class SettingsControls
         var name = DialogLayout.Text(title, 14); name.FontWeight = FontWeights.SemiBold; name.Margin = new Thickness(0); details.Children.Add(name);
         if (description.Length > 0)
         {
-            var text = DialogLayout.Text(description, 11, true); text.Margin = new Thickness(0, 5, 0, 0); details.Children.Add(text);
+            var text = DialogLayout.Text(description, 12, true); text.Margin = new Thickness(0, 4, 0, 0); details.Children.Add(text);
         }
         Grid.SetColumn(details, 1); heading.Children.Add(details); content.Children.Add(heading);
         parent.Children.Add(Card(content));
@@ -64,8 +64,8 @@ internal static class SettingsControls
         {
             var value = values[index];
             var content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-            content.Children.Add(new AppIcon { Kind = icons[index], Margin = new Thickness(0, 0, 0, 7) });
-            var text = new TextBlock { Text = L.T(labels[index]), FontSize = 11, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
+            content.Children.Add(new AppIcon { Kind = icons[index], Margin = new Thickness(0, 0, 0, 5) });
+            var text = new TextBlock { Text = L.T(labels[index]), FontSize = 12, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
             text.SetBinding(TextBlock.ForegroundProperty, new Binding("Foreground") { RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(RadioButton), 1) });
             content.Children.Add(text);
             var radio = new RadioButton { Content = content, IsChecked = selected == value, GroupName = label, Style = (Style)Application.Current.FindResource("IntervalChoice"), Margin = new Thickness(0, 0, 6, 6), VerticalContentAlignment = VerticalAlignment.Center };

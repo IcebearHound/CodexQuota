@@ -11,6 +11,27 @@ public readonly record struct PixelRect(int Left, int Top, int Width, int Height
 
 public static class ScreenLayout
 {
+    // Snapping never resizes or teleports a window. Each axis independently chooses
+    // its closest work-area edge, so one move can also settle into any corner.
+    public static PixelRect SnapToEdges(PixelRect window, PixelRect workArea, int threshold)
+    {
+        if (window.Width <= 0 || window.Height <= 0 || workArea.Width <= 0 || workArea.Height <= 0 || threshold < 0)
+            throw new ArgumentException("Positive bounds and a nonnegative snap threshold are required.");
+        static int Snap(int position, int size, int start, int extent, int distance)
+        {
+            if (size > extent) return position;
+            var end = (long)start + extent - size;
+            var fromStart = Math.Abs((long)position - start); var fromEnd = Math.Abs(position - end);
+            if (fromStart <= distance && fromStart <= fromEnd) return start;
+            if (fromEnd <= distance && end is >= int.MinValue and <= int.MaxValue) return (int)end;
+            return position;
+        }
+        return window with
+        {
+            Left = Snap(window.Left, window.Width, workArea.Left, workArea.Width, threshold),
+            Top = Snap(window.Top, window.Height, workArea.Top, workArea.Height, threshold)
+        };
+    }
     public static PixelRect EnsureVisible(PixelRect window, IEnumerable<PixelRect> workAreas)
     {
         if (window.Width <= 0 || window.Height <= 0) throw new ArgumentException("Window size must be positive.", nameof(window));

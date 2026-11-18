@@ -31,7 +31,8 @@ public sealed class WidgetPlacementPanel : StackPanel
             choices.Children.Add(radio);
         }
         Children.Add(choices);
-        var layout = SettingsControls.Section(this, L.T("任务栏布局"), "layout-grid");
+        var layout = SettingsControls.Section(this, L.T("任务栏布局"), "layout-grid",
+            L.F("任务栏小组件和展开面板使用同一种布局。", "The taskbar widget and its expanded panel use the same layout."));
         SettingsControls.Choices(layout, "任务栏布局", ["圆环模式", "状态条模式"], ["ring", "bar"], ["rotate-cw", "activity"], settings.DetailedTaskbar ? "bar" : "ring", value => main.SetTaskbarLayout(value == "bar"));
     }
     private void Change(bool enabled, string position) { main.SetGuideTaskbar(enabled, position); Build(); }

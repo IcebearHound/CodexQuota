@@ -52,6 +52,7 @@ public partial class TaskbarWidget : Window
         KeepFlyoutOpen();
         if (!host.Visible) { openPending = true; pendingActivation = activate; return; }
         var panel = PrepareFlyout();
+        panel.SetAccountLayout(main.DetailedTaskbar);
         panel.ShowActivated = activate;
         var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(host.Bounds.Left, host.Bounds.Top));
         var offset = host.TaskbarBounds.CenterY < screen.WorkingArea.Top + screen.WorkingArea.Height / 2d ? -8 : 8;
@@ -126,6 +127,7 @@ public partial class TaskbarWidget : Window
             if (!attached) flyout?.HideImmediately();
             if (attached)
             {
+                flyout?.SetAccountLayout(main.DetailedTaskbar);
                 if (flyout is { IsVisible: true, IsTransitioning: false }) host.PositionFlyout(flyout);
                 if (openPending) { var activate = pendingActivation; openPending = false; ShowAccounts(activate); }
                 if (proofDirectory is not null && !proofSaved) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, SaveProof);

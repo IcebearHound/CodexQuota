@@ -7,7 +7,7 @@ using Quota.Core;
 namespace Quota.Desktop;
 public partial class App : System.Windows.Application
 {
-    public App() { WindowSurface.Register(); }
+    public App() { WindowSurface.Register(); SmoothScroll.Register(); }
     private Mutex? instance;
     private EventWaitHandle? wake;
     private RegisteredWaitHandle? wakeRegistration;

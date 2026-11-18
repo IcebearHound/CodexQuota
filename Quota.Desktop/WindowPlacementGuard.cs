@@ -30,6 +30,23 @@ internal static class WindowPlacementGuard
         var adjusted = ScreenLayout.EnsureVisible(bounds with { Left = left, Top = top }, workAreas);
         return SetBounds(window, adjusted);
     }
+    public static PixelRect SnapBounds(Window window, PixelRect proposed)
+    {
+        var rectangle = new NativeRect { Left = proposed.Left, Top = proposed.Top, Right = checked((int)proposed.Right), Bottom = checked((int)proposed.Bottom) };
+        var monitor = MonitorFromRect(ref rectangle, 2);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == 0 || !GetMonitorInfo(monitor, ref info)) return proposed;
+        var work = info.Work;
+        var dpi = GetDpiForWindow(new WindowInteropHelper(window).Handle);
+        var threshold = (int)Math.Round(16 * (dpi > 0 ? dpi / 96d : 1));
+        return ScreenLayout.SnapToEdges(proposed, new(work.Left, work.Top, work.Right - work.Left, work.Bottom - work.Top), threshold);
+    }
+    public static bool SnapToEdges(Window window)
+    {
+        if (!window.IsVisible || window.WindowState != WindowState.Normal || !TryGetBounds(window, out var current)) return false;
+        var snapped = SnapBounds(window, current);
+        return current != snapped && SetBounds(window, snapped);
+    }
     public static bool TryGetBounds(Window window, out PixelRect bounds)
     {
         bounds = default;
@@ -51,6 +68,10 @@ internal static class WindowPlacementGuard
     private static PixelRect[] WorkAreas() => Forms.Screen.AllScreens.Select(screen => new PixelRect(screen.WorkingArea.Left, screen.WorkingArea.Top, screen.WorkingArea.Width, screen.WorkingArea.Height)).ToArray();
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }
+    [DllImport("user32.dll")] private static extern nint MonitorFromRect(ref NativeRect rectangle, uint flags);
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint window);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetWindowRect(IntPtr handle, out NativeRect rect);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetWindowPos(IntPtr handle, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern nint GetWindowLongPtr(nint window, int index);

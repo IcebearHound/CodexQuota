@@ -232,7 +232,7 @@ public sealed class GuideWindow : Window
 
     private void PlacementPage()
     {
-        Heading(L.F("让信息出现在顺手的位置", "Keep your widgets within reach"), L.F("主面板支持精简模式，双击可返回完整界面。主面板和任务栏小组件可分别选择圆环或状态条。", "Use compact mode in the main window and double-click to restore it. Choose ring or status-bar layouts independently for the main window and taskbar widget."));
+        Heading(L.F("让信息出现在顺手的位置", "Keep your widgets within reach"), L.F("双击主面板的空白处切换精简或完整界面。主面板和任务栏小组件可各自选择圆环或状态条。", "Double-click an empty area of the main window to toggle compact mode. Choose ring or status-bar layouts independently for the main window and taskbar widget."));
         body.Children.Add(new WidgetPlacementPanel(main));
         body.Children.Add(Text(L.F("任务栏小组件自动避开天气、应用按钮与系统托盘。", "The taskbar widget avoids weather, app buttons and the system tray."), 11, true));
     }

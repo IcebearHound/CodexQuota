@@ -60,6 +60,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--external-host-recovery")) await ExternalHostSmoke.Run(app);
                     else if (args.Contains("--desktop-recovery")) await NativeWindowSmoke.CheckMainRecovery(app);
                     else if (args.Contains("--appearance-smoke")) await AppearanceSmoke.Run((MainWindow)app.MainWindow, args);
+                    else if (args.Contains("--ui-polish")) await UiPolishSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--visibility-smoke")) await WindowVisibilitySmoke.Run((MainWindow)app.MainWindow, args);
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);

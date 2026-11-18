@@ -309,6 +309,32 @@ await Test("physical display bounds handle a removed secondary monitor", () =>
 {
     Check(ScreenLayout.EnsureVisible(new(2400, 200, 690, 600), [new(0, 0, 1920, 1040)]) == new PixelRect(1230, 200, 690, 600)); return Task.CompletedTask;
 });
+await Test("compact snapping reaches all four work-area edges and corners without resizing", () =>
+{
+    var area = new PixelRect(0, 40, 1920, 1000);
+    foreach (var (left, expectedLeft) in new[] { (9, 0), (810, 810), (1428, 1440) })
+        foreach (var (top, expectedTop) in new[] { (49, 40), (300, 300), (708, 720) })
+            Check(ScreenLayout.SnapToEdges(new(left, top, 480, 320), area, 16) == new PixelRect(expectedLeft, expectedTop, 480, 320));
+    return Task.CompletedTask;
+});
+await Test("compact edge magnet releases outside the threshold and does not jump distant windows", () =>
+{
+    var area = new PixelRect(0, 0, 1920, 1040);
+    Check(ScreenLayout.SnapToEdges(new(16, 200, 252, 300), area, 16).Left == 0);
+    foreach (var rect in new[] { new PixelRect(17, 200, 252, 300), new(-17, 200, 252, 300), new(3000, -1500, 252, 300) })
+        Check(ScreenLayout.SnapToEdges(rect, area, 16) == rect);
+    Check(ScreenLayout.SnapToEdges(new(-9, 200, 252, 300), area, 16).Left == 0);
+    return Task.CompletedTask;
+});
+await Test("compact snapping uses physical DPI-scaled thresholds and negative display work areas", () =>
+{
+    var area = new PixelRect(-1920, -1040, 1920, 1000);
+    Check(ScreenLayout.SnapToEdges(new(-1910, -1030, 378, 450), area, 24) == new PixelRect(-1920, -1040, 378, 450));
+    Check(ScreenLayout.SnapToEdges(new(-390, -470, 378, 450), area, 24) == new PixelRect(-378, -490, 378, 450));
+    Check(ScreenLayout.SnapToEdges(new(-390, -470, 378, 450), area, 16) == new PixelRect(-378, -470, 378, 450));
+    Check(ScreenLayout.SnapToEdges(new(5, 5, 500, 700), new(0, 0, 320, 480), 16) == new PixelRect(5, 5, 500, 700));
+    return Task.CompletedTask;
+});
 await Test("negative display origins do not push a visible window onto another monitor", () =>
 {
     var window = new PixelRect(-1600, 120, 600, 800); Check(ScreenLayout.EnsureVisible(window, [new(0, 0, 1920, 1040), new(-1920, 0, 1920, 1040)]) == window); return Task.CompletedTask;

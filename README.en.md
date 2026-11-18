@@ -1,4 +1,4 @@
-# CodexQuota
+# <img src="Quota.Desktop/Assets/brand.svg" alt="" width="36"> CodexQuota
 
 [简体中文](README.md) · **English**
 
@@ -6,14 +6,14 @@ Monitor Codex account quotas, reset timers and session issues from one Windows a
 
 **[Download the 2.3 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v2.3.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
-Actual 2.3 screenshots with demo data. All use the light theme except the dark-theme comparison.
+Screenshots use demo data and include UI updates from the current development branch. Use the link above for the stable release.
 
 | Compact widget (main window) | Taskbar widget and expanded panel |
 | --- | --- |
 | <img src="docs/images/compact-ring-en.png" alt="Complete compact ring view with quotas and reset timers for four accounts" width="252"> | <img src="docs/images/taskbar-preview-en.png" alt="Taskbar quota strip with its complete expanded four-account panel" width="380"> |
 
 - Track short-term and weekly reset windows independently, with same-email accounts grouped together.
-- Use compact mode in the main window, with separate ring and status-bar layouts for the main panel and taskbar.
+- Choose ring or status-bar mode separately for the compact main window and taskbar widget. The expanded taskbar panel follows the widget's layout.
 - Open an affected chat, ignore one occurrence or ignore all current session issues.
 
 | Multi-account dashboard | Session issues |
@@ -52,11 +52,11 @@ The quota example switches between remaining and used quota and explains indepen
 
 ## Taskbar and compact views
 
-Click the taskbar widget once to pin its account panel open and again to close it. Hover for a temporary preview. Its context menu switches between ring and status-bar layouts. The taskbar and main window save their layout preferences separately.
+Click the taskbar widget once to pin its account panel open and again to close it. Hover for a temporary preview. Its context menu changes the layout of both the widget and the expanded panel without changing the main window. See the [ring panel](docs/images/taskbar-ring-panel-en.png) or the [single-column status-bar panel](docs/images/taskbar-preview-en.png).
 
 <img src="docs/images/taskbar-bar-en.png" alt="Light taskbar status bar" width="200">
 
-Compact mode shows account names, quotas and reset timers. Double-click, press Esc or use the context menu to restore the full interface.
+Compact mode shows account names, quotas, reset timers and a live status light that opens session issues. Double-click blank space to switch between compact and full mode; buttons, account text and the light do not trigger this shortcut. Esc and the context menu also restore the full interface. Drag near a screen’s work-area edge or corner to snap the compact panel without covering the taskbar; drag away to release.
 
 | Compact ring | Compact status bar |
 | --- | --- |
@@ -70,9 +70,9 @@ Compact mode shows account names, quotas and reset timers. Double-click, press E
 | --- | --- |
 | <img src="docs/images/mono-light.png" alt="Black & White palette in light mode" width="252"> | <img src="docs/images/mono-dark.png" alt="Black & White palette in dark mode" width="252"> |
 
-Liquid glass uses native blur, one base surface and light cards, without an inset reflection sheet or extra inner outline. It appears on the first opening without another click. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
+Liquid glass uses native blur and a neutral frost to soften background colors and keep text readable. It appears on first open without another click. Solid colors are used when the system backdrop is unavailable or the window is embedded in the desktop.
 
-<img src="docs/images/glass-light.png" alt="2.3 light liquid glass on the main window and taskbar flyout over a colorful demo background" width="760">
+<img src="docs/images/glass-light.png" alt="Light liquid glass on the main window and taskbar flyout softens the demo background" width="760">
 
 <details>
 <summary>Appearance, startup and other options</summary>

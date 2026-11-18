@@ -16,6 +16,7 @@ internal sealed class DesktopWindowHost
     private Point dragStart;
     private PixelRect dragBounds;
     private bool dragging;
+    internal bool IsDragging => dragging;
 
     public PixelRect Bounds(Window window) => WindowPlacementGuard.TryGetBounds(window, out var bounds) ? bounds : default;
 

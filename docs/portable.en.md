@@ -6,7 +6,7 @@ Use **Settings → General → Version and updates** to check stable releases. A
 
 Update history and an independent recovery executable are stored in `%LOCALAPPDATA%\CodexQuotaUpdater\jobs`. After an interrupted update, follow that job's `RECOVERY.txt`. Exit CodexQuota before manual recovery. Keep the latest recovery folder; older job folders can be removed after the new version is stable to reclaim disk space.
 
-Connect accounts with CC Switch import or native Codex browser sign-in. Quota queries require the locally installed Codex app. Main and taskbar layouts are independent; click the taskbar widget to pin its panel open and again to close it.
+Connect accounts with CC Switch import or native Codex browser sign-in. Quota queries require the locally installed Codex app. Main and taskbar layouts are independent. The expanded taskbar panel follows the taskbar widget's ring or status-bar mode; click the widget to pin the panel open and again to close it. Compact mode includes a live status light with session-issue access. Double-click blank space to switch between compact and full mode. Drag the compact panel near a screen work-area edge or corner to snap, and drag away to release.
 
 Starting with 2.3, the Windows Win+W Widgets board and its extension package are no longer supported. The taskbar widget remains supported. Old Win+W users should exit the old app and download the complete portable ZIP. Verify and back up accounts and settings before uninstalling the old package. If data is missing, keep the old package until backup and migration are complete. Keep `%LOCALAPPDATA%\CodexQuotaWidget`.
 

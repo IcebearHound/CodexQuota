@@ -19,6 +19,7 @@ public static class DialogLayout
         window.Width = Math.Min(width, Math.Max(1, SystemParameters.WorkArea.Width - 32));
         window.SizeToContent = SizeToContent.Height; window.ResizeMode = ResizeMode.NoResize;
         window.WindowStyle = WindowStyle.None; window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        window.UseLayoutRounding = true; window.SnapsToDevicePixels = true;
         window.FontFamily = owner?.FontFamily ?? new FontFamily("Segoe UI"); window.ShowInTaskbar = false; window.Topmost = true;
         if (owner?.IsVisible == true && owner.ShowInTaskbar) { window.Owner = owner; window.WindowStartupLocation = WindowStartupLocation.CenterOwner; }
         window.SetResourceReference(Window.BackgroundProperty, "Background");
@@ -31,17 +32,21 @@ public static class DialogLayout
         window.MaxHeight = Math.Min(640, Math.Max(1, SystemParameters.WorkArea.Height - 32));
         System.Windows.Shell.WindowChrome.SetWindowChrome(window, new() { CaptionHeight = 0, ResizeBorderThickness = new Thickness(0), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(12), UseAeroCaptionButtons = false });
         var outer = new DockPanel();
-        var heading = new Grid { Height = 38, Background = Brushes.Transparent, Margin = new Thickness(14, 2, 8, 0) };
-        var title = Text(window.Title, 11, true); title.VerticalAlignment = VerticalAlignment.Center; title.Margin = new Thickness(0); heading.Children.Add(title);
+        var heading = new Grid { Height = 43, Background = Brushes.Transparent, Margin = new Thickness(16, 0, 10, 0) };
+        var title = Text(window.Title, 13); title.VerticalAlignment = VerticalAlignment.Center; title.FontWeight = FontWeights.SemiBold;
+        title.Margin = new Thickness(0, 0, 32, 0); title.TextTrimming = TextTrimming.CharacterEllipsis; title.TextWrapping = TextWrapping.NoWrap; heading.Children.Add(title);
         title.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(Window.Title)) { Source = window });
         var close = new Button { Content = new AppIcon { Kind = "x", Width = 15, Height = 15 }, Width = 28, Height = 28, Padding = new Thickness(0), Style = (Style)window.FindResource("IconButton"), HorizontalAlignment = HorizontalAlignment.Right, ToolTip = L.T("关闭") };
         close.Click += (_, _) => window.Close(); heading.Children.Add(close);
         heading.MouseLeftButtonDown += (_, args) => { if (args.OriginalSource is TextBlock || args.OriginalSource == heading) window.DragMove(); };
-        DockPanel.SetDock(heading, Dock.Top); outer.Children.Add(heading);
+        var header = new Border { Child = heading, BorderThickness = new Thickness(0, 0, 0, 1) };
+        header.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
+        DockPanel.SetDock(header, Dock.Top); outer.Children.Add(header);
         if (navigation is not null) { DockPanel.SetDock(navigation, Dock.Top); outer.Children.Add(navigation); }
         outer.Children.Add(new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         var border = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Child = outer };
         border.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
+        border.SetResourceReference(Border.BackgroundProperty, "Background");
         window.Content = border;
         window.PreviewKeyDown -= CloseOnEscape;
         window.PreviewKeyDown += CloseOnEscape;

@@ -103,7 +103,10 @@ internal static class ProductScreenshotSmoke
             {
                 flyout.Show();
                 await Settle(flyout);
-                CaptureTaskbarPreview((Border)flyout.FindName("FlyoutBody"), body, output, suffix);
+                var panel = (Border)flyout.FindName("FlyoutBody");
+                CaptureTaskbarPreview(panel, body, output, suffix);
+                typeof(TaskbarFlyout).GetMethod("SetAccountLayout", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(flyout, [false]);
+                await Settle(flyout); Capture(panel, output, "taskbar-ring-panel" + suffix + ".png");
             }
             finally { flyout.Close(); }
             var menu = (ContextMenu)Method("CreateWidgetMenu").Invoke(main, null)!;

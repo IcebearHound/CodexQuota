@@ -15,6 +15,9 @@ public partial class MainWindow
 {
     private Window? settingsWindow;
     private string settingsPage = "外观";
+    private string? renderedSettingsPage, settingsChromeLanguage;
+    private ScrollViewer? settingsScroll;
+    private UniformGrid? settingsNavigation;
     private bool narrowSettings;
     private bool settingsRenderPending;
     private AccountConnectionResult? settingsConnectionResult;
@@ -23,16 +26,25 @@ public partial class MainWindow
     private void SettingsClick(object sender, RoutedEventArgs e)
     {
         if (settingsWindow is { } existing) { existing.Activate(); return; }
-        var dialog = DialogLayout.Create(null, L.T("设置"), 860);
+        var dialog = DialogLayout.Create(null, L.T("设置"), 820);
         dialog.SizeToContent = SizeToContent.Manual;
-        dialog.Height = Math.Min(760, SystemParameters.WorkArea.Height - 32);
+        dialog.Height = Math.Min(700, SystemParameters.WorkArea.Height - 32);
         dialog.ResizeMode = ResizeMode.CanResize;
         dialog.MinWidth = Math.Min(320, dialog.Width);
         dialog.MinHeight = Math.Min(380, dialog.Height);
         dialog.ShowInTaskbar = true;
         dialog.Topmost = Topmost;
+        System.Windows.Shell.WindowChrome.SetWindowChrome(dialog, new()
+        {
+            CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false
+        });
+        dialog.PreviewKeyDown += SettingsEscape;
         settingsWindow = dialog;
-        dialog.Closed += (_, _) => { settingsWindow = null; L.LanguageChanged -= SettingsLanguageChanged; };
+        dialog.Closed += (_, _) =>
+        {
+            settingsWindow = null; settingsScroll = null; settingsNavigation = null; renderedSettingsPage = null;
+            L.LanguageChanged -= SettingsLanguageChanged;
+        };
         L.LanguageChanged += SettingsLanguageChanged;
         dialog.SizeChanged += (_, args) =>
         {
@@ -58,22 +70,38 @@ public partial class MainWindow
         });
     }
     private void CommitSettings() { ApplySettings(); SaveSettings(); }
-    private void OpenSettingsPage(string page) { settingsPage = page; RenderSettings(); }
+    private void OpenSettingsPage(string page)
+    {
+        if (settingsPage == page) return;
+        settingsPage = page; RenderSettings();
+        if (settingsNavigation?.IsKeyboardFocusWithin == false && KeyboardFocusWasLost())
+            settingsNavigation.Children.OfType<RadioButton>().FirstOrDefault(tab => tab.IsChecked == true)?.Focus();
+    }
+    private bool KeyboardFocusWasLost() => settingsWindow is { IsActive: true, IsKeyboardFocusWithin: false };
 
     private void RenderSettings()
     {
         if (settingsWindow is not { } dialog) return;
         dialog.Title = L.T("设置");
-        narrowSettings = (dialog.IsLoaded ? dialog.ActualWidth : dialog.Width) < 640;
-        var tabs = new UniformGrid { Columns = narrowSettings ? 2 : 1, VerticalAlignment = VerticalAlignment.Top };
-        foreach (var (page, icon) in new[] { ("外观", "palette"), ("小组件", "layout-grid"), ("账号", "log-in"), ("通知", "bell"), ("状态检测", "activity"), ("额度监测", "rotate-cw"), ("通用", "settings-2") })
+        var offset = renderedSettingsPage == settingsPage ? settingsScroll?.VerticalOffset ?? 0 : 0;
+        var narrow = (dialog.IsLoaded ? dialog.ActualWidth : dialog.Width) < 640;
+        if (settingsScroll is null || narrowSettings != narrow || settingsChromeLanguage != L.Language)
         {
-            var tab = new RadioButton { Content = SettingsControls.Label(page, icon), IsChecked = settingsPage == page, GroupName = "settings-pages", Style = (Style)FindResource("SettingsNavigation") };
-            AutomationProperties.SetName(tab, L.T(page));
-            tab.Checked += (_, _) => OpenSettingsPage(page); tabs.Children.Add(tab);
+            narrowSettings = narrow;
+            settingsChromeLanguage = L.Language;
+            settingsNavigation = new UniformGrid { Columns = narrow ? 2 : 1, VerticalAlignment = VerticalAlignment.Top };
+            foreach (var (page, icon) in new[] { ("外观", "palette"), ("小组件", "layout-grid"), ("账号", "log-in"), ("通知", "bell"), ("状态检测", "activity"), ("额度监测", "rotate-cw"), ("通用", "settings-2") })
+            {
+                var tab = new RadioButton { Content = SettingsControls.Label(page, icon, 13), Tag = page, GroupName = "settings-pages", Style = (Style)FindResource("SettingsNavigation") };
+                AutomationProperties.SetName(tab, L.T(page));
+                tab.Checked += (_, _) => OpenSettingsPage(page); settingsNavigation.Children.Add(tab);
+            }
+            SettingsFrame(dialog, settingsNavigation, narrow);
         }
-        var body = new StackPanel();
-        var title = DialogLayout.Text(settingsPage, 25); title.FontWeight = FontWeights.SemiBold; title.Margin = new Thickness(0, 0, 0, 6); body.Children.Add(title);
+        foreach (RadioButton tab in settingsNavigation!.Children)
+            tab.IsChecked = Equals(tab.Tag, settingsPage);
+        var body = new StackPanel { Margin = new Thickness(0, 2, 10, 12) };
+        var title = DialogLayout.Text(settingsPage, 27); title.FontWeight = FontWeights.SemiBold; title.Margin = new Thickness(0, 0, 0, 6); body.Children.Add(title);
         var description = settingsPage switch
         {
             "外观" => L.F("调整主题、显示方式与窗口层级。", "Choose your theme, display and window behavior."),
@@ -84,7 +112,7 @@ public partial class MainWindow
             "额度监测" => L.F("通过示例了解额度口径与独立重置窗口。", "Explore quota display and independent reset windows with examples."),
             _ => L.F("语言、刷新频率与 Codex 程序。", "Language, refresh frequency and the Codex executable.")
         };
-        var subtitle = DialogLayout.Text(description, 12, true); subtitle.Margin = new Thickness(0, 0, 0, 22); body.Children.Add(subtitle);
+        var subtitle = DialogLayout.Text(description, 13, true); subtitle.LineHeight = 20; subtitle.Margin = new Thickness(0, 0, 0, 18); body.Children.Add(subtitle);
         switch (settingsPage)
         {
             case "外观": BuildAppearanceSettings(body); break;
@@ -95,12 +123,15 @@ public partial class MainWindow
                 body.Children.Add(SettingsControls.Action(L.F("异常会话", "Session issues"), "activity", ShowSessionIssues));
                 body.Children.Add(new StatusPreviewPanel()); break;
             case "额度监测":
+
                 body.Children.Add(new QuotaPreviewPanel(settings.ShowUsed));
                 body.Children.Add(SettingsControls.Action("额度口径", "settings-2", () => OpenSettingsPage("外观")));
                 break;
             default: BuildGeneralSettings(body); break;
         }
-        SettingsFrame(dialog, body, tabs, narrowSettings);
+        settingsScroll!.Content = body;
+        settingsScroll.ScrollToVerticalOffset(offset);
+        renderedSettingsPage = settingsPage;
     }
 
     private void SettingChoices(Panel parent, string title, string icon, string[] labels, string[] values, string[] icons, string selected, Action<string> change, string description = "")
@@ -111,7 +142,7 @@ public partial class MainWindow
 
     private void BuildAppearanceSettings(Panel body)
     {
-        SettingChoices(body, "主题", "palette", ["跟随系统", "深色", "浅色"], ["system", "dark", "light"], ["monitor", "moon", "sun"], settings.Theme, value => { settings.Theme = value; QueueSettingsRender(); });
+        SettingChoices(body, "主题", "sun", ["跟随系统", "深色", "浅色"], ["system", "dark", "light"], ["monitor", "moon", "sun"], settings.Theme, value => settings.Theme = value);
         BuildPaletteSettings(body);
         SettingChoices(body, "显示模式", "layout-grid", ["紧凑圆环", "圆环 + 账号条"], ["compact", "normal"], ["layout-grid", "activity"], settings.Compact ? "compact" : "normal", value =>
         {
@@ -224,38 +255,47 @@ public partial class MainWindow
         BuildUpdateSettings(body);
     }
 
-    private void SettingsFrame(Window dialog, StackPanel content, UIElement navigation, bool narrow)
+    private void SettingsFrame(Window dialog, UIElement navigation, bool narrow)
     {
-        System.Windows.Shell.WindowChrome.SetWindowChrome(dialog, new() { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
         var frame = new Grid(); frame.RowDefinitions.Add(new() { Height = GridLength.Auto }); frame.RowDefinitions.Add(new());
-        var header = new Grid { Height = 54, Margin = new Thickness(20, 0, 12, 0), Background = Brushes.Transparent };
+        var header = new Grid { Height = 50, Margin = new Thickness(17, 0, 12, 0), Background = Brushes.Transparent };
         header.ColumnDefinitions.Add(new()); header.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-        var title = SettingsControls.Label("设置", "settings-2", 14); title.VerticalAlignment = VerticalAlignment.Center; header.Children.Add(title);
-        var close = new Button { Content = new AppIcon { Kind = "x" }, Style = (Style)FindResource("IconButton"), ToolTip = L.T("关闭"), Width = 30, Height = 30 };
+        var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        title.Children.Add(new BrandIcon { Width = 23, Height = 23, Margin = new Thickness(0, 0, 8, 0) });
+        var caption = DialogLayout.Text("设置", 13); caption.VerticalAlignment = VerticalAlignment.Center; caption.FontWeight = FontWeights.SemiBold; caption.Margin = new Thickness(0);
+        title.Children.Add(caption); header.Children.Add(title);
+        var close = new Button { Content = new AppIcon { Kind = "x" }, Style = (Style)FindResource("IconButton"), ToolTip = L.T("关闭"), Width = 32, Height = 32 };
         close.Click += (_, _) => dialog.Close(); Grid.SetColumn(close, 1); header.Children.Add(close);
         header.MouseLeftButtonDown += (_, args) => { if (args.OriginalSource is TextBlock || args.OriginalSource == header) dialog.DragMove(); };
-        frame.Children.Add(header);
+        var chrome = new Border { Child = header, BorderThickness = new Thickness(0, 0, 0, 1) };
+        chrome.SetResourceReference(Border.BorderBrushProperty, "BorderBrush"); frame.Children.Add(chrome);
         var layout = new Grid(); Grid.SetRow(layout, 1); frame.Children.Add(layout);
-        var scroll = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = narrow ? new Thickness(16, 12, 12, 18) : new Thickness(28, 20, 20, 24) };
+        var scroll = settingsScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = narrow ? new Thickness(16, 12, 7, 0) : new Thickness(26, 20, 12, 0) };
         if (narrow)
         {
             layout.RowDefinitions.Add(new() { Height = GridLength.Auto }); layout.RowDefinitions.Add(new());
-            var nav = new Border { Child = navigation, Padding = new Thickness(12, 0, 12, 6), BorderThickness = new Thickness(0, 0, 0, 1) };
+            var nav = new Border { Child = navigation, Padding = new Thickness(10, 8, 10, 4), BorderThickness = new Thickness(0, 0, 0, 1) };
+            nav.SetResourceReference(Border.BackgroundProperty, "SidebarFill");
             nav.SetResourceReference(Border.BorderBrushProperty, "BorderBrush"); layout.Children.Add(nav); Grid.SetRow(scroll, 1);
         }
         else
         {
-            layout.ColumnDefinitions.Add(new() { Width = new GridLength(176) }); layout.ColumnDefinitions.Add(new());
+            layout.ColumnDefinitions.Add(new() { Width = new GridLength(158) }); layout.ColumnDefinitions.Add(new());
             var sidebar = new DockPanel();
             var saved = SettingsControls.Label(L.F("自动保存", "Auto-save"), "check", 11); saved.Margin = new Thickness(10, 16, 0, 4);
             DockPanel.SetDock(saved, Dock.Bottom); sidebar.Children.Add(saved); sidebar.Children.Add(navigation);
-            var nav = new Border { Child = sidebar, Padding = new Thickness(12, 14, 10, 16), BorderThickness = new Thickness(0, 0, 1, 0) };
-            nav.SetResourceReference(Border.BackgroundProperty, "Surface"); nav.SetResourceReference(Border.BorderBrushProperty, "BorderBrush"); layout.Children.Add(nav); Grid.SetColumn(scroll, 1);
+            var nav = new Border { Child = sidebar, Padding = new Thickness(10, 12, 10, 14), BorderThickness = new Thickness(0, 0, 1, 0) };
+            nav.SetResourceReference(Border.BackgroundProperty, "SidebarFill"); nav.SetResourceReference(Border.BorderBrushProperty, "BorderBrush"); layout.Children.Add(nav); Grid.SetColumn(scroll, 1);
         }
         layout.Children.Add(scroll);
-        var outer = new Border { Child = frame, CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1) };
-        outer.SetResourceReference(Border.BorderBrushProperty, "BorderBrush"); dialog.Content = outer;
-        dialog.PreviewKeyDown -= SettingsEscape; dialog.PreviewKeyDown += SettingsEscape;
+        if (dialog.Content is not Border outer)
+        {
+            outer = new Border { BorderThickness = new Thickness(1) };
+            outer.SetResourceReference(Border.BackgroundProperty, "Background");
+            outer.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
+            dialog.Content = outer;
+        }
+        outer.Child = frame;
     }
 
     private static void SettingsEscape(object sender, System.Windows.Input.KeyEventArgs args)

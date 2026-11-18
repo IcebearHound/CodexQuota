@@ -3,13 +3,51 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
+using System.Runtime.InteropServices;
+using Quota.Core;
 
 namespace Quota.Desktop;
 
 public partial class MainWindow
 {
     private bool? appliedSimplifiedMode;
-    private void SimplifiedPointerDown(object sender, MouseButtonEventArgs args) => PanelDrag(sender, args);
+    private void PanelPointerDown(object sender, MouseButtonEventArgs args)
+    {
+        if (args.Handled || args.ClickCount != 2 || !IsPanelBlank(args.OriginalSource as DependencyObject)) return;
+        args.Handled = true;
+        SetSimplifiedMode(!settings.SimplifiedMode);
+    }
+    private bool IsPanelBlank(DependencyObject? source)
+    {
+        while (source is not null && source != this)
+        {
+            if (source is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.ScrollBar
+                or System.Windows.Controls.Primitives.Thumb or TextBox or AccountName or StatusLamp
+                or TextBlock or QuotaRing or ProgressBar or AppIcon or BrandIcon) return false;
+            source = source is Visual or Visual3D ? VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
+        }
+        return source == this;
+    }
+    private void SnapSimplifiedPanel()
+    {
+        if (settings.SimplifiedMode) WindowPlacementGuard.SnapToEdges(this);
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct MovingRectangle { public int Left, Top, Right, Bottom; }
+    private bool SnapMovingPanel(nint address)
+    {
+        if (!settings.SimplifiedMode || address == 0) return false;
+        var rect = Marshal.PtrToStructure<MovingRectangle>(address);
+        var width = (long)rect.Right - rect.Left; var height = (long)rect.Bottom - rect.Top;
+        if (width is <= 0 or > int.MaxValue || height is <= 0 or > int.MaxValue) return false;
+        var current = new PixelRect(rect.Left, rect.Top, (int)width, (int)height);
+        var snapped = WindowPlacementGuard.SnapBounds(this, current);
+        if (snapped == current) return false;
+        rect.Left = snapped.Left; rect.Top = snapped.Top; rect.Right = (int)snapped.Right; rect.Bottom = (int)snapped.Bottom;
+        Marshal.StructureToPtr(rect, address, false);
+        return true;
+    }
     private void SimplifiedModeClick(object sender, RoutedEventArgs args) => SetSimplifiedMode(true);
 
     internal void SetSimplifiedMode(bool enabled)
@@ -36,7 +74,7 @@ public partial class MainWindow
         {
             Width = 252;
             var rowHeight = settings.SimplifiedLayout == "bar" ? 46 : 72;
-            Height = Math.Min(Math.Max(84, 18 + Math.Max(1, visibleAccounts.Count) * rowHeight), Math.Min(450, SystemParameters.WorkArea.Height - 24));
+            Height = Math.Min(Math.Max(84, 44 + Math.Max(1, visibleAccounts.Count) * rowHeight), Math.Min(450, SystemParameters.WorkArea.Height - 24));
         }
         else if (appliedSimplifiedMode == true)
         {

@@ -1,27 +1,30 @@
+using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Quota.Desktop;
 
-public sealed class BrandIcon : FrameworkElement
+public sealed class BrandIcon : Image
 {
-    public static readonly DependencyProperty ForegroundProperty = System.Windows.Controls.Control.ForegroundProperty.AddOwner(
-        typeof(BrandIcon), new FrameworkPropertyMetadata(Brushes.Black, FrameworkPropertyMetadataOptions.AffectsRender));
-    public Brush Foreground { get => (Brush)GetValue(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
+    private static readonly BitmapSource Mark = LoadMark();
+
     public BrandIcon()
     {
-        Width = Height = 24; UseLayoutRounding = true; IsHitTestVisible = false;
+        Width = Height = 24;
+        UseLayoutRounding = true;
+        IsHitTestVisible = false;
         VerticalAlignment = VerticalAlignment.Center;
-        RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
-        SetResourceReference(ForegroundProperty, "Accent");
+        Stretch = Stretch.Uniform;
+        Source = Mark;
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.Fant);
     }
-    protected override void OnRender(DrawingContext drawing)
+
+    private static BitmapSource LoadMark()
     {
-        drawing.PushTransform(new ScaleTransform(ActualWidth / 24, ActualHeight / 24));
-        var pen = new Pen(Foreground, 3.1) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-        drawing.DrawEllipse(null, pen, new Point(11.2, 11.2), 7.2, 7.2);
-        drawing.DrawLine(pen, new Point(14.1, 14.1), new Point(20, 20));
-        drawing.DrawLine(new Pen(Foreground, 2.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, new Point(11.2, 11.2), new Point(14.6, 7.8));
-        drawing.Pop();
+        var mark = new BitmapImage(new Uri("pack://application:,,,/CodexQuota;component/Assets/brand.png"));
+        mark.Freeze();
+        return mark;
     }
 }

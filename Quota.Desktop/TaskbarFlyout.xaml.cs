@@ -16,6 +16,7 @@ public partial class TaskbarFlyout : Window
     private readonly MainWindow main;
     private bool wasActivated;
     private bool transitioning, hiding, closed;
+    private bool? appliedBarLayout;
     private int transitionVersion;
     private double restingTop, motionOffset = 8;
     internal bool IsTransitioning => transitioning;
@@ -31,12 +32,22 @@ public partial class TaskbarFlyout : Window
         Left = -10000;
         Top = -10000;
         AccountCards.ItemsSource = accounts;
+        SetAccountLayout(main.DetailedTaskbar);
         Activated += (_, _) => wasActivated = true;
         Deactivated += (_, _) => { if (wasActivated && !strip.FlyoutPinned) HideAnimated(); };
         IsVisibleChanged += (_, _) => { if (!IsVisible) { wasActivated = false; ResetTransition(); } };
         SystemParameters.StaticPropertyChanged += AnimationPreferenceChanged;
         Closed += (_, _) => { closed = true; ResetTransition(); SystemParameters.StaticPropertyChanged -= AnimationPreferenceChanged; };
         PreviewKeyDown += (_, args) => { if (args.Key == Key.Escape) { strip.CloseAccounts(); args.Handled = true; } };
+    }
+
+    internal void SetAccountLayout(bool statusBar)
+    {
+        if (appliedBarLayout == statusBar) return;
+        appliedBarLayout = statusBar;
+        AccountCards.ItemsPanel = (ItemsPanelTemplate)FindResource(statusBar ? "FlyoutBarList" : "FlyoutRingGrid");
+        AccountCards.ItemTemplate = (DataTemplate)FindResource(statusBar ? "TaskbarBarAccount" : "TaskbarRingAccount");
+        AccountsScroll.ScrollToTop();
     }
 
     internal void ShowAnimated(Action position, double offset = 8)

@@ -13,7 +13,7 @@ namespace Quota.Desktop;
 public sealed class SessionIssuesWindow : Window
 {
     private readonly StackPanel rows = new() { Margin = new Thickness(10, 0, 10, 10) };
-    private readonly StackPanel toolbar = new() { Margin = new Thickness(14, 4, 14, 10) };
+    private readonly StackPanel toolbar = new() { Margin = new Thickness(16, 10, 16, 8) };
     private readonly Action<CodexSessionIssue> open;
     private readonly Action<CodexSessionIssue, CodexIssueDisposition> acknowledge;
     private readonly Action ignoreAll;
@@ -67,7 +67,7 @@ public sealed class SessionIssuesWindow : Window
             row.ColumnDefinitions.Add(new() { Width = new GridLength(26) });
             row.ColumnDefinitions.Add(new()); row.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
             var glyph = new AppIcon { Kind = issue.Kind == CodexActivityKind.Error ? "x" : "info", HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 4, 0, 0) };
-            glyph.SetResourceReference(AppIcon.ForegroundProperty, "Error"); row.Children.Add(glyph);
+            glyph.SetResourceReference(AppIcon.ForegroundProperty, issue.Kind == CodexActivityKind.Error ? "Error" : "Muted"); row.Children.Add(glyph);
             var title = issue.Title is { Length: > 0 } catalogTitle ? catalogTitle : issue.ThreadId is { } id && titles.TryGetValue(id, out var name) ? name
                 : issue.ThreadId is { } thread ? L.F("会话 {0}", "Chat {0}", thread[..Math.Min(8, thread.Length)]) : L.F("无法定位的会话", "Unidentified chat");
             var text = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
@@ -75,7 +75,7 @@ public sealed class SessionIssuesWindow : Window
             heading.ToolTip = issue.ThreadId is { } identifier ? title + Environment.NewLine + identifier : title; text.Children.Add(heading);
             var kind = issue.Kind == CodexActivityKind.Error ? L.F("错误", "Error") : L.F("中断", "Interrupted");
             var time = issue.OccurredAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? L.F("时间未知", "Time unknown");
-            var detail = DialogLayout.Text(kind + " · " + time, 10, true); detail.Margin = new Thickness(0, 4, 0, 0); text.Children.Add(detail);
+            var detail = DialogLayout.Text(kind + " · " + time, 11, true); detail.Margin = new Thickness(0, 4, 0, 0); text.Children.Add(detail);
             Grid.SetColumn(text, 1); row.Children.Add(text);
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var navigate = IconAction(L.F("打开会话", "Open chat"), "chevron-right", () => open(issue));

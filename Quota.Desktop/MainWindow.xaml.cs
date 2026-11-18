@@ -72,8 +72,8 @@ public partial class MainWindow : Window
         tray.MouseUp += (_, args) => { if (args.Button == Forms.MouseButtons.Right) Dispatcher.BeginInvoke(ShowTrayMenu); };
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
         PreviewKeyDown += OnKeyDown;
-        MouseMove += (_, args) => { if (settings.DesktopOnly && args.LeftButton == MouseButtonState.Pressed) desktopHost.MoveDrag(this); };
-        MouseLeftButtonUp += (_, _) => { desktopHost.EndDrag(this); SavePlacement(); };
+        MouseMove += (_, args) => { if (settings.DesktopOnly && desktopHost.IsDragging && args.LeftButton == MouseButtonState.Pressed) { desktopHost.MoveDrag(this); SnapSimplifiedPanel(); } };
+        MouseLeftButtonUp += (_, _) => { if (desktopHost.IsDragging) { desktopHost.EndDrag(this); SnapSimplifiedPanel(); SavePlacement(); } };
         Loaded += async (_, _) =>
         {
             WindowPlacementGuard.EnsureVisible(this); ApplySettings();
@@ -96,6 +96,8 @@ public partial class MainWindow : Window
     }
     private nint NativeWindowMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {
+        if (message == 0x0216 && SnapMovingPanel(lParam)) { handled = true; return 1; }
+        if (message == 0x0232 && settings.SimplifiedMode) { SnapSimplifiedPanel(); SavePlacement(); }
         if (message == 0x0002 && settings.DesktopOnly && !exiting)
         {
             nativeWindowLost = true; visibleBeforeNativeLoss = Visibility == Visibility.Visible;
@@ -239,16 +241,16 @@ public partial class MainWindow : Window
     private void TogglePin(object sender, RoutedEventArgs e) { settings.DesktopOnly = false; settings.Topmost = !settings.Topmost; ApplySettings(); SaveSettings(); }
     private void PanelDrag(object sender, MouseButtonEventArgs args)
     {
-        if (settings.SimplifiedMode && args.ClickCount == 2) { SetSimplifiedMode(false); args.Handled = true; return; }
+        if (args.Handled) return;
         var element = args.OriginalSource as System.Windows.DependencyObject;
         while (element is not null && element != this)
         {
-            if (element is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.ScrollBar or TextBox or AccountName) return;
-            element = System.Windows.Media.VisualTreeHelper.GetParent(element);
+            if (element is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.ScrollBar or StatusLamp or TextBox or AccountName) return;
+            element = element is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D ? System.Windows.Media.VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element);
         }
         if (args.LeftButton != MouseButtonState.Pressed) return;
         if (settings.DesktopOnly) { desktopHost.BeginDrag(this); args.Handled = true; return; }
-        try { DragMove(); SavePlacement(); args.Handled = true; } catch (InvalidOperationException) { }
+        try { DragMove(); SnapSimplifiedPanel(); SavePlacement(); args.Handled = true; } catch (InvalidOperationException) { }
     }
     private void TitleDrag(object sender, MouseButtonEventArgs e) => PanelDrag(sender, e);
     private void CloseWindow(object sender, RoutedEventArgs e) => Close();
