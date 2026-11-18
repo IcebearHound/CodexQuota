@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 3.1 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.1.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 3.2 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.2.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -22,7 +22,7 @@ Screenshots use demo data.
 
 ## Act on session issues
 
-Open the issue list from the main window, a status light or the taskbar menu. Review errors and interruptions, ignore a single occurrence or choose **Ignore all**. The list refreshes automatically, filters out archived chats and attached history snapshots, and clears old interruptions when work resumes. A new issue in the same chat triggers a fresh alert. Input requests, errors, interruptions and exhausted quotas appear in a compact notification window.
+Open the issue list from the main window, a status light or the taskbar menu. Review errors and interruptions, ignore a single occurrence or choose **Ignore all**. The list refreshes automatically, filters out archived chats, attached history snapshots and internal subagents, and clears old interruptions when work resumes. A new issue in the same chat triggers a fresh alert. Input requests, errors, interruptions and exhausted quotas appear in a compact notification window.
 
 ## Quick start
 
@@ -44,7 +44,7 @@ The quota example switches between remaining and used quota and explains indepen
 Two rates appear beside the status heartbeat by default. Turn either off in the guide’s **Quota monitoring** chapter or **Settings → Quota monitoring**:
 
 - **Local output rate (TPS)**: The dashboard shows the average output tokens per second logged by local Codex sessions over the last 60 seconds. Logs update in batches, so this is not live generation speed.
-- **Quota consumption rate**: Shows the signed-in local account’s most constrained quota window. The change between two consecutive successful readings of the same window is shown in percentage points per hour, with no extra requests. A dash appears after a reset or when there is insufficient data.
+- **Quota consumption rate**: Shows the signed-in local account’s most constrained quota window. The rate uses two consecutive successful readings of the same window, with no extra requests. `2.00/h` means two percentage points consumed per hour. A dash appears after a reset or when there is insufficient data.
 
 The full dashboard, compact widget, and expanded taskbar panel show rates in their headers, not on account cards. The pinned widget also shows them when there is room. Browsing another account does not change the active account’s rate.
 
