@@ -34,7 +34,7 @@ public partial class App : System.Windows.Application
             recovery.Stop(); desktopRecovery = null;
             if (shuttingDown || Dispatcher.HasShutdownStarted || MainWindow is MainWindow current && current != previous && current.IsLoaded) return;
             var showReplacement = show || showAfterDesktopRecovery; showAfterDesktopRecovery = false;
-            var replacement = new MainWindow(demo); MainWindow = replacement;
+            var replacement = new MainWindow(demo, background: !showReplacement); MainWindow = replacement;
             ShowMainWindow(replacement, !showReplacement);
         };
         recovery.Start();
@@ -56,12 +56,25 @@ public partial class App : System.Windows.Application
         {
             Shutdown(await System.Threading.Tasks.Task.Run(() => UpdateRunner.RunAsync(e.Args[1], e.Args[0] == "--recover-update"))); return;
         }
+        if (e.Args is ["--unregister-startup"] or ["--refresh-installed-startup"])
+        {
+            try
+            {
+                var startup = StartupRegistration.ForCurrentProcess();
+                if (e.Args[0] == "--unregister-startup") startup.RemoveForCurrentExecutable();
+                else startup.RefreshRegisteredPath(installedCopyOnly: true);
+                Shutdown();
+            }
+            catch (Exception error) when (StartupRegistration.IsAccessFailure(error)) { Shutdown(1); }
+            return;
+        }
         var healthIndex = Array.IndexOf(e.Args, "--update-health");
         var healthNonce = healthIndex >= 0 && e.Args.Length > healthIndex + 1 && Guid.TryParseExact(e.Args[healthIndex + 1], "N", out _) ? e.Args[healthIndex + 1] : null;
         if (UpdateMaintenance.BlocksStartup(AppContext.BaseDirectory, healthNonce)) { Shutdown(); return; }
         base.OnStartup(e);
         CodexAppIdentity.Apply();
         var demo = Array.IndexOf(e.Args, "--demo") >= 0;
+        var background = Array.IndexOf(e.Args, "--background") >= 0;
         var instanceName = demo ? "Local\\CodexQuotaWidget.Demo.v2" : "Local\\CodexQuotaWidget.v2";
         var dataIndex = Array.IndexOf(e.Args, "--data-dir");
         var dataDirectory = demo ? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CodexQuotaDemo") : AccountStore.DefaultDirectory;
@@ -74,7 +87,7 @@ public partial class App : System.Windows.Application
         instance = new Mutex(true, instanceName, out var created);
         wake = new EventWaitHandle(false, EventResetMode.AutoReset, instanceName + ".Wake");
         refresh = new EventWaitHandle(false, EventResetMode.AutoReset, instanceName + ".Refresh");
-        if (!created) { if (Array.IndexOf(e.Args, "--background") >= 0) refresh.Set(); else wake.Set(); Shutdown(); return; }
+        if (!created) { if (background) refresh.Set(); else wake.Set(); Shutdown(); return; }
         wakeRegistration = ThreadPool.RegisterWaitForSingleObject(wake, (_, _) => Dispatcher.BeginInvoke(WakeWindow), null, Timeout.Infinite, false);
         refreshRegistration = ThreadPool.RegisterWaitForSingleObject(refresh, (_, _) => Dispatcher.BeginInvoke(async () => { if (MainWindow is MainWindow { IsLoaded: true } window) await window.RefreshFromWidgetAsync(); }), null, Timeout.Infinite, false);
         DispatcherUnhandledException += (_, args) =>
@@ -85,9 +98,9 @@ public partial class App : System.Windows.Application
         };
         try
         {
-            MainWindow = new MainWindow(demo);
+            MainWindow = new MainWindow(demo, background);
             if (healthNonce is not null) WatchUpdateHealth(MainWindow, healthNonce);
-            ShowMainWindow(MainWindow, Array.IndexOf(e.Args, "--background") >= 0);
+            ShowMainWindow(MainWindow, background);
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { DialogLayout.Alert(null, "Codex Quota", L.T("无法读取本地数据目录，请检查当前用户的文件访问权限。")); Shutdown(1); }
     }
@@ -110,8 +123,16 @@ public partial class App : System.Windows.Application
     {
         if (background)
         {
+            // WPF still needs one Loaded pass for native placement and widget initialization.
+            var showActivated = window.ShowActivated;
+            window.ShowActivated = false;
             RoutedEventHandler? hideOnce = null;
-            hideOnce = (_, _) => { window.Loaded -= hideOnce; window.Hide(); };
+            hideOnce = (_, _) =>
+            {
+                window.Loaded -= hideOnce;
+                window.Hide();
+                window.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => window.ShowActivated = showActivated);
+            };
             window.Loaded += hideOnce;
         }
         window.Show();

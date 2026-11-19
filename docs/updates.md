@@ -4,7 +4,9 @@
 
 「设置 → 通用 → 版本与更新」可关闭自动检查，也可手动检查。每天首次打开时在后台检查，只接受固定 GitHub 仓库 `IcebearHound/CodexQuota` 的较新正式版。托盘后台启动也会检查，发现新版时等到应用窗口打开再提示。弹窗显示版本、更新摘要和下载大小；选择「更新并重启」后才开始下载，下载期间可取消。「跳过此版本」只关闭该版本的自动提示，之后仍可手动更新。
 
-自更新从 2.3 完整便携版开始支持。2.2 及旧 Win+W 包没有自更新入口，应手动下载当前正式版的完整便携包。2.3 起不再支持 Windows 内置小组件，更新不再进行 Appx/COM 扩展注册；已有开机启动项由重新启动的主程序刷新路径，保留 Windows 中的禁用状态。任务栏小组件继续支持。
+自更新从 2.3 完整便携版开始支持。2.2 及旧 Win+W 包没有自更新入口，应手动下载当前正式版的完整便携包。2.3 起不再支持 Windows 内置小组件，更新不再进行 Appx/COM 扩展注册；任务栏小组件继续支持。
+
+正常打开主程序时，已启用的默认配置开机启动项会迁移为当前用户的登录任务，绕过传统启动项的排队。已禁用的启动项保持关闭。显式使用自定义数据目录的旧启动项，可从对应配置的设置中重新启用以迁移。
 
 ## 更新过程
 
@@ -46,7 +48,9 @@ dotnet run --project Quota.Presentation.Tests -c Release -- --update-lifecycle a
 
 ## English
 
-Use **Settings → General → Version and updates** to turn off automatic checks or check manually. The app checks stable releases in the background the first time it opens each day. A tray-only launch can check for updates, but waits for an app window before showing the prompt. The prompt shows the version, a short changelog and the download size. **Update and restart** starts the download, which you can cancel. **Skip this version** suppresses future automatic prompts for that version; manual updates still work. In-app updates are supported from the complete 2.3 portable build onward. Users of 2.2 and older Win+W packages should download the current stable portable ZIP manually. Windows Widgets Board support and Appx/COM registration are retired; the ordinary taskbar widget remains supported. The restarted desktop app refreshes its existing startup path without re-enabling startup if Windows disabled it.
+Use **Settings → General → Version and updates** to turn off automatic checks or check manually. The app checks stable releases in the background the first time it opens each day. A tray-only launch can check for updates, but waits for an app window before showing the prompt. The prompt shows the version, a short changelog and the download size. **Update and restart** starts the download, which you can cancel. **Skip this version** suppresses future automatic prompts for that version; manual updates still work. In-app updates are supported from the complete 2.3 portable build onward. Users of 2.2 and older Win+W packages should download the current stable portable ZIP manually. Windows Widgets Board support and Appx/COM registration are retired; the ordinary taskbar widget remains supported.
+
+Opening the main window normally migrates enabled default-profile startup entries to a per-user sign-in task, bypassing the traditional startup queue. Disabled entries stay disabled. If an older startup entry uses a custom data directory, re-enable startup from that profile to migrate it.
 
 Packages come only from the fixed GitHub repository, with HTTPS host checks, bounded streaming and the GitHub-provided SHA-256 digest. An exact installation manifest, safe archive paths and matching EXE version are required. Account data, settings and unknown files are never replaced. The app copies its current executable to an independent job directory as the updater, avoiding a second distributed runtime. It validates the installation before asking the app to quit, backs up owned files, replaces them atomically, and verifies the restarted UI. Failed startup rolls back and reopens the previous version. An active lease blocks accidental launches during installation; stale leases do not block startup.
 

@@ -31,13 +31,14 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly Forms.NotifyIcon tray;
     private readonly bool demo;
+    private bool deferredStartupGuide;
     private bool refreshing, exiting, loggingIn, noticeIsCli;
     private bool nativeWindowLost, visibleBeforeNativeLoss;
     private bool closedHandled;
     internal bool IsExiting => exiting;
     private readonly DesktopWindowHost desktopHost = new();
     private DateTimeOffset nextRefresh = DateTimeOffset.MinValue;
-    public MainWindow(bool demo)
+    public MainWindow(bool demo, bool background = false)
     {
         InitializeComponent(); this.demo = demo;
         SourceInitialized += (_, _) =>
@@ -80,11 +81,13 @@ public partial class MainWindow : Window
             WindowPlacementGuard.EnsureVisible(this); ApplySettings();
             _ = InitializeAppUpdatesAsync();
             if (startupNotice is { } startupMessage) ShowNotice(startupMessage);
-            if (demo) { LoadDemo(); if (Array.IndexOf(arguments, "--guide") >= 0) ShowUserGuide(); }
-            else
+            var guideRequested = Array.IndexOf(arguments, "--guide") >= 0 || (!demo && settings.GuideVersion < 1);
+            if (guideRequested && background) deferredStartupGuide = true;
+            if (demo) LoadDemo();
+            if (guideRequested && !background) ShowUserGuide();
+            if (!demo)
             {
                 if (store.RecoveryNotice is { } notice) ShowNotice(notice);
-                if (settings.GuideVersion < 1 || Array.IndexOf(arguments, "--guide") >= 0) ShowUserGuide();
                 startupRefresh = RefreshAllAsync(); await startupRefresh;
             }
         };
@@ -262,6 +265,7 @@ public partial class MainWindow : Window
     internal void ShowFromTray()
     {
         Show(); WindowState = WindowState.Normal; WindowPlacementGuard.EnsureVisible(this); Activate();
+        if (deferredStartupGuide) { deferredStartupGuide = false; ShowUserGuide(); }
         _ = CheckAppUpdateAsync(automatic: true);
     }
     private void DisplaySettingsChanged(object? sender, EventArgs args)

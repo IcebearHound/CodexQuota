@@ -11,16 +11,19 @@ internal static class WindowVisibilitySmoke
 {
     public static async Task Run(MainWindow main, string[] args)
     {
-        Application.Current.Windows.OfType<GuideWindow>().Single().Hide();
         var handle = new WindowInteropHelper(main).Handle;
         await Settle();
         if (args.Contains("--background"))
         {
+            Check(!Application.Current.Windows.OfType<GuideWindow>().Any(), "background startup does not open onboarding");
             Check(!main.IsVisible && !IsWindowVisible(handle), $"background startup keeps the WPF content and native glass window hidden (WPF {main.Visibility}/{main.IsVisible}, native {IsWindowVisible(handle)})");
+            var tray = (System.Windows.Forms.NotifyIcon)Field("tray").GetValue(main)!;
+            Check(tray.Visible, "the background process has a tray icon");
             Method("ShowFromTray").Invoke(main, null); await Settle();
             Check(main.IsVisible && IsWindowVisible(handle) && ((FrameworkElement)main.FindName("FullLayout")).IsVisible,
                 "opening the background-started app restores the main window and its content");
         }
+        Application.Current.Windows.OfType<GuideWindow>().Single().Hide();
 
         var settings = (WidgetSettings)Field("settings").GetValue(main)!;
         settings.Topmost = true;

@@ -86,7 +86,7 @@ Liquid glass uses native blur and a neutral frost to soften background colors an
 
 <img src="docs/images/settings-en.png" alt="Light palette and panel-material settings" width="340">
 
-Enable **Start with Windows** in **Settings → General → Window behavior** to launch in the tray after sign-in. Quota and reset-credit alerts, Chinese and English, account renaming and privacy display are supported.
+Enable **Start with Windows** in **Settings → General → Window behavior** to launch straight into the tray at Windows sign-in without opening the main window. Quota and reset-credit alerts, Chinese and English, account renaming and privacy display are supported.
 
 <img src="docs/images/startup-en.png" alt="Light startup setting" width="340">
 

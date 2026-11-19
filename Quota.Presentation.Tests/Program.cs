@@ -11,12 +11,13 @@ if (args is ["--setup-ui", _, ""])
 if (args.FirstOrDefault() == "--external-parent") { ExternalHostSmoke.RunParent(); return; }
 if (args.FirstOrDefault() == "--taskbar-lifecycle") { Environment.ExitCode = TaskbarLifecycleSmoke.Run(args); return; }
 if (args.FirstOrDefault() == "--guide-smoke") { Environment.ExitCode = GuideSmoke.Run(args); return; }
+if (args is ["--startup-registration"]) { StartupRegistrationSmoke.Run(); return; }
 
 var pass = 0;
 var cases = new (string Name, Action Verify)[]
 {
     ("desktop keeps its stable Windows application identity", AppIdentitySmoke.Run),
-    ("startup registration respects native state quoted paths upgrades and isolated cleanup", StartupRegistrationSmoke.Run),
+    ("startup registration uses an interactive undelayed sign-in task and migrates legacy state", StartupRegistrationSmoke.Run),
     ("status read failures expose specific localized reasons and recover", () =>
     {
         var status = new CodexStatusViewModel(); var updates = new List<string?>(); status.PropertyChanged += (_, args) => updates.Add(args.PropertyName);

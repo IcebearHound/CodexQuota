@@ -1,6 +1,4 @@
 using System;
-using System.IO;
-using System.Security;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -12,11 +10,13 @@ public partial class MainWindow
 
     private void RefreshStartupRegistration()
     {
-        if (demo || Array.IndexOf(Environment.GetCommandLineArgs(), "--data-dir") >= 0) return;
+        var args = Environment.GetCommandLineArgs();
+        // Don't write Run while Explorer is enumerating it, or migrate a candidate that may roll back.
+        if (demo || Array.Exists(args, arg => arg is "--data-dir" or "--background" or "--update-health")) return;
         try { StartupRegistration.ForCurrentProcess().RefreshRegisteredPath(); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or SecurityException or InvalidOperationException)
+        catch (Exception error) when (StartupRegistration.IsAccessFailure(error))
         {
-            startupNotice = L.F("开机启动路径未能更新，请在设置中重新开启开机启动。", "The startup path could not be updated. Turn startup off and on again in Settings.");
+            startupNotice = L.F("未能更新登录启动任务。可以在设置中重试。", "Could not update the sign-in task. Retry in Settings.");
         }
     }
 
@@ -25,15 +25,16 @@ public partial class MainWindow
         var registration = StartupRegistration.ForCurrentProcess();
         var toggle = new CheckBox { Content = SettingsControls.Label("开机启动", "power"), Margin = new Thickness(0, 6, 0, 6) };
         System.Windows.Automation.AutomationProperties.SetName(toggle, L.T("开机启动"));
-        var hint = DialogLayout.Text(L.F("登录 Windows 后自动启动并收起到托盘。", "Start automatically in the tray when you sign in to Windows."), 11, true);
+        var description = L.F("登录 Windows 时直接启动到托盘，不打开主窗口。", "Start in the tray at Windows sign-in without opening the main window.");
+        var hint = DialogLayout.Text(description, 11, true);
         hint.Margin = new Thickness(44, 0, 0, 10);
         void ReadState()
         {
             try { toggle.IsChecked = !demo && registration.IsEnabled; }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or SecurityException)
+            catch (Exception error) when (StartupRegistration.IsAccessFailure(error))
             {
                 toggle.IsEnabled = false;
-                hint.Text = L.F("开机启动状态读取失败，请检查当前用户的注册表权限。", "Could not read startup status. Check registry access for the current user.");
+                hint.Text = L.F("无法读取开机启动状态，请检查 Windows 任务计划程序。", "Could not read startup status. Check Windows Task Scheduler.");
                 hint.SetResourceReference(TextBlock.ForegroundProperty, "Error");
             }
         }
@@ -46,12 +47,12 @@ public partial class MainWindow
             try
             {
                 registration.SetEnabled(enabled);
-                hint.Text = L.F("登录 Windows 后自动启动并收起到托盘。", "Start automatically in the tray when you sign in to Windows.");
+                hint.Text = description;
                 hint.SetResourceReference(TextBlock.ForegroundProperty, "Muted");
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or SecurityException or InvalidOperationException)
+            catch (Exception error) when (StartupRegistration.IsAccessFailure(error))
             {
-                hint.Text = L.F("开机启动设置未能保存，请检查当前用户的注册表权限后重试。", "Could not save startup settings. Check registry access for the current user and retry.");
+                hint.Text = L.F("未能保存开机启动设置，请检查 Windows 任务计划程序后重试。", "Could not save startup settings. Check Windows Task Scheduler and retry.");
                 hint.SetResourceReference(TextBlock.ForegroundProperty, "Error");
             }
             restoring = true;

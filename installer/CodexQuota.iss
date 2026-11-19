@@ -64,6 +64,12 @@ Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "CodexQuota.exe"; Flags: 
 [Icons]
 Name: "{userprograms}\Codex Quota"; Filename: "{app}\CodexQuota.exe"; WorkingDir: "{app}"
 
+[Run]
+Filename: "{app}\CodexQuota.exe"; Parameters: "--refresh-installed-startup"; Flags: runhidden
+
+[UninstallRun]
+Filename: "{app}\CodexQuota.exe"; Parameters: "--unregister-startup"; Flags: runhidden; RunOnceId: "CodexQuotaStartup"
+
 [Code]
 const
   StartupRun = 'Software\Microsoft\Windows\CurrentVersion\Run';

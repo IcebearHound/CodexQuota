@@ -86,7 +86,7 @@
 
 <img src="docs/images/settings.png" alt="浅色调色板与面板材质设置" width="340">
 
-「设置 → 通用 → 窗口行为」可开启开机启动，登录 Windows 后在托盘后台运行。支持额度与重置卡提醒、中英文、账号重命名和隐私显示。
+在「设置 → 通用 → 窗口行为」开启「开机启动」后，Codex Quota 由当前用户的 Windows 登录事件触发，直接进入托盘，不弹出主窗口。支持额度与重置卡提醒、中英文、账号重命名和隐私显示。
 
 <img src="docs/images/startup.png" alt="浅色开机启动设置" width="340">
 
