@@ -4,7 +4,7 @@
 
 在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-**[下载 3.2 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.2.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
+**[下载 3.3 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.3.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
 以下界面截图使用演示数据。
 
