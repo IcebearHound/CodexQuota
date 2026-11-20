@@ -33,6 +33,8 @@
   "暂无额度": "No quota data",
   "更新中": "Updating",
   "已过期": "Stale",
+  "同步超时": "Sync timed out",
+  "读取超时。保留上次额度，稍后可重试。": "The quota read timed out. Any previous quota is kept; try again later.",
   "需处理": "Action needed",
   "部分过期": "Partly stale",
   "等待更新": "Waiting",

@@ -63,16 +63,20 @@ var cases = new (string Name, Action Verify)[]
         Check(vm.Updated.Contains(time.ToString("MM-dd HH:mm"))); Check(vm.UpdatedTooltip.Contains(time.ToString("yyyy-MM-dd HH:mm:ss zzz")));
         time = DateTimeOffset.Now.AddYears(-1); vm.SetSnapshot(Snapshot(time), fromCache: true); Check(vm.Updated.Contains(time.ToString("yyyy-MM-dd HH:mm")));
     }),
-    ("read failures retain known usage and a recovery removes the stale state", () =>
+    ("only a timeout marks retained quota as stale and a retry clears it on success", () =>
     {
         var vm = Account(); vm.SetSnapshot(Snapshot(DateTimeOffset.Now)); vm.SetError("网络不可用");
-        Check(vm.Status == "已过期" && vm.Buckets[0].Windows[0].Remaining == 73); Check(vm.Updated.Contains("显示上次数据"));
+        Check(vm.Status == "需处理" && vm.Buckets[0].Windows[0].Remaining == 73); Check(vm.Updated.Contains("显示上次数据"));
+        vm.SetError("读取超时。保留上次额度，稍后可重试。", timedOut: true); Check(vm.Status == "已过期");
+        vm.IsRefreshing = true; Check(vm.Status == "更新中"); vm.IsRefreshing = false;
         vm.SetSnapshot(Snapshot(DateTimeOffset.Now)); Check(!vm.HasError && vm.Status == "已同步");
+        vm.ClearSnapshot(); vm.SetError("读取超时。保留上次额度，稍后可重试。", timedOut: true); Check(vm.Status == "同步超时");
     }),
-    ("current-account cache never claims its identity is verified after failure", () =>
+    ("current-account cache is unverified without claiming a sync failure", () =>
     {
-        var vm = new AccountViewModel(new() { Id = "current", Name = "current" }); vm.SetSnapshot(Snapshot(DateTimeOffset.Now), fromCache: true); vm.SetError("等待验证");
-        Check(vm.Identity.Contains("当前登录未验证")); Check(vm.Error!.Contains("上次读取账号"));
+        var vm = new AccountViewModel(new() { Id = "current", Name = "current" }); vm.SetSnapshot(Snapshot(DateTimeOffset.Now), fromCache: true);
+        Check(vm.Identity.Contains("当前登录未验证") && vm.Status == "缓存" && !vm.HasError);
+        vm.SetError("登录已失效"); Check(vm.Status == "需处理" && vm.Error!.Contains("上次读取账号"));
         vm.SetSnapshot(Snapshot(DateTimeOffset.Now)); Check(!vm.Identity.Contains("未验证"));
     }),
     ("freshness clock changes notify the timestamp display", () =>

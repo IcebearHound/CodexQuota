@@ -35,7 +35,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public bool ShowCompact => primary.ShowCompact;
     public string Identity => primary.Identity;
     public bool HasMultipleSources => sources.Length > 1;
-    public bool IsCurrent => sources.Any(source => source.Record.IsCurrent && !source.HasError && source.Snapshot is not null);
+    public bool IsCurrent => sources.Any(source => source.Record.IsCurrent && !source.HasError && !source.IsCached && source.Snapshot is not null);
     public bool CanSwitch => !IsCurrent && sources.Any(source => source.Managed);
     public string ActionHint => HasError ? sources.FirstOrDefault(source => source.HasError)?.ActionHint ?? primary.ActionHint : L.T("已同步");
     public string SourceSummary
@@ -65,13 +65,15 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public bool HasLowQuota => Buckets.SelectMany(bucket => bucket.Windows).Any(window => window.Remaining <= WindowViewModel.AlertThreshold);
     public string Updated => primary.Updated;
     public string UpdatedTooltip => string.Join(Environment.NewLine, selected.Select(source => $"{SourceName(source)} · {source.UpdatedTooltip}"));
-    public string StatusColor => IsRefreshing ? ThemeService.AccentColor : HasError ? ThemeService.DangerColor : ThemeService.SecondaryColor;
+    public string StatusColor => IsRefreshing ? ThemeService.AccentColor
+        : HasError && (selected.Length > 0 ? selected : sources).Any(source => source.HasErrorAccent) ? ThemeService.DangerColor : ThemeService.SecondaryColor;
     public string Status
     {
         get
         {
             if (IsRefreshing) return L.T("更新中");
-            if (HasError) return selected.Length > 1 ? L.T("部分过期") : primary.Status;
+            if (HasError) return selected.Length > 1
+                ? L.T(selected.Any(source => source.HasError && !source.IsStale) ? "需处理" : "部分过期") : primary.Status;
             if (selected.Length == 0) return primary.Status;
             return selected.Any(source => source.Status == L.T("缓存")) ? L.T("缓存") : IsCurrent ? L.T("使用中") : L.T("已同步");
         }

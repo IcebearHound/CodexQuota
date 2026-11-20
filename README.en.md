@@ -22,6 +22,8 @@ Screenshots use demo data.
 
 ## Act on session issues
 
+Hover over the status light to distinguish a quota read error for the current account from a chat error. The tooltip shows why the quota could not be read. For chat errors, click the light to open the issue list. When both occur, the tooltip lists them separately.
+
 Open the issue list from the main window, a status light or the taskbar menu. Review errors and interruptions, ignore a single occurrence or choose **Ignore all**. The list refreshes automatically, filters out archived chats, attached history snapshots and internal subagents, and clears old interruptions when work resumes. A new issue in the same chat triggers a fresh alert. Input requests, errors, interruptions and exhausted quotas appear in a compact notification window.
 
 ## Quick start
@@ -40,6 +42,8 @@ Open the issue list from the main window, a status light or the taskbar menu. Re
 ### Quota and status walkthrough
 
 The quota example switches between remaining and used quota and explains independent reset windows. Select a status example to explore working, completed, waiting for input, low quota, exhausted, error, interrupted and offline signals.
+
+After a network or Windows system proxy change, accounts that are not synced retry without waiting for the next scheduled refresh. A timeout marks previously read quota as **Stale**. Other failures show **Action needed** with the reason. Stale quota for an inactive account does not turn the status light red.
 
 Two rates appear beside the status heartbeat by default. Turn either off in the guide’s **Quota monitoring** chapter or **Settings → Quota monitoring**:
 

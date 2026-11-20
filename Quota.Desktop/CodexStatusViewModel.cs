@@ -13,6 +13,7 @@ public sealed class CodexStatusViewModel : Observable
     internal const string WarningColor = "#F2B600";
     internal const string SuccessColor = "#00C46A";
     private string language = L.Language;
+    private (bool Quota, bool Session, string? QuotaDetail) errors;
     public CodexSignal Signal { get; private set; }
     public CodexActivityReadIssue ReadIssue { get; private set; }
     public IReadOnlyList<CodexInterruptedTask> InterruptedTasks { get; private set; } = Array.Empty<CodexInterruptedTask>();
@@ -39,7 +40,7 @@ public sealed class CodexStatusViewModel : Observable
     };
     public string Message => Signal switch
     {
-        CodexSignal.Error => L.F("Codex 出现错误，请查看账号处理详情或 Codex 会话。", "Codex needs attention. Check account details or your Codex chat."),
+        CodexSignal.Error => DescribeErrors(),
         CodexSignal.Exhausted => L.F("当前 Codex 账号额度已用尽。", "The current Codex account has exhausted its quota."),
         CodexSignal.Low => L.F("当前 Codex 账号额度偏低。", "The current Codex account is running low on quota."),
         CodexSignal.NeedsInput => InputMessage,
@@ -58,12 +59,37 @@ public sealed class CodexStatusViewModel : Observable
             _ => L.F("Codex 状态暂不可读。", "Codex status is unavailable.")
         }
     };
+    private string DescribeErrors()
+    {
+        var session = "";
+        if (errors.Session)
+        {
+            var count = SessionIssues.Count(issue => !issue.IsRead && issue.Kind == CodexActivityKind.Error);
+            session = count > 1
+                ? L.F("{0} 个 Codex 会话出错。", "{0} Codex chats encountered errors.", count)
+                : L.F("Codex 会话出错。", "A Codex chat encountered an error.");
+        }
+        if (!errors.Quota) return session;
+        var quota = L.F("当前账号额度读取异常", "Current account quota read error");
+        if (errors.QuotaDetail is { Length: > 0 } detail) quota += Environment.NewLine + detail;
+        quota += Environment.NewLine + L.F("点击主面板的「来源需处理」查看详情。", "Open the account summary in the main panel for details.");
+        return session.Length > 0 ? quota + Environment.NewLine + Environment.NewLine + session : quota;
+    }
     public string InputMessage => L.F("Codex 需要你的输入，请返回 Codex 查看并继续。", "Codex needs your input. Return to Codex to review and continue.");
-    public string Tooltip => Message + (CanOpenInterruptedTask ? Environment.NewLine + L.F("单击查看 {0} 个异常会话。", "Click to view {0} session issues.", UnreadSessionCount) : "");
+    public string Tooltip
+    {
+        get
+        {
+            var count = UnreadSessionCount;
+            return count == 0 ? Message : Message + Environment.NewLine
+                + L.F("单击查看 {0} 个异常会话。", count == 1 ? "Click to view {0} session issue." : "Click to view {0} session issues.", count);
+        }
+    }
 
-    public void Update(CodexActivitySnapshot activity, bool exhausted = false, bool quotaError = false, bool low = false)
+    public void Update(CodexActivitySnapshot activity, bool exhausted = false, bool quotaError = false, bool low = false, string? quotaErrorDetail = null)
     {
         var previousSignal = Signal; var previousNeedsInput = NeedsInput; var previousReadIssue = ReadIssue;
+        var previousErrors = errors;
         ReadIssue = activity.ReadIssue;
         var interrupted = (activity.InterruptedTasks ?? Array.Empty<CodexInterruptedTask>()).Where(task => CodexThreadLink.NormalizeId(task.ThreadId) is not null).OrderByDescending(task => task.InterruptedAt).ToArray();
         var issues = activity.SessionIssues ?? Array.Empty<CodexSessionIssue>();
@@ -84,7 +110,8 @@ public sealed class CodexStatusViewModel : Observable
                 CodexActivityKind.Completed => CodexSignal.Completed,
                 _ => CodexSignal.Unknown
             };
-        if (Signal == previousSignal && NeedsInput == previousNeedsInput && ReadIssue == previousReadIssue && !changedTasks && language == L.Language) return;
+        errors = Signal == CodexSignal.Error ? (quotaError, activity.Kind == CodexActivityKind.Error, quotaError ? quotaErrorDetail : null) : default;
+        if (Signal == previousSignal && NeedsInput == previousNeedsInput && ReadIssue == previousReadIssue && errors == previousErrors && !changedTasks && language == L.Language) return;
         language = L.Language;
         Raise(nameof(Signal)); Raise(nameof(ReadIssue)); Raise(nameof(Animation)); Raise(nameof(Breathing)); Raise(nameof(Flashing)); Raise(nameof(Color)); Raise(nameof(Message)); Raise(nameof(NeedsInput)); Raise(nameof(InputMessage));
         Raise(nameof(SessionIssues)); Raise(nameof(UnreadSessionCount)); Raise(nameof(InterruptedTasks)); Raise(nameof(CanOpenInterruptedTask)); Raise(nameof(Tooltip));

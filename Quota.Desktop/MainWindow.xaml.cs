@@ -63,7 +63,7 @@ public partial class MainWindow : Window
         accounts.Add(new(new() { Id = "current", Name = settings.CurrentAccountName ?? L.T("当前 Codex 账号"), CustomName = settings.CurrentAccountName is not null }));
         if (!demo) foreach (var record in store.LoadAccounts()) accounts.Add(new(record));
         if (!demo) RestoreImportedNames();
-        foreach (var account in accounts) { var cached = store.LoadCache(account.Record.Id); if (cached is not null) { account.SetSnapshot(cached, fromCache: true); if (account.Record.IsCurrent) account.SetError("等待验证当前登录。"); } }
+        foreach (var account in accounts) if (store.LoadCache(account.Record.Id) is { } cached) account.SetSnapshot(cached, fromCache: true);
         accounts.CollectionChanged += (_, _) => RebuildAccountGroups();
         RebuildAccountGroups();
         AccountList.ItemsSource = visibleAccounts;
@@ -88,6 +88,7 @@ public partial class MainWindow : Window
             if (!demo)
             {
                 if (store.RecoveryNotice is { } notice) ShowNotice(notice);
+                StartMonitoringQuotaConnection();
                 startupRefresh = RefreshAllAsync(); await startupRefresh;
             }
         };
@@ -120,7 +121,7 @@ public partial class MainWindow : Window
         updatePrompt?.Close(); settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close(); attentionNotification?.Close();
         foreach (var group in visibleAccounts) group.Dispose();
         foreach (var source in observedSources) source.PropertyChanged -= AccountSourceChanged;
-        lifetime.Cancel(); activityTimer.Stop(); taskbarMonitor.Stop(); taskbarWidget?.Close(); tray.Visible = false;
+        lifetime.Cancel(); StopMonitoringQuotaConnection(); activityTimer.Stop(); taskbarMonitor.Stop(); taskbarWidget?.Close(); tray.Visible = false;
         var icon = tray.Icon; tray.Dispose(); icon?.Dispose(); timer.Stop();
         if (recover && System.Windows.Application.Current is App app) app.RecoverDesktopWindow(this, demo, visibleBeforeNativeLoss);
         else System.Windows.Application.Current.Shutdown();
@@ -164,13 +165,17 @@ public partial class MainWindow : Window
         else if (noticeIsCli) { NoticeBorder.Visibility = Visibility.Collapsed; noticeIsCli = false; }
         return path;
     }
-    private async Task RefreshAllAsync()
+    private Task RefreshAllAsync() => RefreshQuotasAsync(unsyncedOnly: false);
+    private async Task RefreshQuotasAsync(bool unsyncedOnly)
     {
         if (demo || refreshing || switching || exiting || appUpdateState.Phase == "installing") return;
-        var cli = GetCli(); if (cli is null) { nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes); foreach (var a in accounts) a.SetError("未找到 Codex，请在设置中选择 codex.exe。"); UpdateSummary(); return; }
+        if (!unsyncedOnly) nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes);
+        var targets = accounts.Where(account => !account.IsRefreshing
+            && (!unsyncedOnly || account.HasError || account.IsCached || account.Snapshot is null)).ToArray();
+        if (targets.Length == 0) return;
+        var cli = GetCli(); if (cli is null) { foreach (var account in targets) account.SetError("未找到 Codex，请在设置中选择 codex.exe。"); UpdateSummary(); return; }
         refreshing = true; RefreshButton.IsEnabled = false;
-        nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes);
-        try { await Task.WhenAll(accounts.ToArray().Where(a => !a.IsRefreshing).Select(a => RefreshAccountAsync(cli, a))); }
+        try { await Task.WhenAll(targets.Select(account => RefreshAccountAsync(cli, account))); }
         finally
         {
             refreshing = false;
@@ -207,7 +212,11 @@ public partial class MainWindow : Window
             try { store.SaveCache(account.Record.Id, snapshot); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { ShowNotice(L.T("额度已更新，但本地缓存未能保存。")); }
         }
         catch (OperationCanceledException) { }
-        catch (Exception e) when (e is CodexException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException) { if (accounts.Contains(account)) account.SetError(e is CodexException ? e.Message : "读取未完成，请重试或重新登录。"); }
+        catch (Exception e) when (e is CodexException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            if (accounts.Contains(account)) account.SetError(e is CodexException ? e.Message : "读取未完成，请重试或重新登录。",
+                timedOut: e is CodexException { IsTimeout: true });
+        }
         finally { account.IsRefreshing = false; if (!exiting) { UpdateSummary(); CheckNotifications(); } }
     }
     private void UpdateSummary()
@@ -428,7 +437,7 @@ public partial class MainWindow : Window
             return account;
         }
         accounts.Add(Sample("current", L.T("日常工作"), 22, 47)); accounts.Add(Sample(Guid.NewGuid().ToString("N"), L.T("个人项目"), 86, 64));
-        var offline = Sample(Guid.NewGuid().ToString("N"), L.T("备用账号"), 43, 68); offline.SetError("连接暂时不可用。保留上次额度，稍后可重试。"); accounts.Add(offline);
+        var offline = Sample(Guid.NewGuid().ToString("N"), L.T("备用账号"), 43, 68); offline.SetError("读取超时。保留上次额度，稍后可重试。", timedOut: true); accounts.Add(offline);
         accounts.Add(Sample(Guid.NewGuid().ToString("N"), "Pro500", 98, 80));
         ApplySettings(); UpdateSummary();
     }

@@ -114,10 +114,11 @@ public partial class MainWindow
     private void UpdateCodexStatus()
     {
         var current = accounts.FirstOrDefault(source => source.Record.IsCurrent);
-        var remaining = current?.Snapshot?.Buckets.SelectMany(bucket => bucket.Windows).Select(window => (double?)window.Remaining).Min();
-        var error = current?.HasError == true;
+        var remaining = current is { HasError: false, IsCached: false }
+            ? current.Snapshot?.Buckets.SelectMany(bucket => bucket.Windows).Select(window => (double?)window.Remaining).Min() : null;
+        var quotaError = current is { IsRefreshing: false } ? current.ErrorDetail : null;
         var display = (sessionIssues ??= new(store)).Apply(activity);
-        CodexStatus.Update(display, remaining <= 0, error, remaining <= settings.LowQuotaThreshold);
+        CodexStatus.Update(display, remaining <= 0, quotaError is not null, remaining <= settings.LowQuotaThreshold, quotaError);
         UpdateTokenRate();
         sessionIssuesWindow?.SetIssues(CodexStatus.SessionIssues);
         UpdateActivityNotification(display);

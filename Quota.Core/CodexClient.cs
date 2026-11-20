@@ -5,7 +5,10 @@ using System.Text.Json;
 
 namespace Quota.Core;
 
-public sealed class CodexException(string message) : Exception(message);
+public sealed class CodexException(string message, bool isTimeout = false) : Exception(message)
+{
+    public bool IsTimeout { get; } = isTimeout;
+}
 
 public sealed class CodexClient : IAsyncDisposable
 {
@@ -89,7 +92,7 @@ public sealed class CodexClient : IAsyncDisposable
             finally { writer.Release(); }
             return await completion.Task.WaitAsync(deadline.Token);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !lifetime.IsCancellationRequested) { throw new CodexException("读取超时。保留上次额度，稍后可重试。"); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !lifetime.IsCancellationRequested) { throw new CodexException("读取超时。保留上次额度，稍后可重试。", isTimeout: true); }
         catch (IOException) { throw new CodexException("Codex 连接中断，请重试。"); }
         finally { pending.TryRemove(id, out _); }
     }

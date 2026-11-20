@@ -39,7 +39,6 @@ public partial class MainWindow
                     if (verified is not null && local is not null)
                     {
                         local.SetSnapshot(verified, fromCache: true);
-                        local.SetError("等待验证当前登录。");
                         try { store.SaveCache(local.Record.Id, verified); }
                         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { ShowNotice(L.T("额度已更新，但本地缓存未能保存。")); }
                     }

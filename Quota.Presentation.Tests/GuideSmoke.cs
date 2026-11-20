@@ -37,6 +37,13 @@ internal static class GuideSmoke
             SwitchingSmoke.WriteAuthentication(currentHome, "old-current");
             File.WriteAllText(Path.Combine(currentHome, ".quota-test-scenario"), "switch-race");
         }
+        if (args.Contains("--reconnect-smoke"))
+        {
+            if (demo) throw new ArgumentException("Reconnect checks require the fake CLI.");
+            var currentHome = Path.Combine(dataDirectory, "current-home");
+            Directory.CreateDirectory(currentHome);
+            Environment.SetEnvironmentVariable("CODEX_HOME", currentHome);
+        }
         File.WriteAllText(fixtureMarker, "Quota.Presentation.Tests guide fixture");
         store.SaveSettings(new()
         {
@@ -44,7 +51,7 @@ internal static class GuideSmoke
             Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
             DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = args.Contains("--visibility-smoke"),
             Material = args.Contains("--visibility-smoke") ? "glass" : "solid",
-            AutoCheckUpdates = !args.Contains("--update-prompt") && !args.Contains("--installed-guide"),
+            AutoCheckUpdates = !args.Contains("--update-prompt") && !args.Contains("--installed-guide") && !args.Contains("--reconnect-smoke"),
             NotifyLowQuota = false, NotifyExhausted = false, NotifyReset = false, NotifyCardExpiry = false,
             CodexPath = demo ? null : Path.GetFullPath(args[fakeIndex + 1])
         });
@@ -65,7 +72,8 @@ internal static class GuideSmoke
                         return;
                     }
                     var guide = app.Windows.OfType<GuideWindow>().Single();
-                    if (args.Contains("--switching")) await SwitchingSmoke.Run((MainWindow)app.MainWindow, store);
+                    if (args.Contains("--reconnect-smoke")) { guide.Close(); await QuotaReconnectSmoke.Run((MainWindow)app.MainWindow, store); }
+                    else if (args.Contains("--switching")) await SwitchingSmoke.Run((MainWindow)app.MainWindow, store);
                     else if (args.Contains("--external-host-recovery")) await ExternalHostSmoke.Run(app);
                     else if (args.Contains("--desktop-recovery")) await NativeWindowSmoke.CheckMainRecovery(app);
                     else if (args.Contains("--appearance-smoke")) await AppearanceSmoke.Run((MainWindow)app.MainWindow, args);
@@ -74,6 +82,11 @@ internal static class GuideSmoke
                     else if (args.Contains("--taskbar-performance")) await TaskbarPerformanceSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--attention-smoke")) await AttentionNotificationSmoke.Run((MainWindow)app.MainWindow, args);
                     else if (args.Contains("--session-issues-smoke")) await InterruptedTaskSmoke.Run((MainWindow)app.MainWindow);
+                    else if (args.Contains("--status-lamp-smoke") && demo)
+                    {
+                        guide.ShowPage(2); await Settle(guide); await CheckStates(guide);
+                        guide.Close(); await StatusScopeSmoke.Run((MainWindow)app.MainWindow, args);
+                    }
                     else if (args.Contains("--update-prompt")) await UpdatePromptSmoke.Run(guide, (MainWindow)app.MainWindow, store, args);
                     else if (args.Contains("--installed-guide")) await CheckInstalledGuide(guide, store);
                     else if (args.Contains("--monitoring-smoke") && demo) await CheckMonitoring(guide, (MainWindow)app.MainWindow, store, args);
@@ -378,7 +391,7 @@ internal static class GuideSmoke
 
     private static async Task CheckStates(GuideWindow guide)
     {
-        var expected = new[] { CodexSignal.Working, CodexSignal.Completed, CodexSignal.NeedsInput, CodexSignal.Low, CodexSignal.Exhausted, CodexSignal.Error, CodexSignal.Paused, CodexSignal.Offline };
+        var expected = new[] { CodexSignal.Working, CodexSignal.Completed, CodexSignal.NeedsInput, CodexSignal.Low, CodexSignal.Exhausted, CodexSignal.Error, CodexSignal.Error, CodexSignal.Paused, CodexSignal.Offline };
         var buttons = Descendants<RadioButton>(guide).Where(button => button.GroupName == "guide-status").ToArray();
         Check(buttons.Length == expected.Length, "all status examples available");
         for (var i = 0; i < buttons.Length; i++)
@@ -388,6 +401,8 @@ internal static class GuideSmoke
             var lamp = Descendants<StatusLamp>(guide).Single();
             Check(lamp.Status?.Signal == expected[i], "guide state matches runtime signal");
             Check(ToolTipService.GetIsEnabled(lamp) && lamp.ToolTip is ToolTip { Content: TextBlock tipText } && tipText.Text == lamp.Status!.Tooltip, "every status example exposes its current hover description");
+            if (i == 5) Check(lamp.Status!.Tooltip.Contains("Current account quota read error") && !lamp.Status.Tooltip.Contains("encountered an error"), "quota error preview shows only the account error");
+            if (i == 6) Check(lamp.Status!.Tooltip.Contains("Codex chat encountered an error") && !lamp.Status.Tooltip.Contains("quota"), "chat error preview shows only the session error");
             Check(Descendants<TextBlock>(guide).Any(text => text.Text.EndsWith(" · breathing")) == lamp.Status!.Breathing, "guide pattern describes the actual lamp animation");
             Check(Descendants<CheckBox>(guide).Single(box => Equals(box.Content, "Play states automatically")).IsChecked == false, "manual selection pauses playback");
             Check(Descendants<TextBlock>(guide).Any(text => text.Text.Contains("Sample prompt")) == (i == 2), "input prompt visibility");

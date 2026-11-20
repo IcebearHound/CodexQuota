@@ -29,7 +29,7 @@ public sealed class StatusPreviewPanel : StackPanel
 
     public StatusPreviewPanel()
     {
-        playback.Tick += (_, _) => SelectStatus((statusIndex + 1) % 8);
+        playback.Tick += (_, _) => SelectStatus((statusIndex + 1) % CodexStatusExamples.Count);
         Loaded += (_, _) =>
         {
             owner = Window.GetWindow(this);
@@ -48,8 +48,6 @@ public sealed class StatusPreviewPanel : StackPanel
         Build();
     }
     private void OwnerStateChanged(object? sender, EventArgs args) => UpdatePlayback();
-    private static (string Name, string Pattern, string Detail, CodexActivityKind Kind, bool Exhausted, bool Error, bool Low) Scenario(int index) => CodexStatusExamples.Get(index);
-
     internal void RefreshContent() => Build();
 
     private void Build()
@@ -59,11 +57,11 @@ public sealed class StatusPreviewPanel : StackPanel
         if (Narrow) { grid.RowDefinitions.Add(new() { Height = GridLength.Auto }); grid.RowDefinitions.Add(new() { Height = GridLength.Auto }); }
         else { grid.ColumnDefinitions.Add(new() { Width = new GridLength(210) }); grid.ColumnDefinitions.Add(new()); }
         var list = new UniformGrid { Columns = Narrow ? 2 : 1, Margin = Narrow ? new Thickness(0, 14, 0, 0) : new Thickness(0, 0, 18, 0) };
-        statusChoices = new RadioButton[8];
-        for (var i = 0; i < 8; i++)
+        statusChoices = new RadioButton[CodexStatusExamples.Count];
+        for (var i = 0; i < statusChoices.Length; i++)
         {
-            var selected = i; var scenario = Scenario(i);
-            var label = SettingsControls.Label(scenario.Name, new[] { "activity", "check", "ellipsis", "bell", "minus", "x", "info", "monitor" }[i]);
+            var selected = i; var scenario = CodexStatusExamples.Get(i);
+            var label = SettingsControls.Label(scenario.Name, new[] { "activity", "check", "ellipsis", "bell", "minus", "x", "x", "info", "monitor" }[i]);
             label.MaxWidth = Narrow ? Math.Max(80, ((ActualWidth > 0 ? ActualWidth : 344) - 54) / 2) : 170;
             var choice = new RadioButton
             {
@@ -90,7 +88,7 @@ public sealed class StatusPreviewPanel : StackPanel
         grid.Children.Add(statusCard); body.Children.Add(grid);
         autoplay = new CheckBox { Content = L.F("自动轮播演示", "Play states automatically"), IsChecked = automatic, Margin = new Thickness(0, 15, 0, 12), IsEnabled = SystemParameters.ClientAreaAnimation };
         autoplay.Checked += (_, _) => { automatic = true; UpdatePlayback(); }; autoplay.Unchecked += (_, _) => { automatic = false; UpdatePlayback(); }; body.Children.Add(autoplay);
-        body.Children.Add(Text(L.F("状态根据本机 Codex 进程与会话事件判断。多个会话并行时会优先提示错误、中断及待输入。未写入事件的等待可能暂时无法识别。", "Detection uses local Codex processes and chat events. Errors, interruptions and input requests take priority across concurrent chats. Waits without recorded events may be unavailable."), 11, true, 0));
+        body.Children.Add(Text(L.F("状态灯汇总本机 Codex 进程、会话事件和当前账号额度。额度读取异常和会话错误同时发生时，悬停会分别列出。未写入事件的等待可能暂时无法识别。", "The light reflects the local Codex process, chat events and current account quota. Hover to see quota and chat errors listed separately when both occur. Waits without recorded events may be unavailable."), 11, true, 0));
         SelectStatus(statusIndex);
     }
 
@@ -98,8 +96,8 @@ public sealed class StatusPreviewPanel : StackPanel
     {
         statusIndex = index;
         if (statusDetail is null) return;
-        var scenario = Scenario(index);
-        previewStatus.Update(new(scenario.Kind, Running: scenario.Kind == CodexActivityKind.Working ? 1 : 0, Waiting: scenario.Kind == CodexActivityKind.NeedsInput ? 1 : 0), scenario.Exhausted, scenario.Error, scenario.Low);
+        var scenario = CodexStatusExamples.Get(index);
+        previewStatus.Update(new(scenario.Kind, Running: scenario.Kind == CodexActivityKind.Working ? 1 : 0, Waiting: scenario.Kind == CodexActivityKind.NeedsInput ? 1 : 0), scenario.Exhausted, scenario.QuotaError, scenario.Low);
         statusDetail.Children.Clear();
         var halo = new Border { Width = Narrow ? 52 : 90, Height = Narrow ? 52 : 90, CornerRadius = new CornerRadius(45), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, Narrow ? 0 : 22) };
         halo.SetResourceReference(Border.BackgroundProperty, "ButtonFill"); halo.Child = new StatusLamp { Status = previewStatus, Width = Narrow ? 18 : 25, Height = Narrow ? 18 : 25 };
@@ -124,7 +122,7 @@ public sealed class StatusPreviewPanel : StackPanel
             if (SystemParameters.ClientAreaAnimation) bubble.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400)));
         }
         // Update selection without firing the user-selection handler.
-        if (statusChoices.Length == 8 && statusChoices[index].IsChecked != true)
+        if (statusChoices[index].IsChecked != true)
         {
             selectingStatus = true;
             statusChoices[index].IsChecked = true;

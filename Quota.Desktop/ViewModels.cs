@@ -98,7 +98,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         }
     }
     public string Initial => Name.Length > 0 ? StringInfo.GetNextTextElement(Name).ToUpperInvariant() : "C";
-    private bool privacy = true, compact, refreshing, loadedFromCache;
+    private bool privacy = true, compact, refreshing, loadedFromCache, syncTimedOut;
     private string? error;
     private Dictionary<QuotaWindow, double>? quotaPace;
     public bool Privacy { set { privacy = value; Raise(nameof(Name)); Raise(nameof(Identity)); } }
@@ -110,7 +110,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     {
         get
         {
-            if (Record.IsCurrent && error is not null && Snapshot is not null)
+            if (Record.IsCurrent && (IsCached || HasError) && Snapshot is not null)
                 return privacy || string.IsNullOrEmpty(Snapshot.Email) ? L.T("上次读取账号 · 当前登录未验证") : L.F("上次账号 {0} · 当前登录未验证", "Previous account {0} · current sign-in unverified", Snapshot.Email);
             if (Record.IsCurrent) return privacy ? L.T("跟随本机 Codex 登录") : Snapshot?.Email ?? Record.Email ?? L.T("跟随本机 Codex 登录");
             return privacy ? L.T("独立登录 · 邮箱已隐藏") : Snapshot?.Email ?? Record.Email ?? L.T("独立登录账号");
@@ -131,10 +131,17 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         }
     }
     public bool IsRefreshing { get => refreshing; set { refreshing = value; Raise(); Raise(nameof(Status)); Raise(nameof(StatusColor)); } }
-    public string StatusColor => IsRefreshing ? ThemeService.AccentColor : error is not null ? ThemeService.DangerColor : ThemeService.SecondaryColor;
-    public string Status => IsRefreshing ? L.T("更新中") : error is not null ? (Snapshot is null ? L.T("需处理") : L.T("已过期")) : Snapshot is null ? L.T("等待更新") : loadedFromCache || (DateTimeOffset.UtcNow - Snapshot.FetchedAt).TotalMinutes > 15 ? L.T("缓存") : L.T("已同步");
+    public string StatusColor => IsRefreshing ? ThemeService.AccentColor : HasErrorAccent ? ThemeService.DangerColor : ThemeService.SecondaryColor;
+    public string Status => IsRefreshing ? L.T("更新中")
+        : syncTimedOut ? L.T(Snapshot is null ? "同步超时" : "已过期")
+        : HasError ? L.T("需处理")
+        : Snapshot is null ? L.T("等待更新")
+        : loadedFromCache || (DateTimeOffset.UtcNow - Snapshot.FetchedAt).TotalMinutes > 15 ? L.T("缓存") : L.T("已同步");
     public bool HasError => error is not null;
-    public string? Error => error is null ? null : (Record.IsCurrent && Snapshot is not null ? L.T("当前登录未验证，以下为上次读取账号的额度。 ") : "") + L.Error(error);
+    internal bool IsStale => syncTimedOut && Snapshot is not null;
+    internal bool HasErrorAccent => HasError && (Record.IsCurrent || !syncTimedOut);
+    internal string? ErrorDetail => error is null ? null : L.Error(error);
+    public string? Error => ErrorDetail is { } detail ? (Record.IsCurrent && Snapshot is not null ? L.T("当前登录未验证，以下为上次读取账号的额度。 ") : "") + detail : null;
     public string ActionHint => error is null ? L.T("已同步") : error.Contains("Codex") && error.Contains("找到") ? L.T("打开设置选择 Codex") : error.Contains("登录") || error.Contains("认证") || error.Contains("目录已丢失") ? L.T("重新登录以恢复认证") : error.Contains("网络") || error.Contains("连接") || error.Contains("超时") ? L.T("检查网络后刷新") : L.T("刷新或重新登录");
     public bool NoSnapshot => Snapshot is null || Snapshot.Buckets.Count == 0;
     public bool Blocked => Snapshot?.OrdinaryUsageAllowed == false;
@@ -156,12 +163,12 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         quotaPace = !Record.IsCurrent || fromCache || loadedFromCache || HasError ? null : QuotaPace.Measure(Snapshot, snapshot);
         Snapshot = snapshot;
         loadedFromCache = fromCache;
-        error = null;
+        error = null; syncTimedOut = false;
         if (!string.IsNullOrWhiteSpace(snapshot.Email)) Record.Email = snapshot.Email;
         RefreshDerived();
     }
-    public void SetError(string message) { error = message; quotaPace = null; RefreshDerived(); }
-    public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; quotaPace = null; RefreshDerived(); }
+    public void SetError(string message, bool timedOut = false) { error = message; syncTimedOut = timedOut; quotaPace = null; RefreshDerived(); }
+    public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; syncTimedOut = false; quotaPace = null; RefreshDerived(); }
     internal BucketViewModel BuildBucket(QuotaBucket bucket, string? displayName = null) => new(bucket, displayName, quotaPace);
     public void Rename(string name) { Record.Name = AccountStore.CleanName(name); Raise(nameof(Name)); Raise(nameof(Initial)); }
     public void RefreshDerived()

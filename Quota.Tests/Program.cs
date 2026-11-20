@@ -436,8 +436,14 @@ await Test("out-of-order responses are matched to their requests", async () =>
     var slow = client.RequestAsync("delay", new { value = 1, ms = 150 }, default); var fast = client.RequestAsync("delay", new { value = 2, ms = 5 }, default);
     Check((await fast).GetProperty("value").GetInt32() == 2); Check((await slow).GetProperty("value").GetInt32() == 1);
 });
-await Test("RPC errors never expose upstream token text", async () => { await using var client = Client(); try { await client.RequestAsync("error", null, default); throw new Exception("Expected error"); } catch (CodexException e) { Check(!e.Message.Contains("secret-token")); } });
-await Test("timeout is bounded and client remains usable", async () => { await using var client = Client(); await Throws<CodexException>(() => client.RequestAsync("delay", new { ms = 500 }, default, TimeSpan.FromMilliseconds(70))); Check((await client.RequestAsync("echo", new { value = 3 }, default)).GetProperty("value").GetInt32() == 3); });
+await Test("RPC errors never expose upstream token text or masquerade as timeouts", async () => { await using var client = Client(); try { await client.RequestAsync("error", null, default); throw new Exception("Expected error"); } catch (CodexException e) { Check(!e.Message.Contains("secret-token") && !e.IsTimeout); } });
+await Test("timeout is bounded, typed, and the client remains usable", async () =>
+{
+    await using var client = Client();
+    try { await client.RequestAsync("delay", new { ms = 500 }, default, TimeSpan.FromMilliseconds(70)); throw new Exception("Expected timeout"); }
+    catch (CodexException e) { Check(e.IsTimeout); }
+    Check((await client.RequestAsync("echo", new { value = 3 }, default)).GetProperty("value").GetInt32() == 3);
+});
 await Test("cancellation does not contaminate next request", async () => { await using var client = Client(); using var cancel = new CancellationTokenSource(70); await Throws<OperationCanceledException>(() => client.RequestAsync("delay", new { ms = 400 }, cancel.Token)); Check((await client.RequestAsync("echo", new { value = 4 }, default)).GetProperty("value").GetInt32() == 4); });
 await Test("server exit promptly fails a pending request", async () => { await using var client = Client(); await Throws<CodexException>(() => client.RequestAsync("exit", null, default, TimeSpan.FromSeconds(2))); });
 await Test("disposal cancels active requests and closes the reader", async () => { var client = Client(); var pending = client.RequestAsync("delay", new { ms = 5000 }, default); await client.DisposeAsync(); await Throws<OperationCanceledException>(() => pending); Check(client.Completion.IsCompleted); });
