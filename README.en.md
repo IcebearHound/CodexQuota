@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 3.3 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.3.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 3.3.1 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.3.1)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 

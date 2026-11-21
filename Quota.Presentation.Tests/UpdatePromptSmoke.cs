@@ -26,11 +26,12 @@ internal static class UpdatePromptSmoke
                 + "![screenshot](https://example.invalid/image.png)"
         };
         Window? Prompt() => (Window?)Field("updatePrompt").GetValue(main);
-        Task Fetch(bool automatic, Func<CancellationToken, Task<AppUpdate?>> respond)
-            => (Task)check.Invoke(main, [automatic, respond])!;
+        Task Fetch(bool automatic, Func<CancellationToken, Task<AppUpdate?>> respond, bool rateLimited = false)
+            => (Task)check.Invoke(main, [automatic, respond, (Func<bool>)(() => rateLimited)])!;
         Task Found(AppUpdate release, bool automatic = true) => Fetch(automatic, _ => Task.FromResult<AppUpdate?>(release));
         void Tomorrow() => settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow.AddDays(-1);
         Button Action(Window window, string name) => Descendants<Button>(window).Single(button => Equals(button.Content, name));
+        Button SettingsAction(Window window, string name) => Descendants<Button>(window).Single(button => AutomationProperties.GetName(button) == name);
         void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         guide.Dismiss();
@@ -113,8 +114,9 @@ internal static class UpdatePromptSmoke
         Field("settingsPage").SetValue(main, "通用");
         Method("SettingsClick").Invoke(main, [main, new RoutedEventArgs()]);
         var preferences = (Window)Field("settingsWindow").GetValue(main)!;
+        preferences.Activate();
         await Settle(preferences);
-        var toggle = Descendants<CheckBox>(preferences).Single(box => AutomationProperties.GetName(box) == "Check for updates automatically");
+        CheckBox AutoToggle() => Descendants<CheckBox>(preferences).Single(box => AutomationProperties.GetName(box) == "Check for updates automatically");
         Tomorrow();
         var cancellation = false;
         var request = Fetch(true, async token =>
@@ -122,18 +124,60 @@ internal static class UpdatePromptSmoke
             try { await Task.Delay(Timeout.Infinite, token); return null; }
             catch (OperationCanceledException) { cancellation = true; throw; }
         });
-        toggle.IsChecked = false;
+        AutoToggle().IsChecked = false;
         await request;
         Check(cancellation && !store.LoadSettings().AutoCheckUpdates && Prompt() is null, "settings toggle cancels an automatic check and saves the opt-out");
         await Fetch(false, _ => Task.FromResult<AppUpdate?>(null));
         Check((string)state.GetType().GetField("Phase", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(state)! == "current",
             "manual checks still work with automatic checks disabled");
-        toggle.IsChecked = true;
+        await Fetch(false, _ => throw new UpdateRateLimitedException());
+        await Settle(preferences);
+        var limited = Prompt() ?? throw new InvalidOperationException("rate-limit prompt was not shown");
+        await Settle(limited);
+        Check(Action(limited, "Open GitHub").IsVisible && limited.Owner?.IsVisible == true,
+            "a manual rate-limited check offers the official download page on the visible owner even when automatic checks are disabled");
+        Check(SettingsAction(preferences, "Open GitHub downloads").IsVisible
+            && Descendants<TextBlock>(preferences).Any(text => text.Text.Contains("rate limiting update checks")),
+            "manual rate-limited checks explain the blocker and offer the official download page");
+        if (preview >= 0)
+        {
+            ProductScreenshotSmoke.Capture(limited, args[preview + 1], "update-rate-limited.png");
+        }
+        Click(Action(limited, "Later"));
+        Check(Prompt() is null, "Later dismisses the reminder");
+        await Fetch(false, _ => Task.FromResult<AppUpdate?>(next), rateLimited: true);
+        limited = Prompt() ?? throw new InvalidOperationException("successful fallback did not present the rate-limit reminder");
+        await Settle(limited);
+        Check(Descendants<TextBlock>(limited).Any(text => text.Text.Contains(next.Version.ToString()))
+            && SettingsAction(preferences, "Download and update").IsVisible, "verified fallback offers both manual and in-app update routes");
+        limited.Close();
+        await Fetch(false, _ => Task.FromResult<AppUpdate?>(null), rateLimited: true);
+        limited = Prompt() ?? throw new InvalidOperationException("up-to-date fallback did not identify the throttled API");
+        await Settle(limited);
+        Check(Descendants<TextBlock>(limited).Any(text => text.Text.Contains("confirmed you're up to date")), "an up-to-date result does not instruct the user to reinstall");
+        limited.Close();
+        await Fetch(false, _ => throw new HttpRequestException("offline fixture"));
+        Check(Descendants<TextBlock>(preferences).Any(text => text.Text.StartsWith("Could not check for updates")),
+            "a check failure is distinct from an installation failure");
+        await Fetch(false, _ => throw new System.IO.InvalidDataException("invalid manifest fixture"));
+        Check(SettingsAction(preferences, "Open GitHub downloads").IsVisible && !SettingsAction(preferences, "Download and update").IsVisible,
+            "invalid metadata does not terminate the app or enable installation");
+        await Fetch(false, _ => Task.FromResult<AppUpdate?>(null));
+        AutoToggle().IsChecked = true;
         Tomorrow();
         await Fetch(true, _ => throw new HttpRequestException("offline fixture"));
         Check(Prompt() is null && Equals(state.GetType().GetField("Phase", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(state), "current"),
             "an automatic network failure leaves the UI undisturbed");
-        Console.WriteLine("PASS daily opt-out, background deferral, version prompt, skip, and update actions");
+        preferences.Close(); main.Hide(); Tomorrow();
+        await Fetch(true, _ => throw new UpdateRateLimitedException());
+        Check(Prompt() is null, "background rate limiting does not summon a tray-only window");
+        L.Apply("zh-CN"); main.Show(); main.Activate(); await Settle(main);
+        limited = Prompt() ?? throw new InvalidOperationException("deferred rate-limit prompt was not shown when the app reopened");
+        await Settle(limited);
+        Check(limited.Owner == main && Action(limited, "前往 GitHub").IsVisible, "reopening the app shows the localized manual update action");
+        if (preview >= 0) ProductScreenshotSmoke.Capture(limited, args[preview + 1], "update-rate-limited-zh.png");
+        limited.Close();
+        Console.WriteLine("PASS daily opt-out, background deferral, version prompt, skip, and rate-limit reminders");
     }
 
     private static FieldInfo Field(string name) => typeof(MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;

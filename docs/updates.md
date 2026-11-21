@@ -6,11 +6,13 @@
 
 自更新从 2.3 完整便携版开始支持。2.2 及旧 Win+W 包没有自更新入口，应手动下载当前正式版的完整便携包。2.3 起不再支持 Windows 内置小组件，更新不再进行 Appx/COM 扩展注册；任务栏小组件继续支持。
 
+GitHub API 限流时，更新器改从同一正式版的 `CodexQuota-update.json` 附件读取版本和校验信息，并弹窗提供「前往 GitHub」入口。应用在托盘时，提醒会等到窗口打开再显示。备用清单确认有新版时，仍可在「版本与更新」中选择原地更新。
+
 正常打开主程序时，已启用的默认配置开机启动项会迁移为当前用户的登录任务，绕过传统启动项的排队。已禁用的启动项保持关闭。显式使用自定义数据目录的旧启动项，可从对应配置的设置中重新启用以迁移。
 
 ## 更新过程
 
-1. 从 GitHub Releases API 获取版本、固定名称的 Windows x64 ZIP、大小及 GitHub 提供的 SHA-256 摘要。HTTPS 下载只允许 GitHub 及其资产域名跳转，按流写盘并计算摘要。
+1. 从 GitHub Releases API 获取版本、固定名称的 Windows x64 ZIP、大小及 SHA-256 摘要。API 限流时，也可从同一正式版的静态更新附件获取。HTTPS 下载只允许 GitHub 及其资产域名跳转，按流写盘并校验摘要。
 2. 校验安装清单与归档内容，拒绝路径穿越、链接、重复路径及账号、配置等非程序文件。只接受自包含单 EXE 与许可、说明文件；清单版本必须一致，实际 EXE 版本也必须匹配。
 3. 把**当前程序自身**复制到独立更新目录作为 `Updater.exe`，不在发布包中增加另一套运行时。更新器检查目录及写权限，通过握手后主程序才退出。
 4. 更新器等待旧进程完全退出并释放句柄。先保存完整备份与恢复清单，再使用临时文件和同目录重命名替换受管理文件；只移除旧清单声明、而新版不再包含的文件。
@@ -32,7 +34,7 @@
 
 ## 发布约定
 
-运行 `Publish-Release.ps1` 生成完整 ZIP。保留 `CodexQuota-<版本>-win-x64/` 顶层目录及 `install-files.json`，清单列出所有实际文件。GitHub Release 使用 `v主版本.次版本.修订号` 正式标签，上传同版本的 `CodexQuota-<版本>-win-x64.zip`。GitHub API 必须提供该附件的 SHA-256 摘要，缺失时客户端拒绝更新。
+运行 `Publish-Release.ps1` 生成完整 ZIP 和 `CodexQuota-update.json`。保留 `CodexQuota-<版本>-win-x64/` 顶层目录及 `install-files.json`，清单列出所有实际文件。GitHub Release 使用 `v主版本.次版本.修订号` 正式标签，将 ZIP 和静态更新附件上传到同一个正式版；两处公布的 ZIP 大小和 SHA-256 摘要应一致。静态更新附件不放入 ZIP 内。
 
 源码 ZIP 与截图不放入程序安装清单。未来若改变单文件分发格式或清单协议，需要明确安排兼容迁移，不能静默放宽客户端的文件白名单。
 
@@ -52,8 +54,8 @@ Use **Settings → General → Version and updates** to turn off automatic check
 
 Opening the main window normally migrates enabled default-profile startup entries to a per-user sign-in task, bypassing the traditional startup queue. Disabled entries stay disabled. If an older startup entry uses a custom data directory, re-enable startup from that profile to migrate it.
 
-Packages come only from the fixed GitHub repository, with HTTPS host checks, bounded streaming and the GitHub-provided SHA-256 digest. An exact installation manifest, safe archive paths and matching EXE version are required. Account data, settings and unknown files are never replaced. The app copies its current executable to an independent job directory as the updater, avoiding a second distributed runtime. It validates the installation before asking the app to quit, backs up owned files, replaces them atomically, and verifies the restarted UI. Failed startup rolls back and reopens the previous version. An active lease blocks accidental launches during installation; stale leases do not block startup.
+Packages come only from the fixed GitHub repository, with HTTPS host checks, bounded streaming and a required SHA-256 digest. When the API rate limits update checks, the app reads the same stable release's `CodexQuota-update.json` asset and offers **Open GitHub** in a reminder. The reminder waits for a visible app window instead of interrupting tray operation. If the fallback finds a newer release, in-app installation remains available in settings. An exact installation manifest, safe archive paths and matching EXE version are required. Account data, settings and unknown files are never replaced. The app copies its current executable to an independent job directory as the updater, avoiding a second distributed runtime. It validates the installation before asking the app to quit, backs up owned files, replaces them atomically, and verifies the restarted UI. Failed startup rolls back and reopens the previous version. An active lease blocks accidental launches during installation; stale leases do not block startup.
 
 Recovery jobs live in `%LOCALAPPDATA%\CodexQuotaUpdater\jobs`. After exiting CodexQuota, follow the job's `RECOVERY.txt`, or run `./Updater.exe --recover-update ./plan.json` from that directory. A complete backup is represented by `transaction.json`. Recovery works without the installed EXE or another download. Keep the latest job for recovery; older jobs can be deleted after the new version is stable.
 
-Publish with `Publish-Release.ps1`, preserving the versioned ZIP root and `install-files.json`. Upload the matching x64 ZIP to a stable `vMAJOR.MINOR.PATCH` GitHub release. Missing asset digests, unsupported package formats and unexpected payload files are rejected rather than silently accepted.
+Publish with `Publish-Release.ps1`, preserving the versioned ZIP root and `install-files.json`. Upload the matching x64 ZIP and the generated `CodexQuota-update.json` as separate assets on the same stable `vMAJOR.MINOR.PATCH` GitHub release. The static feed must match GitHub's ZIP size and SHA-256 digest. Missing digests, unsupported package formats and unexpected payload files are rejected.

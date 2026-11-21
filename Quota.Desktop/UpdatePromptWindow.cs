@@ -15,6 +15,29 @@ namespace Quota.Desktop;
 
 internal sealed class UpdatePromptWindow : Window
 {
+    internal static Window RateLimited(Window owner, string phase, Version? latest, Action openDownloads)
+    {
+        var window = DialogLayout.Create(owner, L.F("GitHub 更新检查限流", "GitHub update checks are rate limited"), 440);
+        window.ShowActivated = false;
+        window.Topmost = owner.Topmost;
+        var content = new StackPanel { Margin = new Thickness(22, 15, 22, 4) };
+        var message = latest is not null
+            ? L.F("最新正式版为 {0}。可前往 GitHub 下载 Windows x64 安装包，手动升级。", "Version {0} is available. Open GitHub to download the Windows x64 installer and update manually.", latest)
+            : phase == "current"
+                ? L.F("备用渠道已确认当前是最新正式版。可前往 GitHub 查看发布说明。", "The fallback feed confirmed you're up to date. You can view the release on GitHub.")
+                : L.F("前往 GitHub 查看最新正式版。如有新版，请下载安装包。", "Visit GitHub to check the latest stable release and download the installer if a newer version is available.");
+        content.Children.Add(DialogLayout.Text(message, 13));
+        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(22, 8, 22, 17) };
+        var later = new Button { Content = L.F("稍后", "Later"), Margin = new Thickness(0, 0, 8, 0) };
+        later.Click += (_, _) => window.Close(); actions.Children.Add(later);
+        var open = new Button { Content = L.F("前往 GitHub", "Open GitHub"), FontWeight = FontWeights.SemiBold };
+        open.SetResourceReference(Control.ForegroundProperty, "Accent");
+        open.SetResourceReference(Control.BorderBrushProperty, "Accent");
+        open.Click += (_, _) => { window.Close(); openDownloads(); }; actions.Children.Add(open);
+        DialogLayout.Frame(window, content, null, actions);
+        return window;
+    }
+
     internal UpdatePromptWindow(Window owner, Version current, AppUpdate update, AppUpdateState state,
         Func<Task> install, Action skip, Action cancel)
     {

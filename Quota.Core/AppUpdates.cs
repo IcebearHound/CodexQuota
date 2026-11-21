@@ -12,6 +12,8 @@ public sealed record AppUpdate(Version Version, string AssetName, Uri DownloadUr
     public DateTimeOffset? PublishedAt { get; init; }
 }
 
+public sealed class UpdateRateLimitedException() : HttpRequestException("GitHub is rate limiting update checks and no fallback feed is available.");
+
 public static class AppUpdatePolicy
 {
     public static bool IsDailyCheckDue(WidgetSettings settings, DateTimeOffset now, TimeZoneInfo localZone)
@@ -21,14 +23,54 @@ public static class AppUpdatePolicy
 
 // The fixed repository is the trust source. The GitHub-provided digest is required,
 // not an optional sidecar downloaded from an arbitrary URL in release notes.
-public sealed class AppUpdateClient(HttpClient http)
+public sealed class AppUpdateClient(HttpClient http, TimeProvider? clock = null)
 {
     public const string Repository = "IcebearHound/CodexQuota";
     public const long MaximumDownload = 256L * 1024 * 1024;
+    public static Uri LatestReleaseUri { get; } = new($"https://github.com/{Repository}/releases/latest");
+    private static readonly Uri FallbackFeed = new($"{LatestReleaseUri}/download/CodexQuota-update.json");
+    private readonly TimeProvider time = clock ?? TimeProvider.System;
+    private DateTimeOffset apiRetryAt;
+    public bool WasApiRateLimited { get; private set; }
+
     public async Task<AppUpdate?> CheckAsync(Version current, CancellationToken cancellation = default)
     {
-        using var response = await GetAsync(new Uri($"https://api.github.com/repos/{Repository}/releases/latest"), cancellation);
-        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        WasApiRateLimited = false;
+        if (time.GetUtcNow() >= apiRetryAt)
+        {
+            using var api = await GetAsync(new Uri($"https://api.github.com/repos/{Repository}/releases/latest"), cancellation);
+            if (api.StatusCode == HttpStatusCode.NotFound) return null;
+            if (!IsRateLimited(api)) return await ReadReleaseAsync(api, current, cancellation);
+            apiRetryAt = NextApiCheck(api, time.GetUtcNow());
+        }
+
+        // This static asset is published with the ZIP on the same stable GitHub Release.
+        WasApiRateLimited = true;
+        using var fallback = await GetAsync(FallbackFeed, cancellation);
+        if (fallback.StatusCode == HttpStatusCode.NotFound) throw new UpdateRateLimitedException();
+        return await ReadReleaseAsync(fallback, current, cancellation);
+    }
+
+    private static bool IsRateLimited(HttpResponseMessage response) => response.StatusCode == HttpStatusCode.TooManyRequests
+        || response.StatusCode == HttpStatusCode.Forbidden && (RemainingIsZero(response) || response.Headers.RetryAfter is not null);
+
+    private static bool RemainingIsZero(HttpResponseMessage response) => response.Headers.TryGetValues("X-RateLimit-Remaining", out var values)
+        && values.Contains("0", StringComparer.Ordinal);
+
+    private static DateTimeOffset NextApiCheck(HttpResponseMessage response, DateTimeOffset now)
+    {
+        var retryAt = response.Headers.RetryAfter?.Date ?? now.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero);
+        if (RemainingIsZero(response) && response.Headers.TryGetValues("X-RateLimit-Reset", out var values)
+            && long.TryParse(values.FirstOrDefault(), out var epoch) && epoch > now.ToUnixTimeSeconds() && epoch <= DateTimeOffset.MaxValue.ToUnixTimeSeconds())
+        {
+            var reset = DateTimeOffset.FromUnixTimeSeconds(epoch);
+            if (reset > retryAt) retryAt = reset;
+        }
+        return retryAt > now ? retryAt : now.AddMinutes(1);
+    }
+
+    private static async Task<AppUpdate?> ReadReleaseAsync(HttpResponseMessage response, Version current, CancellationToken cancellation)
+    {
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellation);
         using var memory = new MemoryStream();

@@ -54,6 +54,46 @@ internal static class AppUpdateSmoke
             foreach (var release in new[] { Release(digest: ""), Release(url: "https://evil.example/app.zip"), Release(size: AppUpdateClient.MaximumDownload + 1), JsonSerializer.SerializeToElement(new { draft = false }) })
                 await Throws<InvalidDataException>(() => Task.FromResult(AppUpdateClient.Parse(release, new(2, 3, 0))));
         });
+        await test("rate-limited GitHub checks use the stable release asset until the primary quota resets", async () =>
+        {
+            var clock = new UpdateClock();
+            var reset = clock.GetUtcNow().AddMinutes(10);
+            var apiCalls = 0; var feedCalls = 0;
+            using var http = new HttpClient(new Handler(request =>
+            {
+                if (request.RequestUri!.Host == "api.github.com")
+                {
+                    if (++apiCalls > 1) return ReleaseResponse(Release(body: "API notes"));
+                    var limited = new HttpResponseMessage(HttpStatusCode.Forbidden);
+                    limited.Headers.Add("X-RateLimit-Remaining", "0");
+                    limited.Headers.Add("X-RateLimit-Reset", reset.ToUnixTimeSeconds().ToString());
+                    return limited;
+                }
+                Check(request.RequestUri.AbsoluteUri == "https://github.com/IcebearHound/CodexQuota/releases/latest/download/CodexQuota-update.json");
+                feedCalls++;
+                return ReleaseResponse(Release());
+            }));
+            var client = new AppUpdateClient(http, clock);
+            Check((await client.CheckAsync(new(2, 3, 0)))?.Version == new Version(3, 0, 0) && client.WasApiRateLimited);
+            Check(await client.CheckAsync(new(3, 0, 0)) is null && client.WasApiRateLimited && apiCalls == 1 && feedCalls == 2);
+            clock.Now = reset;
+            Check((await client.CheckAsync(new(2, 3, 0)))?.ReleaseNotes == "API notes" && !client.WasApiRateLimited && apiCalls == 2 && feedCalls == 2);
+        });
+        await test("missing fallback metadata reports throttling and an invalid digest still blocks an update", async () =>
+        {
+            using var missing = new HttpClient(new Handler(request => request.RequestUri!.Host == "api.github.com"
+                ? new(HttpStatusCode.TooManyRequests) : new(HttpStatusCode.NotFound)));
+            await Throws<UpdateRateLimitedException>(() => new AppUpdateClient(missing).CheckAsync(new(2, 3, 0)));
+            using var bad = new HttpClient(new Handler(request => request.RequestUri!.Host == "api.github.com"
+                ? new(HttpStatusCode.TooManyRequests) : ReleaseResponse(Release(digest: ""))));
+            await Throws<InvalidDataException>(() => new AppUpdateClient(bad).CheckAsync(new(2, 3, 0)));
+            using var forbidden = new HttpClient(new Handler(request =>
+            {
+                Check(request.RequestUri!.Host == "api.github.com");
+                return new(HttpStatusCode.Forbidden);
+            }));
+            await Throws<HttpRequestException>(() => new AppUpdateClient(forbidden).CheckAsync(new(2, 3, 0)));
+        });
         await test("verified downloads report progress without buffering the whole package", async () =>
         {
             var bytes = Encoding.UTF8.GetBytes(new string('q', 150000)); var output = Path.Combine(root, "download-good.zip");
@@ -206,6 +246,12 @@ internal static class AppUpdateSmoke
         draft = false, prerelease = pre, tag_name = tag, body, published_at = publishedAt,
         assets = new[] { new { name = "CodexQuota-3.0.0-win-x64.zip", size, digest = digest ?? "sha256:" + new string('a', 64), browser_download_url = url ?? "https://github.com/IcebearHound/CodexQuota/releases/download/v3.0.0/CodexQuota-3.0.0-win-x64.zip" } }
     });
+    private static HttpResponseMessage ReleaseResponse(JsonElement release) => new(HttpStatusCode.OK) { Content = new StringContent(release.GetRawText()) };
+    private sealed class UpdateClock : TimeProvider
+    {
+        public DateTimeOffset Now = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation) { cancellation.ThrowIfCancellationRequested(); return Task.FromResult(respond(request)); } }
     private sealed class InlineProgress : IProgress<double> { public double Value; public void Report(double value) => Value = value; }

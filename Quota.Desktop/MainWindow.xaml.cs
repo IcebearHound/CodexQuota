@@ -121,7 +121,7 @@ public partial class MainWindow : Window
         updatePrompt?.Close(); settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close(); attentionNotification?.Close();
         foreach (var group in visibleAccounts) group.Dispose();
         foreach (var source in observedSources) source.PropertyChanged -= AccountSourceChanged;
-        lifetime.Cancel(); StopMonitoringQuotaConnection(); activityTimer.Stop(); taskbarMonitor.Stop(); taskbarWidget?.Close(); tray.Visible = false;
+        lifetime.Cancel(); updateCheckHttp?.Dispose(); StopMonitoringQuotaConnection(); activityTimer.Stop(); taskbarMonitor.Stop(); taskbarWidget?.Close(); tray.Visible = false;
         var icon = tray.Icon; tray.Dispose(); icon?.Dispose(); timer.Stop();
         if (recover && System.Windows.Application.Current is App app) app.RecoverDesktopWindow(this, demo, visibleBeforeNativeLoss);
         else System.Windows.Application.Current.Shutdown();

@@ -23,6 +23,7 @@ internal sealed class AppUpdateState : Observable
     public bool CanCheck => !Busy;
     public bool CanInstall => Phase == "available";
     public bool CanCancel => Phase == "downloading";
+    public bool CanOpenRelease => Phase is "rate-limited" or "check-error" or "error";
     public string PromptMessage => CanInstall
         ? L.F("下载并校验后，应用会短暂重启；账号和设置将保留。", "After download and verification, the app will restart. Accounts and settings are kept.")
         : Message;
@@ -33,6 +34,8 @@ internal sealed class AppUpdateState : Observable
         "downloading" => L.F("正在下载并校验更新包…", "Downloading and verifying the update…"),
         "installing" => L.F("正在交接更新，应用即将重启…", "Handing off the update. The app will restart…"),
         "current" => L.F("当前已是最新正式版。", "You are running the latest stable release."),
+        "rate-limited" => L.F("GitHub 暂时限制更新检查。可以打开下载页，或稍后再试。", "GitHub is rate limiting update checks. Open the download page or try again later."),
+        "check-error" => L.F("无法检查更新。请稍后重试，或打开 GitHub 下载页。", "Could not check for updates. Try again later or open the GitHub download page."),
         "error" => L.F("更新未完成，请查看更新记录后重试；校验失败不会关闭原程序。", "Update incomplete. Check update history before retrying; failed verification does not close the app."),
         "failed" => L.F("更新未能完成，当前版本仍可使用；请查看更新记录。", "The update did not complete. The current version remains usable; check update history."),
         "rolled-back" => L.F("已恢复上一版本。详情请查看更新记录。", "The previous version was restored. See update history for details."),
@@ -43,7 +46,7 @@ internal sealed class AppUpdateState : Observable
     internal void Set(string phase, string? version = null)
     {
         Phase = phase; if (version is not null) Version = version;
-        foreach (var name in new[] { nameof(Message), nameof(PromptMessage), nameof(Busy), nameof(CanCheck), nameof(CanInstall), nameof(CanCancel) }) Raise(name);
+        foreach (var name in new[] { nameof(Message), nameof(PromptMessage), nameof(Busy), nameof(CanCheck), nameof(CanInstall), nameof(CanCancel), nameof(CanOpenRelease) }) Raise(name);
     }
 }
 
@@ -52,9 +55,12 @@ public partial class MainWindow
     private readonly AppUpdateState appUpdateState = new();
     private AppUpdate? availableUpdate;
     private AppUpdate? pendingUpdatePrompt;
+    private bool pendingRateLimitPrompt;
     private Window? updatePrompt;
     private CancellationTokenSource? automaticUpdateCheck;
     private CancellationTokenSource? updateDownload;
+    private HttpClient? updateCheckHttp;
+    private AppUpdateClient? updateCheckClient;
     private static Version CurrentVersion
     {
         get { var v = Assembly.GetExecutingAssembly().GetName().Version!; return new(v.Major, v.Minor, Math.Max(0, v.Build)); }
@@ -105,6 +111,8 @@ public partial class MainWindow
         install.SetBinding(VisibilityProperty, new Binding(nameof(AppUpdateState.CanInstall)) { Source = appUpdateState, Converter = new BoolVisibility() }); actions.Children.Add(install);
         var cancel = SettingsControls.Action(L.F("取消下载", "Cancel download"), "x", () => updateDownload?.Cancel());
         cancel.SetBinding(VisibilityProperty, new Binding(nameof(AppUpdateState.CanCancel)) { Source = appUpdateState, Converter = new BoolVisibility() }); actions.Children.Add(cancel);
+        var releases = SettingsControls.Action(L.F("打开 GitHub 下载页", "Open GitHub downloads"), "download", OpenUpdateDownloads);
+        releases.SetBinding(VisibilityProperty, new Binding(nameof(AppUpdateState.CanOpenRelease)) { Source = appUpdateState, Converter = new BoolVisibility() }); actions.Children.Add(releases);
         section.Children.Add(actions);
         if (RecoveryJob() is { } job) section.Children.Add(SettingsControls.Action(L.F("更新记录与恢复", "Update history and recovery"), "folder-search",
             () => Process.Start(new ProcessStartInfo(job) { UseShellExecute = true })));
@@ -117,29 +125,38 @@ public partial class MainWindow
         {
             automaticUpdateCheck?.Cancel();
             pendingUpdatePrompt = null;
+            pendingRateLimitPrompt = false;
             if (!appUpdateState.Busy) updatePrompt?.Close();
         }
         SaveSettings();
     }
     private static HttpClient CreateUpdateHttp() => new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(10) };
+    private void OpenUpdateDownloads()
+    {
+        try { Process.Start(new ProcessStartInfo(AppUpdateClient.LatestReleaseUri.AbsoluteUri) { UseShellExecute = true }); }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            DialogLayout.Alert(AccountDialogOwner, L.F("无法打开浏览器", "Could not open the browser"), AppUpdateClient.LatestReleaseUri.AbsoluteUri);
+        }
+    }
     private Task CheckAppUpdateAsync(bool automatic = false)
     {
-        if (!demo) return CheckForAppUpdateAsync(automatic, token => Task.Run(() => FetchAppUpdateAsync(token), token));
+        if (!demo)
+        {
+            var client = updateCheckClient ??= new(updateCheckHttp = CreateUpdateHttp());
+            return CheckForAppUpdateAsync(automatic, token => Task.Run(() => client.CheckAsync(CurrentVersion, token), token), () => client.WasApiRateLimited);
+        }
         if (!automatic && !appUpdateState.Busy) appUpdateState.Set("current");
         return Task.CompletedTask;
     }
-    private static async Task<AppUpdate?> FetchAppUpdateAsync(CancellationToken cancellation)
-    {
-        using var http = CreateUpdateHttp();
-        return await new AppUpdateClient(http).CheckAsync(CurrentVersion, cancellation).ConfigureAwait(false);
-    }
-    private async Task CheckForAppUpdateAsync(bool automatic, Func<CancellationToken, Task<AppUpdate?>> fetch)
+    private async Task CheckForAppUpdateAsync(bool automatic, Func<CancellationToken, Task<AppUpdate?>> fetch, Func<bool>? wasRateLimited = null)
     {
         var now = DateTimeOffset.UtcNow;
         if (exiting || appUpdateState.Busy || (automatic && !AppUpdatePolicy.IsDailyCheckDue(settings, now, TimeZoneInfo.Local))) return;
         var previousPhase = appUpdateState.Phase;
         updatePrompt?.Close();
         pendingUpdatePrompt = null;
+        pendingRateLimitPrompt = false;
         appUpdateState.Set("checking");
         settings.LastUpdateCheckUtc = now;
         if (automatic)
@@ -158,36 +175,54 @@ public partial class MainWindow
             update = await fetch(timeout.Token);
             timeout.Token.ThrowIfCancellationRequested();
         }
-        catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException or FormatException)
+        catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException or FormatException)
         {
-            if (!exiting) appUpdateState.Set(automatic ? previousPhase : "error");
+            if (exiting) return;
+            if ((!automatic || settings.AutoCheckUpdates) && (error is UpdateRateLimitedException || wasRateLimited?.Invoke() == true))
+            {
+                availableUpdate = null;
+                appUpdateState.Set("rate-limited");
+                QueueRateLimitPrompt();
+            }
+            else appUpdateState.Set(automatic ? previousPhase : "check-error");
             return;
         }
         finally { if (automatic) automaticUpdateCheck = null; }
         availableUpdate = update;
         appUpdateState.Set(update is null ? "current" : "available", update?.Version.ToString());
-        if (automatic && settings.AutoCheckUpdates && update is not null && settings.SkippedUpdateVersion != update.Version.ToString())
+        if (wasRateLimited?.Invoke() == true) QueueRateLimitPrompt();
+        else if (automatic && settings.AutoCheckUpdates && update is not null && settings.SkippedUpdateVersion != update.Version.ToString())
         {
             pendingUpdatePrompt = update;
             TryShowUpdatePrompt();
         }
     }
+    private void QueueRateLimitPrompt()
+    {
+        pendingRateLimitPrompt = true;
+        TryShowUpdatePrompt();
+    }
     private void TryShowUpdatePrompt()
     {
-        if (exiting || !settings.AutoCheckUpdates || updatePrompt is not null || !appUpdateState.CanInstall
-            || pendingUpdatePrompt is not { } update) return;
+        if (exiting || appUpdateState.Busy || updatePrompt is not null) return;
+        var rateLimited = pendingRateLimitPrompt;
+        var update = pendingUpdatePrompt;
+        if (!rateLimited && (!settings.AutoCheckUpdates || !appUpdateState.CanInstall || update is null)) return;
         var owner = settingsWindow is { IsActive: true } preferences ? preferences : this;
         if (!owner.IsVisible || !owner.IsActive || !owner.IsEnabled || owner.WindowState == WindowState.Minimized) return;
+        pendingRateLimitPrompt = false;
         pendingUpdatePrompt = null;
-        var prompt = new UpdatePromptWindow(owner, CurrentVersion, update, appUpdateState,
-            async () => await InstallAppUpdateAsync(confirmed: true),
-            () => { settings.SkippedUpdateVersion = update.Version.ToString(); SaveSettings(); },
-            () => updateDownload?.Cancel());
+        var prompt = rateLimited
+            ? UpdatePromptWindow.RateLimited(owner, appUpdateState.Phase, availableUpdate?.Version, OpenUpdateDownloads)
+            : new UpdatePromptWindow(owner, CurrentVersion, update!, appUpdateState,
+                async () => await InstallAppUpdateAsync(confirmed: true),
+                () => { settings.SkippedUpdateVersion = update!.Version.ToString(); SaveSettings(); },
+                () => updateDownload?.Cancel());
         updatePrompt = prompt;
         void OwnerVisibilityChanged(object sender, DependencyPropertyChangedEventArgs args)
         {
             if (owner.IsVisible || appUpdateState.Busy) return;
-            pendingUpdatePrompt = update;
+            if (rateLimited) pendingRateLimitPrompt = true; else pendingUpdatePrompt = update;
             prompt.Close();
         }
         owner.IsVisibleChanged += OwnerVisibilityChanged;
@@ -248,7 +283,7 @@ public partial class MainWindow
             Exit();
         }
         catch (OperationCanceledException) { if (!exiting) appUpdateState.Set("available"); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or HttpRequestException or System.Text.Json.JsonException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or HttpRequestException or System.Text.Json.JsonException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             appUpdateState.Set("error");
             try { UpdateInstaller.Write(Path.Combine(job, "download-error.json"), new UpdateResult("failed", update.Version.ToString(), error.GetType().Name + ": " + error.Message)); } catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { }

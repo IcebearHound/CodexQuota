@@ -6,6 +6,8 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 $name = "CodexQuota-$version-win-x64"
 $payload = Join-Path $output $name
 $setup = Join-Path $output "$name-setup.exe"
+$feed = Join-Path $output 'CodexQuota-update.json'
+if (Test-Path -LiteralPath $feed) { throw 'Update feed already exists; use a fresh output directory.' }
 if ($InstallerCompiler) {
     $iscc = (Get-Command $InstallerCompiler -CommandType Application -ErrorAction Stop).Source
     if (Test-Path -LiteralPath $setup) { throw 'Installer already exists; use a fresh output directory.' }
@@ -31,7 +33,18 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = Join-Path $output ($name + '.zip')
 if (Test-Path -LiteralPath $zip) { throw 'Release ZIP already exists' }
 [IO.Compression.ZipFile]::CreateFromDirectory($payload, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
+$asset = Get-Item -LiteralPath $zip
+$digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$metadata = [ordered]@{
+    draft = $false; prerelease = $false; tag_name = "v$version"
+    assets = @([ordered]@{
+        name = $asset.Name; size = $asset.Length; digest = "sha256:$digest"
+        browser_download_url = "https://github.com/IcebearHound/CodexQuota/releases/download/v$version/$($asset.Name)"
+    })
+}
+[IO.File]::WriteAllText($feed, ($metadata | ConvertTo-Json -Depth 4))
 Write-Output $zip
+Write-Output $feed
 if ($InstallerCompiler) {
     $installer = Join-Path $PSScriptRoot 'installer/CodexQuota.iss'
     & $iscc '/Qp' "/DReleaseVersion=$version" "/DPayloadDir=$payload" "/O$output" $installer | Out-Host
