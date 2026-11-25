@@ -7,11 +7,17 @@ using System.Xml.Linq;
 
 namespace Quota.Core;
 
+public enum CodexRestartOutcome { Unavailable, StillRunning, SwitchedWhileOffline, Restarted, SessionRequested, SessionUnavailable }
+
 public static class CodexDesktopRestart
 {
     internal static bool IsDesktopExecutable(string? path)
         => path is not null && path.Contains("OpenAI.Codex_", StringComparison.OrdinalIgnoreCase) && Path.GetFileName(path).Equals("ChatGPT.exe", StringComparison.OrdinalIgnoreCase);
     public static async Task<bool> RestartAsync(CancellationToken cancellationToken)
+        => await RestartWithSessionAsync(null, null, allowForce: true, cancellationToken) == CodexRestartOutcome.Restarted;
+
+    public static async Task<CodexRestartOutcome> RestartWithSessionAsync(Func<CancellationToken, Task<string?>>? captureSession,
+        Func<CancellationToken, Task>? switchAuthentication, bool allowForce, CancellationToken cancellationToken)
     {
         var processes = Process.GetProcessesByName("ChatGPT").Concat(Process.GetProcessesByName("Codex")).ToArray();
         var targets = new List<Process>();
@@ -25,25 +31,71 @@ public static class CodexDesktopRestart
                 if (!IsDesktopExecutable(path)) continue;
                 executable = path; targets.Add(process);
             }
-            if (executable is null) return false;
+            if (executable is null)
+            {
+                // The desktop does not manage interactive CLI sessions. Leave them and their authentication alone.
+                if (switchAuthentication is null || CodexProcessMonitor.Read().Found) return CodexRestartOutcome.Unavailable;
+                await switchAuthentication(cancellationToken);
+                return CodexRestartOutcome.SwitchedWhileOffline;
+            }
             // Resolve the registered entry before closing anything. Starting the EXE
             // directly bypasses packaged activation and can split taskbar grouping.
             var applicationId = FindApplicationId(executable);
-            if (applicationId is null) return false;
-            cancellationToken.ThrowIfCancellationRequested();
-            foreach (var process in targets) { try { process.CloseMainWindow(); } catch (InvalidOperationException) { } }
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); deadline.CancelAfter(TimeSpan.FromSeconds(8));
-            try { await Task.WhenAll(targets.Select(process => process.WaitForExitAsync(deadline.Token))); }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                foreach (var process in targets) { try { if (!process.HasExited) process.Kill(true); } catch (InvalidOperationException) { } }
-                await Task.WhenAll(targets.Select(process => process.WaitForExitAsync(cancellationToken)));
-            }
-            cancellationToken.ThrowIfCancellationRequested();
-            ActivateApplication(applicationId);
-            return true;
+            if (applicationId is null) return CodexRestartOutcome.Unavailable;
+            return await RestartPreparedAsync(captureSession, () => CloseAsync(targets, allowForce, cancellationToken),
+                switchAuthentication, session => Launch(applicationId, session), cancellationToken);
         }
         finally { foreach (var process in processes) process.Dispose(); }
+    }
+
+    private static async Task<bool> CloseAsync(IReadOnlyList<Process> targets, bool allowForce, CancellationToken cancellationToken)
+    {
+        foreach (var process in targets) { try { process.CloseMainWindow(); } catch (InvalidOperationException) { } }
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        try { await Task.WhenAll(targets.Select(process => process.WaitForExitAsync(deadline.Token))); }
+        catch (OperationCanceledException)
+        {
+            if (!allowForce || cancellationToken.IsCancellationRequested) return false;
+            foreach (var process in targets) { try { if (!process.HasExited) process.Kill(true); } catch (InvalidOperationException) { } }
+            // Bound the forced shutdown too, without leaving a fully closed desktop unlaunched on cancellation.
+            using var forcedDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            try { await Task.WhenAll(targets.Select(process => process.WaitForExitAsync(forcedDeadline.Token))); }
+            catch (OperationCanceledException) { return false; }
+        }
+        return true;
+    }
+
+    internal static async Task<CodexRestartOutcome> RestartPreparedAsync(Func<CancellationToken, Task<string?>>? captureSession,
+        Func<Task<bool>> close, Func<CancellationToken, Task>? switchAuthentication, Func<Uri?, CodexRestartOutcome> launch, CancellationToken cancellationToken)
+    {
+        var session = captureSession is null ? null : CodexThreadLink.Create(await captureSession(cancellationToken));
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!await close()) return CodexRestartOutcome.StillRunning;
+
+        // Once the old desktop is closed, reopen it even if committing new credentials fails.
+        CodexRestartOutcome outcome;
+        try
+        {
+            if (switchAuthentication is not null) await switchAuthentication(cancellationToken);
+        }
+        finally { outcome = launch(session); }
+        return outcome;
+    }
+
+    private static CodexRestartOutcome Launch(string applicationId, Uri? session)
+    {
+        if (session is not null)
+        {
+            try
+            {
+                // The registered codex: handler can cold-start the desktop directly on the chat.
+                using var launched = Process.Start(new ProcessStartInfo(session.AbsoluteUri) { UseShellExecute = true });
+                return CodexRestartOutcome.SessionRequested;
+            }
+            catch (Exception error) when (error is Win32Exception or InvalidOperationException) { }
+        }
+        ActivateApplication(applicationId);
+        return session is null ? CodexRestartOutcome.Restarted : CodexRestartOutcome.SessionUnavailable;
     }
 
     internal static string? FindApplicationId(string executable)

@@ -12,6 +12,8 @@ public sealed record CodexInterruptedTask(string ThreadId, DateTimeOffset? Inter
 public sealed record CodexActivitySnapshot(CodexActivityKind Kind, int Running = 0, int Waiting = 0, int Tracked = 0, string AttentionToken = "", IReadOnlyList<CodexInterruptedTask>? InterruptedTasks = null, CodexActivityReadIssue ReadIssue = CodexActivityReadIssue.None, IReadOnlyList<CodexSessionIssue>? SessionIssues = null)
 {
     public double? OutputTokensPerSecond { get; init; }
+    public string? RestartThreadId { get; init; }
+    public string? QuotaBlockedThreadId { get; init; }
 }
 
 public sealed class CodexActivityCheckpoint
@@ -42,6 +44,8 @@ public sealed class CodexSessionActivity(string? threadId = null)
     private bool terminal;
     private string? turn;
     public DateTimeOffset LastStartedAt { get; private set; }
+    private DateTimeOffset lastActivityAt;
+    private DateTimeOffset? quotaBlockedAt;
     public CodexActivityKind Kind => activity == CodexActivityKind.Error ? activity : inputs.Count > 0 ? CodexActivityKind.NeedsInput : activity;
 
     public void Apply(JsonElement record, long? eventPosition = null)
@@ -58,25 +62,30 @@ public sealed class CodexSessionActivity(string? threadId = null)
             return;
         }
         var observedAt = DateTimeOffset.TryParse(record.Str("timestamp"), out var timestamp) ? timestamp : DateTimeOffset.MinValue;
-        if (record.Str("type") == "event_msg")
+        var recordType = record.Str("type");
+        if (recordType is "event_msg" or "response_item" && observedAt > lastActivityAt) lastActivityAt = observedAt;
+        if (recordType == "event_msg")
         {
             switch (type)
             {
                 case "task_started":
-                    IssueToken = null; IssueAt = null;
+                    IssueToken = null; IssueAt = null; quotaBlockedAt = null;
                     turn = data.Str("turn_id"); terminal = false; InterruptedAt = null; activity = CodexActivityKind.Working; LastStartedAt = observedAt; return;
                 case "task_complete":
                     if (turn is not null && data.Str("turn_id") is { } completed && turn != completed) return;
                     terminal = true;
                     activity = data.TryGetProperty("error", out var error) && error.ValueKind is not JsonValueKind.Null and not JsonValueKind.False
                         ? CodexActivityKind.Error : CodexActivityKind.Completed;
+                    if (error.Str("codex_error_info") is "usageLimitExceeded" or "usage_limit_exceeded") quotaBlockedAt = observedAt;
                     if (activity == CodexActivityKind.Error) SetIssue(record, observedAt, eventPosition);
                     return;
                 case "turn_aborted":
                     if (turn is not null && data.Str("turn_id") is { } aborted && turn != aborted) return;
-                    inputs.Clear(); terminal = true; InterruptedAt = observedAt == DateTimeOffset.MinValue ? null : observedAt; activity = CodexActivityKind.Paused; SetIssue(record, observedAt, eventPosition); return;
+                    inputs.Clear(); terminal = true; quotaBlockedAt = null; InterruptedAt = observedAt == DateTimeOffset.MinValue ? null : observedAt; activity = CodexActivityKind.Paused; SetIssue(record, observedAt, eventPosition); return;
                 case "error":
-                case "system_error": activity = CodexActivityKind.Error; SetIssue(record, observedAt, eventPosition); return;
+                case "system_error":
+                    if (data.Str("codex_error_info") is "usageLimitExceeded" or "usage_limit_exceeded") quotaBlockedAt = observedAt;
+                    activity = CodexActivityKind.Error; SetIssue(record, observedAt, eventPosition); return;
                 case "exec_approval_request":
                 case "apply_patch_approval_request":
                 case "request_user_input":
@@ -92,7 +101,7 @@ public sealed class CodexSessionActivity(string? threadId = null)
                     return;
             }
         }
-        if (record.Str("type") != "response_item") return;
+        if (recordType != "response_item") return;
         switch (type)
         {
             case "function_call":
@@ -127,7 +136,7 @@ public sealed class CodexSessionActivity(string? threadId = null)
     }
     public void MarkInterrupted(DateTimeOffset? interruptedAt = null, string? occurrence = null)
     {
-        activity = CodexActivityKind.Paused; InterruptedAt = interruptedAt; terminal = true; inputs.Clear();
+        activity = CodexActivityKind.Paused; InterruptedAt = interruptedAt; terminal = true; quotaBlockedAt = null; inputs.Clear();
         IssueAt = interruptedAt; IssueToken = occurrence ?? $"interrupted/{interruptedAt?.UtcTicks}";
     }
 
@@ -139,7 +148,7 @@ public sealed class CodexSessionActivity(string? threadId = null)
         {
             foreach (var answered in inputs.Keys.Where(id => text.Contains(id, StringComparison.Ordinal)).ToArray()) inputs.Remove(answered);
         }
-        else inputs.Clear();
+        else { inputs.Clear(); quotaBlockedAt = null; }
         terminal = false; activity = CodexActivityKind.Working;
     }
     private static bool Accepted(JsonElement data)
@@ -149,7 +158,9 @@ public sealed class CodexSessionActivity(string? threadId = null)
         catch (JsonException) { return false; }
     }
 
-    public static CodexActivitySnapshot Aggregate(IEnumerable<CodexSessionActivity> sessions)
+    public static CodexActivitySnapshot Aggregate(IEnumerable<CodexSessionActivity> sessions) => Aggregate(sessions, null, null);
+
+    internal static CodexActivitySnapshot Aggregate(IEnumerable<CodexSessionActivity> sessions, DateTimeOffset? restartSince, DateTimeOffset? quotaErrorSince)
     {
         var observations = sessions.ToArray();
         var states = observations.Select(session => session.Kind).Where(kind => kind != CodexActivityKind.Unknown).ToArray();
@@ -165,7 +176,16 @@ public sealed class CodexSessionActivity(string? threadId = null)
         var interrupted = observations.Where(session => session.Kind == CodexActivityKind.Paused && session.ThreadId is not null)
             .Select(session => new CodexInterruptedTask(session.ThreadId!, session.InterruptedAt))
             .OrderByDescending(task => task.InterruptedAt).DistinctBy(task => task.ThreadId).ToArray();
-        return new(kind, running, waiting, states.Length, attention, interrupted.Length > 0 ? interrupted : null);
+        var snapshot = new CodexActivitySnapshot(kind, running, waiting, states.Length, attention, interrupted.Length > 0 ? interrupted : null);
+        if (restartSince is null) return snapshot;
+        var visible = observations.Where(session => session.ThreadId is not null && !session.IsInternal && session.AttachedParentId is null);
+        return snapshot with
+        {
+            RestartThreadId = visible.Where(session => session.Kind == CodexActivityKind.Working && session.lastActivityAt >= restartSince)
+                .MaxBy(session => session.lastActivityAt)?.ThreadId,
+            QuotaBlockedThreadId = visible.Where(session => session.quotaBlockedAt >= restartSince && session.quotaBlockedAt >= quotaErrorSince)
+                .MaxBy(session => session.quotaBlockedAt)?.ThreadId
+        };
     }
 }
 
@@ -334,7 +354,9 @@ public sealed class CodexActivityMonitor
             var interrupted = new CodexSessionActivity(entry.Value.ThreadId); interrupted.MarkInterrupted(entry.Value.InterruptedAt, entry.Value.IssueToken); readable.Add(interrupted);
         }
         SaveJournal();
-        var result = CodexSessionActivity.Aggregate(readable) with { SessionIssues = JournalIssues(), OutputTokensPerSecond = unavailable ? null : tokensPerSecond };
+        // A failed turn may already be finished when the next quota poll detects exhaustion (up to 30 minutes).
+        var result = CodexSessionActivity.Aggregate(readable, started, clock.GetUtcNow().AddMinutes(-35)) with
+        { SessionIssues = JournalIssues(), OutputTokensPerSecond = unavailable ? null : tokensPerSecond };
         if (unavailable && result.Kind is CodexActivityKind.Completed or CodexActivityKind.Unknown)
             return result with { Kind = CodexActivityKind.Unknown, ReadIssue = CodexActivityReadIssue.SessionsInaccessible };
         return result.Kind == CodexActivityKind.Unknown ? result with { ReadIssue = CodexActivityReadIssue.NoSessionEvents } : result;

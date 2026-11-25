@@ -4,7 +4,7 @@
 
 在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-**[下载 3.3.1 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.3.1)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
+**[下载 3.4.0 正式版](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.4.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
 以下界面截图使用演示数据。
 
@@ -37,7 +37,13 @@
 - 点击 **从 CC Switch 导入**，扫描本机已有的 Codex 账号，确认后同步认证和账号名称。
 - 点击 **原生登录**，通过 Codex 官方浏览器页面完成认证。添加的账号使用独立认证目录，可重复连接多个账号。
 
-<img src="docs/images/guide-accounts.png" alt="浅色导览中的 CC Switch 一键导入与原生登录" width="560">
+<img src="docs/images/guide-accounts.png" alt="首次导览的连接账号页：CC Switch 导入、原生登录与额度耗尽自动切换" width="560">
+
+### 额度耗尽时自动切换
+
+连接备用账号后，可在首次导览的「连接账号」页或「设置 → 账号」开启 **额度耗尽时自动切换账号**（默认关闭）。额度刷新确认当前账号的 Codex 额度耗尽后，会复查备用账号；找不到仍有额度的账号时不会切换。运行中的桌面端会先正常退出再切换；仅有命令行 Codex 在运行时不会更改认证。
+
+CodexQuota 发起重启后会打开最近运行的会话。自动切换时，如果没有正在运行的会话，也会查找最近因额度限制中断的会话。未完成的任务可在原会话中继续，指令不会自动重发。
 
 ### 额度与状态导览
 

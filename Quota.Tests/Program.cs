@@ -957,6 +957,11 @@ await Test("Codex activity tails partial records and handles truncation and proc
     Check(monitor.ReadSince(DateTimeOffset.UtcNow.AddSeconds(1)).Kind == CodexActivityKind.Error);
     return Task.CompletedTask;
 });
+await Test("automatic failover requires fresh exhausted quota and a different usable account", () =>
+{
+    AccountFailoverRegression.CheckQuota(); return Task.CompletedTask;
+});
+await Test("restart reopens the latest actionable chat and preserves credentials on shutdown failure", () => AccountFailoverRegression.CheckRestart(testRoot));
 await Test("interrupted Codex sessions survive monitor and Codex restarts until resumed", () =>
 {
     var home = Path.Combine(testRoot, "interruption-home"); var directory = Path.Combine(home, "sessions"); Directory.CreateDirectory(directory);
@@ -1302,7 +1307,12 @@ static async Task Fake(string mode)
                         File.WriteAllText(Path.Combine(profile!, ".quota-test-reading"), "ready");
                         while (!File.Exists(Path.Combine(profile!, ".quota-test-release"))) await Task.Delay(20);
                     }
-                    await Send(new { id, result = new { accountId = switchAccount, rateLimits = new { primary = new { usedPercent = switchAccount == "old-current" ? 99 : 27, windowDurationMins = 300 } } } }); break;
+                    var oneRead = Path.Combine(profile!, ".quota-test-used-once");
+                    var configured = Path.Combine(profile!, ".quota-test-used-percent");
+                    var used = switchAccount == "old-current" ? 99 : 27;
+                    if (File.Exists(configured)) used = int.Parse(File.ReadAllText(configured));
+                    if (File.Exists(oneRead)) { used = int.Parse(File.ReadAllText(oneRead)); File.Delete(oneRead); }
+                    await Send(new { id, result = new { accountId = switchAccount, rateLimits = new { primary = new { usedPercent = used, windowDurationMins = 300 } } } }); break;
                 }
                 if (mode == "quota-error") { await Send(new { id, error = new { code = 401, message = "unauthorized" } }); break; }
                 if (mode == "slow") await Task.Delay(TimeSpan.FromSeconds(40));

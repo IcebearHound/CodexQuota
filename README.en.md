@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 3.3.1 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.3.1)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download the 3.4.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.4.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -37,7 +37,13 @@ Open the issue list from the main window, a status light or the taskbar menu. Re
 - Choose **Import from CC Switch** to scan existing local Codex accounts, then confirm to sync credentials and account names.
 - Choose **Sign in with Codex** to authenticate through the official browser page. Added accounts use separate credential directories, and you can repeat the flow to connect more accounts.
 
-<img src="docs/images/guide-accounts-en.png" alt="Light guide with CC Switch import and native sign-in" width="560">
+<img src="docs/images/guide-accounts-en.png" alt="First-run accounts guide with CC Switch import, native sign-in, and the automatic switch toggle" width="560">
+
+### Switch accounts when quota runs out
+
+After connecting a backup account, enable **Switch accounts when quota runs out** under **Connect accounts** in the first-run guide or under **Settings → Accounts**. It is off by default. When a refresh confirms the active account's Codex quota is exhausted, Codex Quota rechecks the backup before switching. It leaves the account unchanged if no backup has quota, the desktop app cannot close normally, or Codex is running only in the CLI.
+
+When Codex Quota restarts the desktop app, it reopens the most recently running chat. If no chat is running, an automatic switch also looks for a recent chat interrupted by a quota error. Continue unfinished work in that chat; prompts are not sent again automatically.
 
 ### Quota and status walkthrough
 

@@ -12,12 +12,18 @@ public sealed class AccountSwitcher(AccountStore store)
     {
         if (target.IsCurrent) return null;
         var usage = await new CodexService(store).RefreshAsync(cli, target, cancellationToken);
-        var authentication = Path.Combine(store.ProfilePath(target.Id), "auth.json");
-        await CommitAuthenticationAsync(authentication, CurrentHome, store.Root, usage.AccountId, cancellationToken);
+        await CommitVerifiedAsync(target, usage, cancellationToken);
         return usage;
     }
 
-    public static async Task CommitAuthenticationAsync(string sourceFile, string targetHome, string backupDirectory, string? expectedAccountId, CancellationToken cancellationToken)
+    public Task CommitVerifiedAsync(AccountRecord target, UsageSnapshot usage, CancellationToken cancellationToken, string? expectedCurrentAccountId = null)
+        => CommitAuthenticationAsync(Path.Combine(store.ProfilePath(target.Id), "auth.json"), CurrentHome, store.Root, usage.AccountId, cancellationToken, expectedCurrentAccountId);
+
+    public static Task CommitAuthenticationAsync(string sourceFile, string targetHome, string backupDirectory, string? expectedAccountId, CancellationToken cancellationToken)
+        => CommitAuthenticationAsync(sourceFile, targetHome, backupDirectory, expectedAccountId, cancellationToken, null);
+
+    private static async Task CommitAuthenticationAsync(string sourceFile, string targetHome, string backupDirectory, string? expectedAccountId,
+        CancellationToken cancellationToken, string? expectedCurrentAccountId)
     {
         var content = await File.ReadAllTextAsync(sourceFile, cancellationToken);
         using var document = JsonDocument.Parse(content);
@@ -35,6 +41,13 @@ public sealed class AccountSwitcher(AccountStore store)
         using var transaction = new FileStream(Path.Combine(targetHome, "auth.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         try
         {
+            if (expectedCurrentAccountId is not null)
+            {
+                using var current = JsonDocument.Parse(await File.ReadAllTextAsync(targetFile, cancellationToken));
+                if (current.RootElement.Str("auth_mode") != "chatgpt" || !current.RootElement.TryGetProperty("tokens", out var currentTokens)
+                    || currentTokens.Str("account_id") != expectedCurrentAccountId)
+                    throw new CodexException("读取时账号发生变化，请刷新后重试。");
+            }
             await File.WriteAllTextAsync(temporary, content, new UTF8Encoding(false), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (File.Exists(targetFile))

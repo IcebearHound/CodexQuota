@@ -178,6 +178,7 @@ public partial class MainWindow
         actions.Children.Add(SettingsControls.Action("选择认证 JSON 文件", "folder-search", BrowseCcSwitch));
         actions.Children.Add(SettingsControls.Action("删除同步账号", "x", () => { RemoveSyncedAccounts(); QueueSettingsRender(); })); connections.Children.Add(actions);
         if (settingsConnectionResult is { } result) connections.Children.Add(DialogLayout.Text(result.Description, 12, true));
+        BuildAccountSwitchingOptions(body);
         var management = SettingsControls.Section(body, "管理账号", "log-in");
         foreach (var group in visibleAccounts.ToArray())
         {

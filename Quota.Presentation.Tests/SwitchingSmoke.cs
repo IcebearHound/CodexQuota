@@ -98,6 +98,87 @@ internal static class SwitchingSmoke
         }
         await CheckEarlyDialogClose(main, store, accounts, groups, current);
         Console.WriteLine("PASS duplicate refresh callers share completion and switches leave no pending refresh trackers");
+        await CheckAutomaticSwitch(main, store, accounts, current);
+    }
+
+    private static async Task CheckAutomaticSwitch(MainWindow main, AccountStore store, ObservableCollection<AccountViewModel> accounts, AccountViewModel current)
+    {
+        var home = AccountSwitcher.CurrentHome;
+        var settings = (WidgetSettings)Field("settings").GetValue(main)!;
+        var restartField = Field("restartCodex");
+        var originalRestart = restartField.GetValue(main);
+        var refreshAll = typeof(MainWindow).GetMethod("RefreshAllAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Task Refresh() => (Task)refreshAll.Invoke(main, null)!;
+        void Usage(string profile, int used) => File.WriteAllText(Path.Combine(profile, ".quota-test-used-percent"), used.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var targets = new[] { ("expired-candidate", 100), ("healthy", 36), ("old-current", 0) }.Select(item =>
+        {
+            var record = new AccountRecord { Name = item.Item1 };
+            var profile = store.CreateProfile(record.Id);
+            WriteAuthentication(profile, item.Item1);
+            File.WriteAllText(Path.Combine(profile, ".quota-test-scenario"), "switch-race");
+            Usage(profile, item.Item2);
+            var target = new AccountViewModel(record);
+            accounts.Add(target);
+            return target;
+        }).ToArray();
+        var attempts = 0;
+        var refusesToClose = true;
+        var differentLogin = false;
+        Func<Func<CancellationToken, Task<string?>>?, Func<CancellationToken, Task>?, bool, CancellationToken, Task<CodexRestartOutcome>> restart =
+            async (capture, commit, force, token) =>
+            {
+                Check(capture is not null && commit is not null && !force, "automatic restart captures a chat and does not force-quit Codex");
+                Check(ReadAccount(home) == "old-current", "credentials remain unchanged until the old desktop stops");
+                attempts++;
+                if (refusesToClose) return CodexRestartOutcome.StillRunning;
+                if (differentLogin) WriteAuthentication(home, "external-change");
+                await commit!(token);
+                Check(ReadAccount(home) == "healthy", "the best still-usable different account is committed before relaunch");
+                Usage(home, 36);
+                return CodexRestartOutcome.SessionRequested;
+            };
+        restartField.SetValue(main, restart);
+        try
+        {
+            WriteAuthentication(home, "old-current");
+            Usage(home, 100);
+            await Refresh();
+            Check(attempts == 0 && ReadAccount(home) == "old-current", "disabled auto-switch never changes authentication");
+            settings.AutoSwitchOnExhaustion = true;
+            Usage(home, 99);
+            await Refresh();
+            Check(attempts == 0, "low but nonzero current quota does not trigger");
+            Usage(home, 100);
+            Usage(store.ProfilePath(targets[1].Record.Id), 100);
+            await Refresh();
+            Check(attempts == 0 && ReadAccount(home) == "old-current", "no different account with usable quota leaves current authentication alone");
+            Usage(store.ProfilePath(targets[1].Record.Id), 36);
+            await Refresh();
+            Check(attempts == 1 && ReadAccount(home) == "old-current", "a desktop that did not close leaves credentials intact");
+            await Refresh();
+            Check(attempts == 1, "a failed restart is not retried immediately");
+            Field("nextAutomaticRestart").SetValue(main, default(DateTimeOffset));
+            refusesToClose = false;
+            differentLogin = true;
+            await Refresh();
+            Check(attempts == 2 && ReadAccount(home) == "external-change", "do not overwrite a current account changed outside the widget");
+            Field("nextAutomaticRestart").SetValue(main, default(DateTimeOffset));
+            differentLogin = false;
+            WriteAuthentication(home, "old-current");
+            File.WriteAllText(Path.Combine(store.ProfilePath(targets[0].Record.Id), ".quota-test-used-once"), "5");
+            await Refresh();
+            Check(attempts == 3 && current.Snapshot?.AccountId == "healthy" && store.LoadCache("current")?.AccountId == "healthy",
+                "revalidation skips a backup that ran out and publishes the verified replacement");
+            await Refresh();
+            Check(attempts == 3, "no second switch after quota is available");
+            Console.WriteLine("PASS opt-in failover rechecks quota, preserves changed auth, and serializes restart and commit");
+        }
+        finally
+        {
+            restartField.SetValue(main, originalRestart);
+            settings.AutoSwitchOnExhaustion = false;
+            foreach (var target in targets) { accounts.Remove(target); store.DeleteProfile(target.Record.Id); }
+        }
     }
 
     private static async Task CheckEarlyDialogClose(MainWindow main, AccountStore store, ObservableCollection<AccountViewModel> accounts,
@@ -118,6 +199,18 @@ internal static class SwitchingSmoke
             accounts.Add(target); return target;
         }).ToArray();
         var switchAccount = typeof(MainWindow).GetMethod("SwitchAccountClick", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var restartField = Field("restartCodex");
+        var originalRestart = restartField.GetValue(main);
+        var manualRestarted = false;
+        Func<Func<CancellationToken, Task<string?>>?, Func<CancellationToken, Task>?, bool, CancellationToken, Task<CodexRestartOutcome>> restart =
+            (capture, commit, force, _) =>
+            {
+                Check(capture is not null && commit is null && force, "manual restart requests session capture after the existing auth switch");
+                Check(ReadAccount(home) == "later-current", "manual restart uses the already committed authentication");
+                manualRestarted = true;
+                return Task.FromResult(CodexRestartOutcome.SessionRequested);
+            };
+        restartField.SetValue(main, restart);
         try
         {
             foreach (var target in targets)
@@ -129,10 +222,12 @@ internal static class SwitchingSmoke
             }
             Check(current.Snapshot?.AccountId == "later-current" && !current.HasError && store.LoadCache("current")?.AccountId == "later-current",
                 "a second switch cannot be overwritten by verification from the first switch");
-            Console.WriteLine("PASS closing the success dialog early preserves ordering for the next account switch");
+            Check(manualRestarted, "Restart now uses the shared session recovery path");
+            Console.WriteLine("PASS deferred manual switching preserves verification ordering; Restart now requests session recovery");
         }
         finally
         {
+            restartField.SetValue(main, originalRestart);
             File.Delete(Path.Combine(home, ".quota-test-hold-account"));
             File.WriteAllText(Path.Combine(home, ".quota-test-release"), "release");
             await Task.WhenAll(((Dictionary<AccountViewModel, Task>)Field("accountRefreshes").GetValue(main)!).Values.ToArray());
@@ -156,7 +251,7 @@ internal static class SwitchingSmoke
                 await WaitFor(() => dialog.Title == L.T("账号已切换") && (second ? !current.IsRefreshing : File.Exists(Path.Combine(home, ".quota-test-reading"))),
                     "first verification is held and second verification finishes");
                 if (!second) Check(current.IsRefreshing, "success dialog can close while current verification is pending");
-                Descendants<Button>(dialog).Single(button => Equals(button.Content, L.T("稍后重启"))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Descendants<Button>(dialog).Single(button => Equals(button.Content, L.T(second ? "立即重启" : "稍后重启"))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             }
             finally
             {

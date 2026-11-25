@@ -181,10 +181,15 @@ public partial class MainWindow : Window
             refreshing = false;
             if (!exiting) { RefreshButton.IsEnabled = true; UpdateSummary(); CheckNotifications(); }
         }
+        await TryAutomaticSwitchAsync(cli);
     }
     internal async Task RefreshFromWidgetAsync() { await RefreshAllAsync(); }
-    private Task RefreshAccountAsync(string cli, AccountViewModel account)
-        => switching ? Task.CompletedTask : RefreshAccountTrackedAsync(cli, account);
+    private async Task RefreshAccountAsync(string cli, AccountViewModel account)
+    {
+        if (switching) return;
+        await RefreshAccountTrackedAsync(cli, account);
+        if (!refreshing) await TryAutomaticSwitchAsync(cli);
+    }
     private async Task RefreshAccountTrackedAsync(string cli, AccountViewModel account)
     {
         if (lifetime.IsCancellationRequested) return;
@@ -208,8 +213,7 @@ public partial class MainWindow : Window
             try { snapshot = await service.RefreshAsync(cli, account.Record, lifetime.Token); }
             finally { concurrency.Release(); }
             if (lifetime.IsCancellationRequested || !accounts.Contains(account)) return;
-            account.SetSnapshot(snapshot);
-            try { store.SaveCache(account.Record.Id, snapshot); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { ShowNotice(L.T("额度已更新，但本地缓存未能保存。")); }
+            PublishQuotaSnapshot(account, snapshot);
         }
         catch (OperationCanceledException) { }
         catch (Exception e) when (e is CodexException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException)
@@ -218,6 +222,12 @@ public partial class MainWindow : Window
                 timedOut: e is CodexException { IsTimeout: true });
         }
         finally { account.IsRefreshing = false; if (!exiting) { UpdateSummary(); CheckNotifications(); } }
+    }
+    private void PublishQuotaSnapshot(AccountViewModel account, UsageSnapshot snapshot, bool fromCache = false)
+    {
+        account.SetSnapshot(snapshot, fromCache);
+        try { store.SaveCache(account.Record.Id, snapshot); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { ShowNotice(L.T("额度已更新，但本地缓存未能保存。")); }
     }
     private void UpdateSummary()
     {

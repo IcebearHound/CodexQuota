@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using System.Diagnostics;
@@ -19,6 +20,7 @@ public partial class MainWindow
     private SessionIssuesWindow? sessionIssuesWindow;
     private bool activityStarted;
     private bool activityReading;
+    private readonly SemaphoreSlim activityObservation = new(1);
     private string lastAttention = "";
     private readonly HashSet<string> lastSessionAttention = [];
     private string? activityPersistenceNotice;
@@ -98,8 +100,7 @@ public partial class MainWindow
         var includeTokenRate = settings.ShowTokenRate;
         try
         {
-            var monitor = activityMonitor ??= new(persistence: store);
-            var observed = await Task.Run(() => monitor.Read(lifetime.Token, includeTokenRate), lifetime.Token);
+            var observed = await ObserveActivityAsync(includeTokenRate, lifetime.Token);
             activity = settings.ShowTokenRate ? observed : observed with { OutputTokensPerSecond = null };
         }
         catch (OperationCanceledException) { return; }
@@ -110,6 +111,29 @@ public partial class MainWindow
             activityPersistenceNotice = UpdateRecoveryNotice(currentMonitor.PersistenceHealthy,
                 L.F("中断状态未能保存，请检查本地数据目录的写入权限。", "Interruption state could not be saved. Check write access to the local data folder."), activityPersistenceNotice);
         UpdateCodexStatus();
+    }
+    private async Task<CodexActivitySnapshot> ObserveActivityAsync(bool includeTokenRate, CancellationToken cancellationToken)
+    {
+        await activityObservation.WaitAsync(cancellationToken);
+        try
+        {
+            var monitor = activityMonitor ??= new(persistence: store);
+            return await Task.Run(() => monitor.Read(cancellationToken, includeTokenRate), cancellationToken);
+        }
+        finally { activityObservation.Release(); }
+    }
+
+    private async Task<string?> CaptureRestartSessionAsync(CancellationToken cancellationToken, bool includeQuotaBlocked = false)
+    {
+        try
+        {
+            var observed = await ObserveActivityAsync(settings.ShowTokenRate, cancellationToken);
+            return observed.RestartThreadId ?? (includeQuotaBlocked ? observed.QuotaBlockedThreadId : null);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return null;
+        }
     }
     private void UpdateCodexStatus()
     {

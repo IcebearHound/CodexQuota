@@ -51,7 +51,7 @@ internal static class GuideSmoke
             Language = args.Contains("--screenshots") ? "zh-CN" : "en", Theme = "dark",
             DesktopWidgetEnabled = false, TaskbarWidgetEnabled = false, Topmost = args.Contains("--visibility-smoke"),
             Material = args.Contains("--visibility-smoke") ? "glass" : "solid",
-            AutoCheckUpdates = !args.Contains("--update-prompt") && !args.Contains("--installed-guide") && !args.Contains("--reconnect-smoke"),
+            AutoCheckUpdates = !args.Contains("--update-prompt") && !args.Contains("--installed-guide") && !args.Contains("--reconnect-smoke") && !args.Contains("--switching"),
             NotifyLowQuota = false, NotifyExhausted = false, NotifyReset = false, NotifyCardExpiry = false,
             CodexPath = demo ? null : Path.GetFullPath(args[fakeIndex + 1])
         });
@@ -73,7 +73,11 @@ internal static class GuideSmoke
                     }
                     var guide = app.Windows.OfType<GuideWindow>().Single();
                     if (args.Contains("--reconnect-smoke")) { guide.Close(); await QuotaReconnectSmoke.Run((MainWindow)app.MainWindow, store); }
-                    else if (args.Contains("--switching")) await SwitchingSmoke.Run((MainWindow)app.MainWindow, store);
+                    else if (args.Contains("--switching"))
+                    {
+                        await CheckAccountSwitchingPreference(guide, (MainWindow)app.MainWindow, store, args);
+                        await SwitchingSmoke.Run((MainWindow)app.MainWindow, store);
+                    }
                     else if (args.Contains("--external-host-recovery")) await ExternalHostSmoke.Run(app);
                     else if (args.Contains("--desktop-recovery")) await NativeWindowSmoke.CheckMainRecovery(app);
                     else if (args.Contains("--appearance-smoke")) await AppearanceSmoke.Run((MainWindow)app.MainWindow, args);
@@ -103,6 +107,34 @@ internal static class GuideSmoke
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
         if (!thread.Join(TimeSpan.FromSeconds(70))) { Console.Error.WriteLine("FAIL guide UI thread did not finish"); return 1; }
         return result;
+    }
+
+    private static async Task CheckAccountSwitchingPreference(GuideWindow guide, MainWindow main, AccountStore store, string[] args)
+    {
+        const string label = "Switch accounts when quota runs out";
+        CheckBox Toggle(Window window, string name = label) => Descendants<CheckBox>(window).Single(box => AutomationProperties.GetName(box) == name);
+        guide.ShowPage(1); await Settle(guide);
+        Check(Toggle(guide).IsChecked == false && !store.LoadSettings().AutoSwitchOnExhaustion, "first-run guide defaults to manual switching");
+        Toggle(guide).IsChecked = true;
+        Check(store.LoadSettings().AutoSwitchOnExhaustion, "the guide persists opt-in");
+        ((Button)main.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var settings = Application.Current.Windows.OfType<Window>().Single(window => window.Title == "Settings");
+        Descendants<RadioButton>(settings).Single(tab => AutomationProperties.GetName(tab) == "Accounts").IsChecked = true;
+        await Settle(settings);
+        Check(Toggle(settings).IsChecked == true, "Settings → Accounts reflects the guide choice");
+        var preview = Array.IndexOf(args, "--preview-dir");
+        if (preview >= 0) Capture(settings, args[preview + 1], "settings-auto-switch-en.png");
+        Toggle(settings).IsChecked = false; await Settle(guide);
+        Check(Toggle(guide).IsChecked == false && !store.LoadSettings().AutoSwitchOnExhaustion, "settings opt-out stays in sync with the guide");
+        settings.Close();
+        Descendants<Button>(guide).Single(button => Equals(button.Content, "中文")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Settle(guide);
+        Check(Toggle(guide, "额度耗尽时自动切换账号").IsChecked == false, "localized guide retains opt-out");
+        if (preview >= 0) Capture(guide, args[preview + 1], "guide-auto-switch-zh.png");
+        Descendants<Button>(guide).Single(button => Equals(button.Content, "English")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Settle(guide);
+        if (preview >= 0) Capture(guide, args[preview + 1], "guide-auto-switch-en.png");
+        Console.WriteLine("PASS failover is off by default and guide/Settings choices persist in both languages");
     }
 
     private static async Task CheckInstalledGuide(GuideWindow guide, AccountStore store)

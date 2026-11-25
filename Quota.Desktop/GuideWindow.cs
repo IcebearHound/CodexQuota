@@ -187,6 +187,7 @@ public sealed class GuideWindow : Window
         quotaPreview.RefreshContent(); body.Children.Add(quotaPreview);
     }
     internal void RefreshMonitoringOptions() { if (page == 0 && !closed) Render(); }
+    internal void RefreshAccountSwitchingOptions() { if (page == 1 && !closed) Render(); }
     private void StatusPage()
     {
         Heading(L.F("用一盏灯，了解任务进展", "Follow your work with one light"), L.F("点击任意状态查看演示。任务栏小组件与主面板使用相同状态灯。", "Select a state to preview it. The taskbar widget and main panel share these lights."));
@@ -198,9 +199,10 @@ public sealed class GuideWindow : Window
         Heading(L.F("把你的账号连接进来", "Connect your accounts"), L.F("已在使用 CC Switch？可以直接同步已有的 Codex 账号。也可以通过官方页面登录。", "Sync existing Codex accounts from CC Switch, or sign in through the official browser flow."));
         ConnectionCard("download", L.F("从 CC Switch 导入", "Import from CC Switch"), L.F("扫描本机 CC Switch，确认后同步认证信息与原账号名称。手动修改过的名称会保留。", "Scan local CC Switch accounts, then confirm to sync credentials and original names. Your custom names are preserved."), true);
         ConnectionCard("log-in", L.F("原生登录", "Sign in with Codex"), L.F("打开 Codex 官方登录页面，为每个账号保存独立认证。可重复添加多个账号。", "Open the official Codex sign-in page. Each account has its own saved credentials. Repeat to add more accounts."), false);
-        body.Children.Add(Text(busy ? L.F("正在等待额度同步完成，可关闭导览后稍后连接。", "Waiting for quota sync. You can close the guide and connect later.") : connectionResult?.Description ?? L.F("可以现在连接账号，也可以稍后在设置中连接。", "Connect now, or add accounts later in Settings."), 12, true));
+        if (busy) body.Children.Add(Text(L.F("正在等待额度同步完成，可关闭导览后稍后连接。", "Waiting for quota sync. You can close the guide and connect later."), 12, true));
+        else if (connectionResult is { } result) body.Children.Add(Text(result.Description, 12, true));
+        main.BuildAccountSwitchingOptions(body, inGuide: true);
         body.Children.Add(Text(L.F("当前有 {0} 个账号可查看额度。", "Quota is available for {0} accounts.", main.GuideAccountCount), 11, true));
-        body.Children.Add(Text(L.F("CC Switch 同步、重新登录与删除同步账号都可在设置的账号页管理。", "Manage CC Switch sync, sign-in and imported-account removal in Settings → Accounts."), 11, true));
     }
 
     private void ConnectionCard(string icon, string title, string description, bool import)

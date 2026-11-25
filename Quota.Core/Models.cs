@@ -128,6 +128,7 @@ public sealed class WidgetSettings
     public bool ShowUsed { get; set; }
     public bool ShowTokenRate { get; set; } = true;
     public bool ShowQuotaPace { get; set; } = true;
+    public bool AutoSwitchOnExhaustion { get; set; }
     public bool DesktopOnly { get; set; }
     public bool NotifyLowQuota { get; set; } = true;
     public double LowQuotaThreshold { get; set; } = 5;
