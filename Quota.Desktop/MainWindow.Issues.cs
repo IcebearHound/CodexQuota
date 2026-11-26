@@ -10,7 +10,7 @@ public partial class MainWindow
     {
         if (sender is Button { Tag: AccountGroupViewModel group }) ShowIssues([group]);
     }
-    private void SummaryIssuesClick(object sender, RoutedEventArgs args) => ShowIssues(visibleAccounts.Where(group => group.Sources.Any(source => source.HasError)).ToArray());
+    private void SummaryIssuesClick(object sender, RoutedEventArgs args) => ShowIssues(mainAccounts.OfType<AccountGroupViewModel>().Where(group => group.Sources.Any(source => source.HasError)).ToArray());
     private void ShowIssues(AccountGroupViewModel[] groups)
     {
         if (groups.Length == 0) return;
@@ -26,9 +26,14 @@ public partial class MainWindow
                 root.Children.Add(DialogLayout.Text(source.HasError ? source.ActionHint : group.ActionHint, 12));
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
                 var refresh = new Button { Content = L.T("刷新此账号"), Margin = new Thickness(0, 0, 8, 0), IsEnabled = !demo };
-                refresh.Click += async (_, _) => { dialog.Close(); if (GetCli() is { } cli) await System.Threading.Tasks.Task.WhenAll(group.Sources.Select(source => RefreshAccountAsync(cli, source))); };
+                refresh.Click += async (_, _) =>
+                {
+                    dialog.Close();
+                    if (source.Record.IsApi) await RefreshApiAccountAsync(source);
+                    else if (GetCli() is { } cli) await System.Threading.Tasks.Task.WhenAll(group.Sources.Select(item => RefreshAccountAsync(cli, item)));
+                };
                 actions.Children.Add(refresh);
-                if (source.Managed && source.HasError)
+                if ((source.Managed || source.Record.IsApi) && source.HasError)
                 {
                     var login = new Button { Content = L.T("重新登录"), IsEnabled = !demo };
                     login.Click += async (_, _) => { dialog.Close(); await ReloginAsync(source); }; actions.Children.Add(login);
@@ -42,7 +47,7 @@ public partial class MainWindow
     internal void RenameAccountGroup(AccountGroupViewModel group, string name)
     {
         if (group.Sources.Any(source => !accounts.Contains(source) || AccountGroupViewModel.KeyFor(source) != group.Key)) return;
-        var records = group.Sources.Where(source => source.Managed).ToArray();
+        var records = group.Sources.Where(source => source.Managed || source.Record.IsApi).ToArray();
         var old = records.Select(source => (Source: source, source.Record.Name, source.Record.CustomName)).ToArray();
         var previousCurrentName = settings.CurrentAccountName;
         foreach (var source in records) { source.Record.CustomName = true; source.Rename(name); }

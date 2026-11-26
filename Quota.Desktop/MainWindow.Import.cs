@@ -23,7 +23,13 @@ public partial class MainWindow
         var menu = new ContextMenu { PlacementTarget = button };
         var browser = new MenuItem { Header = L.T("在浏览器中登录") }; browser.Click += AddClick;
         var import = new MenuItem { Header = L.T("同步 CC Switch") }; import.Click += async (_, _) => await SyncCcSwitchAsync();
-        menu.Items.Add(browser); menu.Items.Add(import); menu.IsOpen = true;
+        var api = new MenuItem { Header = L.F("连接 API 账号", "Connect API account") };
+        api.Click += async (_, _) =>
+        {
+            if (settings.MonitorApiCredits) await ConnectApiAccountAsync(this);
+            else { OpenSettingsPage("额度监测"); SettingsClick(this, new()); }
+        };
+        menu.Items.Add(browser); menu.Items.Add(import); menu.Items.Add(new Separator()); menu.Items.Add(api); menu.IsOpen = true;
     }
     private async Task<AccountConnectionResult> SyncCcSwitchAsync(string? location = null)
     {
@@ -46,7 +52,7 @@ public partial class MainWindow
             if (!DialogLayout.Confirm(AccountDialogOwner, L.T("同步 CC Switch"), description, "同步账号")) return new(AccountConnectionOutcome.Canceled, Notices: notices);
             var records = CcSwitchImport.Synchronize(store, accounts.Select(source => source.Record), scan.Accounts);
             foreach (var account in accounts.Where(source => source.Managed).ToArray()) accounts.Remove(account);
-            foreach (var record in records)
+            foreach (var record in records.Where(record => !record.IsApi))
             {
                 var account = new AccountViewModel(record);
                 if (store.LoadCache(record.Id) is { } snapshot) account.SetSnapshot(snapshot, true);

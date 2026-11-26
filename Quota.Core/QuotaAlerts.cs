@@ -3,8 +3,9 @@ using System.Text.Json;
 namespace Quota.Core;
 
 public sealed record QuotaAlert(string AccountKey, string Kind, double Value = 0, int Count = 1);
-public sealed record AlertWindow(string AccountKey, string WindowKey, double Remaining, long? ResetsAt, string? Period = null);
-public sealed record ResetCreditDeadline(string AccountKey, string CreditKey, DateTimeOffset ExpiresAt);
+public sealed record AlertWindow(string AccountKey, string WindowKey, double Remaining, long? ResetsAt, string? Period = null,
+    decimal? ApiBalance = null, DateOnly? LatestApiGrant = null, bool HasRemainingPercent = true);
+public sealed record ResetCreditDeadline(string AccountKey, string CreditKey, DateTimeOffset ExpiresAt, bool IsApi = false);
 public sealed class AlertState
 {
     public Dictionary<string, AlertWindow> Windows { get; set; } = [];
@@ -34,8 +35,9 @@ public sealed class QuotaAlerts
                 LowSent = new(state.LowSent), ExhaustedSent = new(state.ExhaustedSent)
             };
             var alerts = new List<QuotaAlert>();
-            foreach (var window in windows.Where(window => double.IsFinite(window.Remaining)))
+            foreach (var current in windows.Where(window => double.IsFinite(window.Remaining)))
             {
+                var window = current;
                 var key = window.AccountKey + "/" + window.WindowKey;
                 next.Windows.TryGetValue(key, out var previous);
                 // Legacy records establish a baseline when server window identity becomes available.
@@ -49,18 +51,27 @@ public sealed class QuotaAlerts
                 }
                 var threshold = double.IsFinite(settings.LowQuotaThreshold) ? Math.Clamp(settings.LowQuotaThreshold, 1, 50) : 5;
                 var reset = previous?.ResetsAt is { } oldReset && oldReset <= now.ToUnixTimeSeconds() && window.ResetsAt > oldReset;
-                if (reset || window.Remaining > threshold) next.LowSent.Remove(key);
+                if (window.ApiBalance is { } apiBalance)
+                {
+                    reset = previous?.ApiBalance is { } oldBalance && apiBalance > 0 &&
+                        (window.LatestApiGrant > previous.LatestApiGrant || reset && apiBalance > oldBalance);
+                    // A fully used balance can temporarily lose its next-expiry field.
+                    window = window with { ResetsAt = window.ResetsAt ?? previous?.ResetsAt, LatestApiGrant = window.LatestApiGrant ?? previous?.LatestApiGrant };
+                }
+                if (reset || window.HasRemainingPercent && window.Remaining > threshold) next.LowSent.Remove(key);
                 if (reset || window.Remaining > 0) next.ExhaustedSent.Remove(key);
                 if (settings.NotifyExhausted && window.Remaining <= 0 && next.ExhaustedSent.Add(key)) alerts.Add(new(window.AccountKey, "exhausted"));
-                else if (settings.NotifyLowQuota && window.Remaining > 0 && window.Remaining <= threshold && next.LowSent.Add(key)) alerts.Add(new(window.AccountKey, "low", window.Remaining));
+                else if (settings.NotifyLowQuota && window.HasRemainingPercent && window.Remaining > 0 && window.Remaining <= threshold && next.LowSent.Add(key))
+                    alerts.Add(new(window.AccountKey, "low", window.Remaining));
                 if (settings.NotifyReset && reset) alerts.Add(new(window.AccountKey, "reset"));
                 next.Windows[key] = window;
             }
-            if (settings.NotifyCardExpiry)
+            if (settings.NotifyCardExpiry || settings.MonitorApiCredits && settings.NotifyApiExpiry)
             {
                 var days = settings.CardReminderDays.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(value => int.TryParse(value.Trim(), out var day) ? day : -1).Where(day => day >= 0 && day <= 365).Append(0).Distinct().Order().ToArray();
                 var deadlines = resetCards ?? settings.CardExpirations.Select(expiry => new ResetCreditDeadline(expiry.Key, "manual", expiry.Value));
-                foreach (var expiry in deadlines.DistinctBy(expiry => (expiry.AccountKey, expiry.CreditKey)))
+                foreach (var expiry in deadlines.Where(expiry => expiry.IsApi ? settings.MonitorApiCredits && settings.NotifyApiExpiry : settings.NotifyCardExpiry)
+                    .DistinctBy(expiry => (expiry.AccountKey, expiry.CreditKey)))
                 {
                     var remaining = (expiry.ExpiresAt - now).TotalDays;
                     var crossed = days.Where(day => remaining <= day).Select(day => (int?)day).FirstOrDefault();
@@ -70,7 +81,8 @@ public sealed class QuotaAlerts
                     if (!next.ExpirySent.Add(expiryKey)) continue;
                     // Mark wider thresholds as handled so the same deadline does not notify again after a clock change.
                     foreach (var day in days.Where(day => day >= crossed)) next.ExpirySent.Add(creditKey + "/" + day);
-                    alerts.Add(new(expiry.AccountKey, remaining <= 0 ? "expired" : "expiry", Math.Max(0, Math.Ceiling(remaining))));
+                    // API only supplies a date: at midnight say “expires today”, not “has expired”.
+                    alerts.Add(new(expiry.AccountKey, remaining <= 0 && !expiry.IsApi ? "expired" : "expiry", Math.Max(0, Math.Ceiling(remaining))));
                 }
             }
             var serialized = JsonSerializer.Serialize(next);

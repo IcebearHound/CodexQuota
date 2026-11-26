@@ -125,6 +125,7 @@ public partial class MainWindow
                 body.Children.Add(new StatusPreviewPanel()); break;
             case "额度监测":
                 BuildMonitoringOptions(body);
+                BuildApiCreditOptions(body, dialog);
                 body.Children.Add(new QuotaPreviewPanel(settings.ShowUsed));
                 body.Children.Add(SettingsControls.Action("额度口径", "settings-2", () => OpenSettingsPage("外观")));
                 break;
@@ -166,7 +167,14 @@ public partial class MainWindow
         var placement = SettingsControls.Section(body, L.F("任务栏小组件", "Taskbar widget"), "monitor", L.F("位置与布局实时生效，独立于主面板精简布局。", "Position and layout apply immediately, independently of the main compact layout."));
         placement.Children.Add(new WidgetPlacementPanel(this));
         body.Children.Add(SettingsControls.Action("展开任务栏账号面板", "chevron-right", () => taskbarWidget?.ShowAccounts()));
-
+        var api = SettingsControls.Section(body, L.F("显示 API 额度", "Show API credits"), "layers",
+            L.F("分别控制各组件显示，不影响账单查询或提醒。", "Choose where API credits appear without changing billing checks or alerts."));
+        void Toggle(string zh, string en, bool value, Action<bool> set) => SettingsControls.Toggle(api, L.F(zh, en), "monitor", value,
+            on => { set(on); ApplyAccountVisibility(); UpdateSummary(); SaveSettings(); });
+        Toggle("完整主面板", "Full main panel", settings.ShowApiInMain, value => settings.ShowApiInMain = value);
+        Toggle("精简小组件", "Simplified widget", settings.ShowApiInSimplified, value => settings.ShowApiInSimplified = value);
+        Toggle("任务栏常驻组件", "Taskbar strip", settings.ShowApiInTaskbar, value => settings.ShowApiInTaskbar = value);
+        Toggle("任务栏展开面板", "Taskbar flyout", settings.ShowApiInFlyout, value => settings.ShowApiInFlyout = value);
     }
 
     private void BuildAccountSettings(Panel body)
@@ -174,6 +182,7 @@ public partial class MainWindow
         var connections = SettingsControls.Section(body, L.F("连接账号", "Connect accounts"), "log-in");
         connections.Children.Add(SettingsControls.ConnectionCard("download", L.F("从 CC Switch 导入", "Import from CC Switch"), L.F("同步已有认证和原始名称，并保留手动编辑的名称。", "Sync existing credentials and original names, preserving your custom names."), async () => await SettingsConnectionAsync(true)));
         connections.Children.Add(SettingsControls.ConnectionCard("log-in", L.F("原生登录", "Sign in with Codex"), L.F("通过官方浏览器页面登录，为每个账号独立保存认证。", "Sign in through the official browser flow. Each account has its own credentials."), async () => await SettingsConnectionAsync(false)));
+        connections.Children.Add(SettingsControls.Action(L.F("管理 API 额度监控", "Manage API credit monitoring"), "layers", () => OpenSettingsPage("额度监测")));
         var actions = new WrapPanel();
         actions.Children.Add(SettingsControls.Action("选择认证 JSON 文件", "folder-search", BrowseCcSwitch));
         actions.Children.Add(SettingsControls.Action("删除同步账号", "x", () => { RemoveSyncedAccounts(); QueueSettingsRender(); })); connections.Children.Add(actions);
@@ -222,11 +231,16 @@ public partial class MainWindow
             settings.CardReminderDays = value; CommitSettings(); return true;
         }, L.T("用英文逗号分隔，例如 3,1。到期当天也会提醒。"), L.F("请输入 0–365 的整天数，用英文逗号分隔。", "Enter whole days from 0 to 365, separated by commas."));
         cards.Children.Add(SettingsControls.Action("刷新重置卡", "refresh-cw", async () => { await RefreshAllAsync(); QueueSettingsRender(); }));
-        foreach (var group in visibleAccounts.ToArray())
+        foreach (var group in visibleAccounts.Where(group => !group.IsApi).ToArray())
         {
             cards.Children.Add(DialogLayout.Text(group.Name, 12));
             cards.Children.Add(DialogLayout.Text(group.ResetCardSummary, 11, true));
         }
+        var api = SettingsControls.Section(body, L.F("API 赠送额度到期", "API promotional credit expiry"), "layers",
+            L.F("沿用上面的提前天数。低额度、用尽和续期提醒沿用额度提醒开关；没有发放总额时无法计算低额度百分比。",
+                "Uses the lead times above. Low-balance, exhaustion and renewal use the quota alert switches; a low-balance percentage requires the original grant amount."));
+        SettingsControls.Toggle(api, L.F("API 额度到期提醒", "API credit expiry alerts"), "bell", settings.NotifyApiExpiry,
+            value => { settings.NotifyApiExpiry = value; CommitSettings(); });
     }
 
     private void BuildGeneralSettings(Panel body)
@@ -235,6 +249,7 @@ public partial class MainWindow
         SettingChoices(body, "自动刷新", "refresh-cw", ["1 分钟", "5 分钟", "15 分钟", "30 分钟"], ["1", "5", "15", "30"], ["refresh-cw", "refresh-cw", "refresh-cw", "refresh-cw"], settings.RefreshMinutes.ToString(), value =>
         {
             settings.RefreshMinutes = int.Parse(value, CultureInfo.InvariantCulture); nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes);
+            nextApiRefresh = DateTimeOffset.UtcNow.AddMinutes(Math.Max(5, settings.RefreshMinutes));
         });
         var behavior = SettingsControls.Section(body, L.F("窗口行为", "Window behavior"), "layout-grid");
         SettingsControls.Toggle(behavior, "关闭窗口时收起到托盘", "minus", settings.CloseToTray, value => { settings.CloseToTray = value; CommitSettings(); });

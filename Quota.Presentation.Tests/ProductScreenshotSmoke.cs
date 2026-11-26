@@ -26,7 +26,7 @@ internal static class ProductScreenshotSmoke
             foreach (var language in new[] { "zh-CN", "en" })
             {
                 Method("SetGuideLanguage").Invoke(main, [language]);
-                foreach (var (page, name) in new[] { (0, "quota"), (1, "accounts"), (2, "status") })
+                foreach (var (page, name) in new[] { (0, "quota"), (1, "accounts"), (2, "api-credits"), (3, "status") })
                 {
                     guide.ShowPage(page); await Settle(guide);
                     Capture(guide, output, "guide-" + name + (language == "en" ? "-en" : "") + ".png");

@@ -10,7 +10,11 @@ public sealed class AccountRecord
     public string? Email { get; set; }
     public string? ImportKey { get; set; }
     public bool CustomName { get; set; }
-    public bool IsCurrent => Id == "current";
+    public string? ApiOrganizationId { get; set; }
+    public string? ApiOrganizationName { get; set; }
+    public decimal? ApiCycleAllowanceUsd { get; set; }
+    public bool IsApi => ApiOrganizationId is not null;
+    public bool IsCurrent => Id == "current" && !IsApi;
 }
 public sealed class QuotaWindow
 {
@@ -18,6 +22,7 @@ public sealed class QuotaWindow
     public double UsedPercent { get; set; }
     public int? DurationMinutes { get; set; }
     public long? ResetsAt { get; set; }
+    public ApiCreditReading? ApiCredit { get; set; }
     public double Remaining => Math.Clamp(100 - UsedPercent, 0, 100);
     public string Label => DurationMinutes switch
     {
@@ -129,6 +134,12 @@ public sealed class WidgetSettings
     public bool ShowTokenRate { get; set; } = true;
     public bool ShowQuotaPace { get; set; } = true;
     public bool AutoSwitchOnExhaustion { get; set; }
+    public bool MonitorApiCredits { get; set; }
+    public bool ShowApiInMain { get; set; } = true;
+    public bool ShowApiInSimplified { get; set; } = true;
+    public bool ShowApiInTaskbar { get; set; } = true;
+    public bool ShowApiInFlyout { get; set; } = true;
+    public bool NotifyApiExpiry { get; set; } = true;
     public bool DesktopOnly { get; set; }
     public bool NotifyLowQuota { get; set; } = true;
     public double LowQuotaThreshold { get; set; } = 5;

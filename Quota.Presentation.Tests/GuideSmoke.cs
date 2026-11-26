@@ -72,7 +72,8 @@ internal static class GuideSmoke
                         return;
                     }
                     var guide = app.Windows.OfType<GuideWindow>().Single();
-                    if (args.Contains("--reconnect-smoke")) { guide.Close(); await QuotaReconnectSmoke.Run((MainWindow)app.MainWindow, store); }
+                    if (args.Contains("--api-credits-smoke") && demo) await ApiCreditsSmoke.Run(guide, (MainWindow)app.MainWindow, store, args);
+                    else if (args.Contains("--reconnect-smoke")) { guide.Close(); await QuotaReconnectSmoke.Run((MainWindow)app.MainWindow, store); }
                     else if (args.Contains("--switching"))
                     {
                         await CheckAccountSwitchingPreference(guide, (MainWindow)app.MainWindow, store, args);
@@ -88,7 +89,7 @@ internal static class GuideSmoke
                     else if (args.Contains("--session-issues-smoke")) await InterruptedTaskSmoke.Run((MainWindow)app.MainWindow);
                     else if (args.Contains("--status-lamp-smoke") && demo)
                     {
-                        guide.ShowPage(2); await Settle(guide); await CheckStates(guide);
+                        guide.ShowPage(3); await Settle(guide); await CheckStates(guide);
                         guide.Close(); await StatusScopeSmoke.Run((MainWindow)app.MainWindow, args);
                     }
                     else if (args.Contains("--update-prompt")) await UpdatePromptSmoke.Run(guide, (MainWindow)app.MainWindow, store, args);
@@ -168,7 +169,7 @@ internal static class GuideSmoke
             await Task.Delay(280);
             Capture(guide, output, "guide-monitoring-en.png");
             Capture(main, output, "dashboard-monitoring-en.png");
-            guide.ShowPage(4); await Settle(guide); await Task.Delay(280);
+            guide.ShowPage(5); await Settle(guide); await Task.Delay(280);
             Capture(guide, output, "guide-startup-en.png");
             guide.ShowPage(0); await Settle(guide);
             token = Toggle(guide, "Local output rate (TPS)");
@@ -216,7 +217,7 @@ internal static class GuideSmoke
         {
             Toggle(guide, "额度消耗速率").IsChecked = true; await Settle(main);
             Capture(main, output, "dashboard-monitoring.png");
-            guide.ShowPage(4); await Settle(guide); await Task.Delay(280);
+            guide.ShowPage(5); await Settle(guide); await Task.Delay(280);
             Capture(guide, output, "guide-startup.png"); guide.ShowPage(0); await Settle(guide);
         }
         Toggle(guide, "本机输出速率（TPS）").IsChecked = false; await Settle(main);
@@ -374,19 +375,19 @@ internal static class GuideSmoke
         {
             var width = size.Width;
             guide.Width = width; guide.Height = size.Height;
-            for (var page = 0; page < 5; page++)
+            for (var page = 0; page < 6; page++)
             {
                 guide.ShowPage(page); await Settle(guide);
                 var surface = (Border)guide.Content;
                 Check(surface.CornerRadius == new CornerRadius(8) && surface.Clip is RectangleGeometry { RadiusX: 8, RadiusY: 8 } clip && Math.Abs(clip.Rect.Width - surface.ActualWidth) < 1, "guide corners and content clip stay consistent on every page and size");
                 var navigation = Descendants<RadioButton>(guide).Where(button => button.GroupName == "guide-chapters").ToArray();
-                Check(navigation.Length == 5 && navigation.All(button => AutomationProperties.GetName(button).Length > 0), "chapter navigation names");
+                Check(navigation.Length == 6 && navigation.All(button => AutomationProperties.GetName(button).Length > 0), "chapter navigation names");
                 var close = Descendants<Button>(guide).Single(button => Equals(button.ToolTip, L.T("关闭")));
                 Check(AutomationProperties.GetName(close) == L.T("关闭") && close.Padding == new Thickness(0), "guide close icon has a localized accessible name and centered content");
                 var navGrid = (UniformGrid)VisualTreeHelper.GetParent(navigation[0]);
-                Check(navGrid.Columns == (width >= 700 ? 5 : 3), "responsive chapter columns");
+                Check(navGrid.Columns == (width >= 830 ? 6 : 3), "responsive chapter columns");
                 foreach (var button in navigation) CheckInside(button, guide, "chapter bounds");
-                var next = Descendants<Button>(guide).Single(button => Equals(button.Content, page == 4 ? "Finish" : "Next"));
+                var next = Descendants<Button>(guide).Single(button => Equals(button.Content, page == 5 ? "Finish" : "Next"));
                 var skip = Descendants<Button>(guide).Single(button => Equals(button.Content, "Set up later"));
                 CheckInside(next, guide, "next button bounds"); CheckInside(skip, guide, "skip button bounds");
                 Check(!Bounds(next, guide).IntersectsWith(Bounds(skip, guide)), "footer buttons overlap");
@@ -397,7 +398,7 @@ internal static class GuideSmoke
                     var ring = Descendants<QuotaRing>(guide).Single(); var bar = Descendants<ProgressBar>(guide).First();
                     Check(Bounds(bar, guide).Top > Bounds(ring, guide).Bottom, "quota preview stacks on narrow screens");
                 }
-                if (page == 2)
+                if (page == 3)
                 {
                     if (width < 700 && size.Height >= 480) Check(Bounds(scroll, guide).Contains(Bounds(Descendants<StatusLamp>(guide).Single(), guide)), "status preview visible on narrow screens");
                     await CheckStates(guide);
@@ -405,7 +406,7 @@ internal static class GuideSmoke
                 Console.WriteLine($"PASS guide chapter {page + 1} at {width} × {size.Height} DIP");
             }
         }
-        guide.Width = 480; guide.ShowPage(4); await Settle(guide);
+        guide.Width = 480; guide.ShowPage(5); await Settle(guide);
         var startup = Descendants<CheckBox>(guide).Single(box => AutomationProperties.GetName(box) == "Start with Windows");
         Check(startup.IsChecked == false, "guide recommends without enabling startup");
         startup.IsChecked = true; await Settle(guide);
@@ -422,7 +423,7 @@ internal static class GuideSmoke
         await SimplifiedModeSmoke.Run((MainWindow)Application.Current.MainWindow, args);
         await NativeWindowSmoke.Run((MainWindow)Application.Current.MainWindow, args);
         await CheckLampLifetime();
-        guide.ShowPage(2); await Settle(guide);
+        guide.ShowPage(3); await Settle(guide);
         Descendants<CheckBox>(guide).Single(box => Equals(box.Content, "自动轮播演示")).IsChecked = true;
         var preview = Descendants<StatusPreviewPanel>(guide).Single();
         var playback = (DispatcherTimer)typeof(StatusPreviewPanel).GetField("Playback", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(preview)!;
@@ -435,7 +436,7 @@ internal static class GuideSmoke
         if (outputIndex >= 0 && args.Length > outputIndex + 1)
         {
             Directory.CreateDirectory(args[outputIndex + 1]);
-            guide.ShowPage(2); await Settle(guide); await Task.Delay(300);
+            guide.ShowPage(3); await Settle(guide); await Task.Delay(300);
             var bitmap = new RenderTargetBitmap((int)guide.ActualWidth, (int)guide.ActualHeight, 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(guide); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
             using var stream = File.Create(Path.Combine(args[outputIndex + 1], "guide-narrow.png")); encoder.Save(stream);

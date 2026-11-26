@@ -14,7 +14,7 @@ if ($InstallerCompiler) {
 }
 if (Test-Path -LiteralPath $payload) { throw 'Use a fresh output directory; existing releases are never overwritten.' }
 New-Item -ItemType Directory -Force -Path $payload | Out-Null
-& $Dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -p:IncludeSourceRevisionInInformationalVersion=false -o $payload
+& $Dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReferencesDocumentationFiles=false -p:DebugType=None -p:DebugSymbols=false -p:IncludeSourceRevisionInInformationalVersion=false -o $payload
 if ($LASTEXITCODE) { throw 'Desktop publish failed' }
 $deps = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Quota.Desktop/bin/Release/net10.0-windows/win-x64/CodexQuota.deps.json') -Raw | ConvertFrom-Json
 $runtimeVersion = (($deps.libraries.PSObject.Properties.Name | Where-Object { $_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/*' }) -split '/')[-1]
@@ -22,8 +22,15 @@ $desktopVersion = (($deps.libraries.PSObject.Properties.Name | Where-Object { $_
 $cache = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $env:USERPROFILE '.nuget/packages' }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE') -Destination (Join-Path $payload 'LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $cache "microsoft.netcore.app.runtime.win-x64/$runtimeVersion/LICENSE.TXT") -Destination (Join-Path $payload 'DOTNET-LICENSE.txt')
-Copy-Item -LiteralPath (Join-Path $cache "microsoft.netcore.app.runtime.win-x64/$runtimeVersion/THIRD-PARTY-NOTICES.TXT") -Destination (Join-Path $payload 'DOTNET-THIRD-PARTY-NOTICES.txt')
+$notices = Join-Path $payload 'DOTNET-THIRD-PARTY-NOTICES.txt'
+Copy-Item -LiteralPath (Join-Path $cache "microsoft.netcore.app.runtime.win-x64/$runtimeVersion/THIRD-PARTY-NOTICES.TXT") -Destination $notices
 Copy-Item -LiteralPath (Join-Path $cache "microsoft.windowsdesktop.app.runtime.win-x64/$desktopVersion/LICENSE") -Destination (Join-Path $payload 'WINDOWSDESKTOP-LICENSE.txt')
+$webViewVersion = (($deps.libraries.PSObject.Properties.Name | Where-Object { $_ -like 'Microsoft.Web.WebView2/*' }) -split '/')[-1]
+# Keep the existing payload filenames so older updaters can install the bundle.
+Add-Content -LiteralPath $notices -Encoding utf8 -Value @('', '', "Microsoft Edge WebView2 SDK $webViewVersion - LICENSE", '')
+Add-Content -LiteralPath $notices -Encoding utf8 -Value (Get-Content -LiteralPath (Join-Path $cache "microsoft.web.webview2/$webViewVersion/LICENSE.txt") -Raw -Encoding utf8)
+Add-Content -LiteralPath $notices -Encoding utf8 -Value @('', 'Microsoft Edge WebView2 SDK - NOTICE', '')
+Add-Content -LiteralPath $notices -Encoding utf8 -Value (Get-Content -LiteralPath (Join-Path $cache "microsoft.web.webview2/$webViewVersion/NOTICE.txt") -Raw -Encoding utf8)
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs/portable.md') -Destination (Join-Path $payload 'README.md')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs/portable.en.md') -Destination (Join-Path $payload 'README.en.md')
 $files = @(Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($payload, $_.FullName).Replace('\','/') }) + @('install-files.json')

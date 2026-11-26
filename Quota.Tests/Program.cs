@@ -74,6 +74,70 @@ CodexClient Client(string mode = "normal", string? profile = null) => new(Enviro
 var testRoot = Path.Combine(Path.GetTempPath(), "CodexQuotaTests-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(testRoot);
 
+await Test("API gift credits distinguish trial balance, paid wallet, and real grant dates", () =>
+{
+    const string org = "org-test123";
+    var overview = new ApiBillingPage(org, "Personal", "Billing\nFree trial\nAPI credit balance\nUS$59.00\n下一笔到期额度：US$9.00，到期日期为 2026年12月4日。\nWallet balance\nUS$500.00");
+    var grants = new ApiBillingPage(null, "Personal", null,
+        [["Received", "State", "Balance", "Expires"], ["Nov 25, 2026", "Available", "US$9.00 / US$20.00", "Dec 04, 2026"],
+         ["Nov 26, 2026", "Available", "US$50.00 / US$80.00", "Dec 25, 2026"],
+         ["Oct 25, 2026", "Expired", "US$100.00 / US$100.00", "Nov 20, 2026"]]);
+    var reading = ApiCredits.Read(overview, grants)!;
+    Check(reading is { RemainingUsd: 59m, GrantedUsd: 100m, ExpiringUsd: 9m, RemainingPercent: 59 });
+    Check(reading.NextExpiry == new DateOnly(2026, 12, 4) && reading.LatestGrant == new DateOnly(2026, 11, 26));
+    var english = overview with { Text = "Free trial\nAPI credit balance\n$59.00\nNext expiration: $59.00 on Dec 4, 2026.View credit grants" };
+    Check(ApiCredits.Read(english) is { RemainingUsd: 59m, ExpiringUsd: 59m, NextExpiry: { Day: 4, Month: 12, Year: 2026 } });
+    Check(!ApiCredits.HasTrialBalance("Free trial\nAPI credit balance\n…\nWallet balance\n$0.00"));
+    Check(ApiCredits.Read(overview with { Text = "Billing\nAPI credit balance\nUS$59.00\nWallet balance\nUS$500.00" }, grants) is null);
+    Check(ApiCredits.Read(overview, grants with { OrganizationId = "org-different" }) is { GrantedUsd: null, RemainingPercent: null });
+    Check(ApiCredits.Read(overview with { Text = overview.Text!.Replace("US$59.00", "US$58.00") }, grants) is { GrantedUsd: null, RemainingPercent: null });
+    Check(ApiCredits.Read(overview with { Text = "Free trial\nAPI credit balance\nUS$0.00\nWallet balance\nUS$500.00" }) is { RemainingUsd: 0, RemainingPercent: 0, NextExpiry: null });
+    var store = new AccountStore(Path.Combine(testRoot, "api-credit"));
+    var account = new AccountRecord { Name = "api example", ApiOrganizationId = org, ApiCycleAllowanceUsd = 100m };
+    store.SaveAccounts([account]); store.SaveCache(account.Id, reading.ToSnapshot(org));
+    Check(store.LoadAccounts().Single() is { IsApi: true, ApiCycleAllowanceUsd: 100m } && !store.LoadSettings().MonitorApiCredits);
+    Check(store.LoadCache(account.Id)?.Buckets.Single().Windows.Single().ApiCredit == reading);
+    return Task.CompletedTask;
+});
+
+await Test("API ring uses the full-cycle allowance but does not turn prorated credits into spending", () =>
+{
+    var prorated = new ApiCreditReading(59m, 59m, new DateOnly(2026, 12, 4), 59m);
+    Check(prorated.DisplayPercent(100m) == 59d && prorated.DisplayPercent(200m) == 29.5d);
+    Check(prorated.SpentUsd == 0m && prorated.DisplayPercent(100m, showUsed: true) == 0d);
+    Check(prorated.RemainingPercent == 100 && prorated.DisplayPercent(null) == 100);
+    var withoutDetails = prorated with { GrantedUsd = null };
+    Check(withoutDetails.DisplayPercent(100m) == 59d && withoutDetails.DisplayPercent(null) is null);
+    Check(withoutDetails.DisplayPercent(100m, showUsed: true) is null);
+    Check((withoutDetails with { RemainingUsd = 140m }).DisplayPercent(100m) == 100d);
+    Check(!ApiCreditReading.IsCycleAllowanceValid(0m) && !ApiCreditReading.IsCycleAllowanceValid(100.001m));
+    return Task.CompletedTask;
+});
+
+await Test("API gift credit alerts use a real issuance and independent expiry switch", () =>
+{
+    var alerts = new QuotaAlerts(Path.Combine(testRoot, "api-alerts"));
+    var now = DateTimeOffset.Now.Date.AddHours(12);
+    var today = new DateTimeOffset(now, DateTimeOffset.Now.Offset);
+    var grantDate = DateOnly.FromDateTime(now.AddDays(-20));
+    var settings = new WidgetSettings { MonitorApiCredits = true, NotifyCardExpiry = false };
+    var available = new AlertWindow("api", "api-grant", 50, today.ToUnixTimeSeconds(), "api-credits", 50, grantDate);
+    var expiry = new ResetCreditDeadline("api", "api-grant", today.AddHours(-12), IsApi: true);
+    Check(alerts.Evaluate([available], settings, today, [expiry]).Single().Kind == "expiry");
+    Check(alerts.Evaluate([available], settings, today, [expiry]).Count == 0);
+    var partial = available with { Remaining = 4, ApiBalance = 4, ResetsAt = today.AddDays(10).ToUnixTimeSeconds() };
+    Check(alerts.Evaluate([partial], settings, today).Single().Kind == "low");
+    Check(alerts.Evaluate([partial with { Remaining = 100, HasRemainingPercent = false }], settings, today).Count == 0);
+    Check(alerts.Evaluate([partial], settings, today).Count == 0, "Missing grant details do not re-arm a previous low-balance alert");
+    var used = partial with { Remaining = 0, ApiBalance = 0, ResetsAt = null, LatestApiGrant = null };
+    Check(alerts.Evaluate([used], settings, today).Single().Kind == "exhausted");
+    var renewed = available with { LatestApiGrant = grantDate.AddDays(20), ResetsAt = today.AddDays(30).ToUnixTimeSeconds() };
+    Check(alerts.Evaluate([renewed], settings, today).Single().Kind == "reset");
+    settings.NotifyApiExpiry = false; settings.NotifyCardExpiry = true;
+    Check(alerts.Evaluate([renewed], settings, today, [expiry with { CreditKey = "next" }]).Count == 0);
+    return Task.CompletedTask;
+});
+
 await Test("setup appends CodexQuota once and accepts localized parent paths", () =>
 {
     if (!OperatingSystem.IsWindows()) return Task.CompletedTask;

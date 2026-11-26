@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -94,7 +95,12 @@ public partial class TaskbarWidget : Window
     internal void KeepFlyoutOpen() { closeTimer.Stop(); openTimer.Stop(); }
     internal void CloseFlyoutLater() { openTimer.Stop(); if (!flyoutPinned) closeTimer.Start(); }
     internal void CloseAccounts() { flyoutPinned = false; KeepFlyoutOpen(); openPending = false; flyout?.HideAnimated(); }
-    internal void SelectDisplayedAccount(AccountGroupViewModel account) { selectedKey = account.Key; UpdateStatus(); }
+    internal void SelectDisplayedAccount(AccountGroupViewModel account)
+    {
+        if (!account.IsApi || main.ShowApiInTaskbar) { selectedKey = account.Key; UpdateStatus(); }
+    }
+    internal void RefreshApiVisibility() { flyout?.RefreshApiVisibility(); UpdateStatus(); }
+    private IEnumerable<AccountGroupViewModel> StripAccounts => accounts.Where(account => !account.IsApi || main.ShowApiInTaskbar);
 
     public TaskbarWidget(MainWindow main, ObservableCollection<AccountGroupViewModel> accounts, string? proofDirectory)
     {
@@ -168,7 +174,8 @@ public partial class TaskbarWidget : Window
         CompactPanel.Visibility = main.DetailedTaskbar ? Visibility.Collapsed : Visibility.Visible;
         FullPanel.Visibility = main.DetailedTaskbar ? Visibility.Visible : Visibility.Collapsed;
         StripMetrics.Visibility = host.ShowsMetrics ? Visibility.Visible : Visibility.Collapsed;
-        DataContext = accounts.FirstOrDefault(account => account.Key == selectedKey) ?? accounts.FirstOrDefault(account => account.IsCurrent) ?? accounts.FirstOrDefault();
+        var displayed = StripAccounts;
+        DataContext = displayed.FirstOrDefault(account => account.Key == selectedKey) ?? displayed.FirstOrDefault(account => account.IsCurrent) ?? displayed.FirstOrDefault();
         if (host.BackgroundColor is not { } background) return;
         var sourceColor = (DataContext as AccountGroupViewModel)?.FocusWindow?.Color ?? "#82938D";
         if (lastBackground == background && lastAccent == sourceColor) return;
@@ -198,9 +205,10 @@ public partial class TaskbarWidget : Window
     }
     private void CycleAccount(object sender, MouseWheelEventArgs args)
     {
-        if (accounts.Count == 0) return;
-        var index = DataContext is AccountGroupViewModel selected ? accounts.IndexOf(selected) : 0;
-        selectedKey = accounts[(index + (args.Delta < 0 ? 1 : accounts.Count - 1)) % accounts.Count].Key;
+        var options = StripAccounts.ToArray();
+        if (options.Length == 0) return;
+        var index = DataContext is AccountGroupViewModel selected ? Array.IndexOf(options, selected) : 0;
+        selectedKey = options[(Math.Max(index, 0) + (args.Delta < 0 ? 1 : options.Length - 1)) % options.Length].Key;
         UpdateStatus(); args.Handled = true;
     }
     private void SaveProof()

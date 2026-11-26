@@ -19,7 +19,7 @@ public sealed class AccountName : Grid
         edit.SetResourceReference(ToolTipProperty, "Loc.编辑名称");
         editor.SetResourceReference(System.Windows.Automation.AutomationProperties.NameProperty, "Loc.账号名称");
         SetColumn(edit, 1); Children.Add(label); Children.Add(editor); Children.Add(edit);
-        label.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Name"));
+        label.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(AccountGroupViewModel.DisplayName)));
         DataContextChanged += (_, _) => EndEdit();
         Unloaded += (_, _) => { ((ToolTip)label.ToolTip).IsOpen = false; EndEdit(); };
         MouseEnter += (_, _) => UpdateEditVisibility();
@@ -38,7 +38,7 @@ public sealed class AccountName : Grid
         {
             if (DataContext is not AccountGroupViewModel group || editingGroup is not null) { args.Handled = true; return; }
             var body = new StackPanel { Width = 280 };
-            body.Children.Add(DialogLayout.Text(group.Name, 14));
+            body.Children.Add(DialogLayout.Text(group.DisplayName, 14));
             body.Children.Add(DialogLayout.Text(group.Plan + " · " + group.Status, 11, true));
             body.Children.Add(DialogLayout.Text(group.Identity, 11, true));
             body.Children.Add(DialogLayout.Text(L.T("认证来源"), 10, true));
@@ -47,8 +47,9 @@ public sealed class AccountName : Grid
             foreach (var bucket in group.Buckets)
                 foreach (var window in bucket.Windows)
                 {
-                    body.Children.Add(DialogLayout.Text(bucket.Name + " · " + window.Label + " · " + window.Caption + " " + window.Percent, 11));
-                    body.Children.Add(DialogLayout.Text(window.ResetText, 10, true));
+                    body.Children.Add(DialogLayout.Text(bucket.Name + " · " + window.Label + " · " + window.RingCaption + " " + window.Percent, 11));
+                    if (window.ApiCycleTooltip is { } allowance) body.Children.Add(DialogLayout.Text(allowance, 10, true));
+                    body.Children.Add(DialogLayout.Text(window.IsApi ? window.ResetTooltip : window.ResetText, 10, true));
                 }
             if (group.HasError) { body.Children.Add(DialogLayout.Text(group.Error ?? "", 11)); body.Children.Add(DialogLayout.Text(group.ActionHint, 11, true)); }
             body.Children.Add(DialogLayout.Text(group.Updated, 10, true));

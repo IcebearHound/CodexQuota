@@ -20,20 +20,35 @@ public sealed class BoolVisibility : IValueConverter
     public object Convert(object value, Type t, object p, CultureInfo culture) => value is true ? Visibility.Visible : Visibility.Collapsed;
     public object ConvertBack(object value, Type t, object p, CultureInfo culture) => value is Visibility.Visible;
 }
-public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : Observable
+public sealed class WindowViewModel(QuotaWindow window, double? pace = null, decimal? apiCycleAllowanceUsd = null) : Observable
 {
     public static double AlertThreshold { get; set; } = 5;
     private bool showUsed;
     public bool ShowUsed
     {
         get => showUsed;
-        set { showUsed = value; Raise(nameof(Value)); Raise(nameof(Percent)); Raise(nameof(Caption)); Raise(nameof(Color)); }
+        set { showUsed = value; Raise(nameof(Value)); Raise(nameof(Percent)); Raise(nameof(StripValue)); Raise(nameof(Caption)); Raise(nameof(RingCaption)); Raise(nameof(Color)); }
     }
-    public string Label => !L.IsEnglish ? window.Label : window.DurationMinutes == 10080 ? "Weekly" : window.DurationMinutes is > 0 ? L.F(L.T("{0} 小时"), "{0:0.#} hours", window.DurationMinutes.Value / 60d) : "Usage window";
-    public double Remaining => window.Remaining;
-    public double Value => ShowUsed ? Math.Clamp(window.UsedPercent, 0, 100) : Remaining;
-    public string Caption => ShowUsed ? L.T("已用") : L.T("剩余");
-    public string Percent => $"{Value:0}%";
+    public bool IsApi => window.ApiCredit is not null;
+    public bool HasProgress => !IsApi || ApiDisplayPercent is not null;
+    public bool HasAlertMeasure => !IsApi || window.ApiCredit?.RemainingPercent is not null;
+    public string Label => IsApi ? L.F("赠送额度", "Grant") : !L.IsEnglish ? window.Label : window.DurationMinutes == 10080 ? "Weekly" : window.DurationMinutes is > 0 ? L.F(L.T("{0} 小时"), "{0:0.#} hours", window.DurationMinutes.Value / 60d) : "Usage window";
+    public double Remaining => window.ApiCredit?.RemainingPercent ?? window.Remaining;
+    private bool DisplayUsed => ShowUsed && (!IsApi || window.ApiCredit?.SpentUsd is not null);
+    private double? ApiDisplayPercent => window.ApiCredit?.DisplayPercent(apiCycleAllowanceUsd, DisplayUsed);
+    public double Value => IsApi ? ApiDisplayPercent ?? 0 : DisplayUsed ? Math.Clamp(window.UsedPercent, 0, 100) : Remaining;
+    public string Caption => DisplayUsed ? L.T("已用") : L.T("剩余");
+    public string RingCaption => ApiDisplayPercent is { } progress ? $"{Caption} · {progress:0.#}%" : Caption;
+    private decimal? ApiAmount => window.ApiCredit is { } api ? DisplayUsed ? api.SpentUsd : api.RemainingUsd : null;
+    public string? ApiRemainingText => window.ApiCredit is { } api ? "US$" + api.RemainingUsd.ToString("0.00", CultureInfo.InvariantCulture) : null;
+    public string Percent => ApiAmount is { } amount ? "$" + amount.ToString("0.00", CultureInfo.InvariantCulture) : $"{Value:0}%";
+    public string StripValue => ApiAmount is { } amount ? "$" + amount.ToString("0.##", CultureInfo.InvariantCulture) : Percent;
+    public string? ApiCycleTooltip => window.ApiCredit is not { } api ? null :
+        api.DisplayAllowance(apiCycleAllowanceUsd) is { } allowance
+            ? ApiCreditReading.IsCycleAllowanceValid(apiCycleAllowanceUsd)
+                ? L.F("本周期赠送上限：US${0:0.##}", "Full-cycle allowance: US${0:0.##}", allowance)
+                : L.F("账单已发放额度：US${0:0.##}", "Grants issued by billing: US${0:0.##}", allowance)
+            : L.F("周期上限未知。可在 API 账号菜单设置。", "Cycle allowance unknown. Set it in the API account menu.");
     public string QuotaPaceText
     {
         get
@@ -43,11 +58,13 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : O
             return hourly == "0.00" ? (rate * 24).ToString("0.00", CultureInfo.InvariantCulture) + "/d" : hourly + "/h";
         }
     }
-    public string Color => Remaining <= AlertThreshold ? ThemeService.DangerColor : Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
+    public string Color => HasAlertMeasure && Remaining <= AlertThreshold ? ThemeService.DangerColor : HasAlertMeasure && Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
     public string ResetText
     {
         get
         {
+            if (window.ApiCredit is { } api)
+                return api.NextExpiry is { } date ? L.F("{0:yyyy-MM-dd} 到期", "Expires {0:yyyy-MM-dd}", date) : L.F("暂无下一笔到期日期", "No upcoming expiry shown");
             if (window.ResetsAt is not { } epoch) return L.T("重置时间未提供");
             DateTimeOffset reset; try { reset = DateTimeOffset.FromUnixTimeSeconds(epoch); } catch (ArgumentOutOfRangeException) { return L.T("重置时间未提供"); }
             var delta = reset - DateTimeOffset.UtcNow;
@@ -57,11 +74,15 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : O
             return $"{span}后重置";
         }
     }
-    public string ResetTooltip => window.ResetsAt is { } epoch && epoch >= 0 && epoch < 253402300799 ? DateTimeOffset.FromUnixTimeSeconds(epoch).ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz") : L.T("以服务端返回时间为准");
+    public string ResetTooltip => window.ApiCredit is { } api
+        ? api.NextExpiry is { } date && api.ExpiringUsd is { } amount
+            ? L.F("{0:yyyy-MM-dd} 有 US${1:0.00} 到期", "US${1:0.00} expires {0:yyyy-MM-dd}", date, amount) : ResetText
+        : window.ResetsAt is { } epoch && epoch >= 0 && epoch < 253402300799 ? DateTimeOffset.FromUnixTimeSeconds(epoch).ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz") : L.T("以服务端返回时间为准");
     public string CompactResetText
     {
         get
         {
+            if (window.ApiCredit is { } api) return api.NextExpiry is { } date ? date.ToString("MM-dd", CultureInfo.InvariantCulture) : "—";
             if (window.ResetsAt is not { } epoch || epoch < 0 || epoch >= 253402300799) return "—";
             var span = DateTimeOffset.FromUnixTimeSeconds(epoch) - DateTimeOffset.UtcNow;
             if (span <= TimeSpan.Zero) return "0m";
@@ -72,10 +93,12 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : O
     }
     public void UpdateClock() { Raise(nameof(ResetText)); Raise(nameof(CompactResetText)); }
 }
-public sealed class BucketViewModel(QuotaBucket bucket, string? displayName = null, IReadOnlyDictionary<QuotaWindow, double>? quotaPace = null)
+public sealed class BucketViewModel(QuotaBucket bucket, string? displayName = null, IReadOnlyDictionary<QuotaWindow, double>? quotaPace = null,
+    decimal? apiCycleAllowanceUsd = null)
 {
     public string Name => displayName ?? (bucket.Name.Equals("codex", StringComparison.OrdinalIgnoreCase) ? "CODEX" : bucket.Name);
-    public ObservableCollection<WindowViewModel> Windows { get; } = new(bucket.Windows.Select(x => new WindowViewModel(x, quotaPace?.TryGetValue(x, out var rate) == true ? rate : null)));
+    public ObservableCollection<WindowViewModel> Windows { get; } = new(bucket.Windows.Select(x => new WindowViewModel(x,
+        quotaPace?.TryGetValue(x, out var rate) == true ? rate : null, apiCycleAllowanceUsd)));
     public bool NoWindows => Windows.Count == 0;
     public bool HasCredits => bucket.UnlimitedCredits || bucket.CreditBalance is not null;
     public string Credits => bucket.UnlimitedCredits ? L.T("额外额度：不限量") : L.T("额外额度余额：") + bucket.CreditBalance;
@@ -91,11 +114,12 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         var separator = name.IndexOf('@');
         return separator > 0 ? StringInfo.GetNextTextElement(name) + "•••" + name[separator..] : name;
     }
-    public bool Managed => !Record.IsCurrent;
+    public bool Managed => !Record.IsCurrent && !Record.IsApi;
     public string ResetCardSummary
     {
         get
         {
+            if (Record.IsApi) return Buckets.SelectMany(bucket => bucket.Windows).FirstOrDefault()?.ResetTooltip ?? L.F("暂无赠送额度数据", "No promotional credit reading yet");
             if (Snapshot?.ResetCreditAvailableCount is not { } count) return L.T("重置卡信息未提供");
             if (count == 0) return L.T("暂无可用重置卡");
             var next = Snapshot.ResetCredits.Where(credit => credit.ExpiryKnown && credit.ExpiresAt is not null).OrderBy(credit => credit.ExpiresAt).FirstOrDefault();
@@ -117,6 +141,8 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     {
         get
         {
+            if (Record.IsApi) return L.F("OpenAI Platform 组织 · {0}", "OpenAI Platform organization · {0}",
+                privacy ? MaskEmail(Record.ApiOrganizationName ?? Record.Name) : Record.ApiOrganizationName ?? Record.Name);
             if (Record.IsCurrent && (IsCached || HasError) && Snapshot is not null)
                 return privacy || string.IsNullOrEmpty(Snapshot.Email) ? L.T("上次读取账号 · 当前登录未验证") : L.F("上次账号 {0} · 当前登录未验证", "Previous account {0} · current sign-in unverified", Snapshot.Email);
             if (Record.IsCurrent) return privacy ? L.T("跟随本机 Codex 登录") : Snapshot?.Email ?? Record.Email ?? L.T("跟随本机 Codex 登录");
@@ -127,6 +153,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     {
         get
         {
+            if (Record.IsApi) return "API";
             var plan = Snapshot?.Buckets.Select(x => x.Plan).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim().ToLowerInvariant();
             if (plan is null or "unknown") return "—";
             if (plan is "prolite" or "pro100") return "Pro100";
@@ -140,16 +167,16 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public bool IsRefreshing { get => refreshing; set { refreshing = value; Raise(); Raise(nameof(Status)); Raise(nameof(StatusColor)); } }
     public string StatusColor => IsRefreshing ? ThemeService.AccentColor : HasErrorAccent ? ThemeService.DangerColor : ThemeService.SecondaryColor;
     public string Status => IsRefreshing ? L.T("更新中")
-        : syncTimedOut ? L.T(Snapshot is null ? "同步超时" : "已过期")
+        : syncTimedOut ? L.T(Snapshot is null || Record.IsApi ? "同步超时" : "已过期")
         : HasError ? L.T("需处理")
         : Snapshot is null ? L.T("等待更新")
         : loadedFromCache || (DateTimeOffset.UtcNow - Snapshot.FetchedAt).TotalMinutes > 15 ? L.T("缓存") : L.T("已同步");
     public bool HasError => error is not null;
     internal bool IsStale => syncTimedOut && Snapshot is not null;
     internal bool HasErrorAccent => HasError && (Record.IsCurrent || !syncTimedOut);
-    internal string? ErrorDetail => error is null ? null : L.Error(error);
+    internal string? ErrorDetail => error is null ? null : Record.IsApi ? error : L.Error(error);
     public string? Error => ErrorDetail is { } detail ? (Record.IsCurrent && Snapshot is not null ? L.T("当前登录未验证，以下为上次读取账号的额度。 ") : "") + detail : null;
-    public string ActionHint => error is null ? L.T("已同步") : error.Contains("Codex") && error.Contains("找到") ? L.T("打开设置选择 Codex") : error.Contains("登录") || error.Contains("认证") || error.Contains("目录已丢失") ? L.T("重新登录以恢复认证") : error.Contains("网络") || error.Contains("连接") || error.Contains("超时") ? L.T("检查网络后刷新") : L.T("刷新或重新登录");
+    public string ActionHint => error is null ? L.T("已同步") : Record.IsApi ? L.F("刷新账单或重新连接 API 登录", "Refresh billing or reconnect API sign-in") : error.Contains("Codex") && error.Contains("找到") ? L.T("打开设置选择 Codex") : error.Contains("登录") || error.Contains("认证") || error.Contains("目录已丢失") ? L.T("重新登录以恢复认证") : error.Contains("网络") || error.Contains("连接") || error.Contains("超时") ? L.T("检查网络后刷新") : L.T("刷新或重新登录");
     public bool NoSnapshot => Snapshot is null || Snapshot.Buckets.Count == 0;
     public bool Blocked => Snapshot?.OrdinaryUsageAllowed == false;
     public ObservableCollection<BucketViewModel> Buckets { get; } = [];
@@ -176,7 +203,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     }
     public void SetError(string message, bool timedOut = false) { error = message; syncTimedOut = timedOut; quotaPace = null; RefreshDerived(); }
     public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; syncTimedOut = false; quotaPace = null; RefreshDerived(); }
-    internal BucketViewModel BuildBucket(QuotaBucket bucket, string? displayName = null) => new(bucket, displayName, quotaPace);
+    internal BucketViewModel BuildBucket(QuotaBucket bucket, string? displayName = null) => new(bucket, displayName, quotaPace, Record.ApiCycleAllowanceUsd);
     public void Rename(string name) { Record.Name = AccountStore.CleanName(name); Raise(nameof(Name)); Raise(nameof(Initial)); }
     public void RefreshDerived()
     {

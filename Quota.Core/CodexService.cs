@@ -8,6 +8,7 @@ public sealed class CodexService(AccountStore store, Func<string, string?, Codex
     private CodexClient CreateClient(string cli, string? profile) => factory is null ? new CodexClient(cli, profile) : factory(cli, profile);
     public async Task<UsageSnapshot> RefreshAsync(string cli, AccountRecord account, CancellationToken ct)
     {
+        if (account.IsApi) throw new CodexException("API 额度账号通过 OpenAI Platform 账单刷新。");
         if (!account.IsCurrent && !File.Exists(Path.Combine(store.ProfilePath(account.Id), "config.toml"))) throw new CodexException("此账号的本地登录目录已丢失，请重新登录。");
         await using var client = CreateClient(cli, account.IsCurrent ? null : store.ProfilePath(account.Id));
         return await client.ReadUsageAsync(ct);

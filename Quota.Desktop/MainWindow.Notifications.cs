@@ -57,6 +57,14 @@ public partial class MainWindow
                     for (var index = 0; index < bucket.Windows.Count; index++)
                     {
                         var window = bucket.Windows[index];
+                        if (window.ApiCredit is { } api)
+                        {
+                            windows.Add(new(accountKey, "api-grant", api.RemainingPercent ?? (api.RemainingUsd > 0 ? 100 : 0),
+                                api.ExpiryBoundary?.ToUnixTimeSeconds(), window.Kind, api.RemainingUsd, api.LatestGrant, api.RemainingPercent is not null));
+                            if (api.ExpiryBoundary is { } expiry && expiry.Date >= DateTimeOffset.Now.Date)
+                                resetCards.Add(new(accountKey, "api-grant", expiry, IsApi: true));
+                            continue;
+                        }
                         var slot = window.Kind switch { "primary" => 0, "secondary" => 1, _ => index };
                         windows.Add(new(accountKey, (source.Snapshot.AccountId ?? source.Record.Id) + "/" + bucket.Name + "/" + slot, window.Remaining, window.ResetsAt, window.Kind));
                     }
@@ -74,7 +82,7 @@ public partial class MainWindow
             {
                 var group = visibleAccounts.FirstOrDefault(group => WidgetKey(group.Key) == alert.AccountKey);
                 if (group is null) continue;
-                var text = alert.Kind switch
+                var text = group.IsApi ? ApiAlertText(group, alert) : alert.Kind switch
                 {
                     "low" => L.F("{0} 额度即将用尽，剩余 {1:0.#}%。", "{0} is running low, {1:0.#}% remaining.", group.Name, alert.Value),
                     "exhausted" => L.F("{0} 的额度已用尽。", "{0} has exhausted its quota.", group.Name),
@@ -94,4 +102,12 @@ public partial class MainWindow
             notificationNotice = UpdateRecoveryNotice(false, L.T("通知状态未能保存，请检查本地目录权限。"), notificationNotice);
         }
     }
+    private static string ApiAlertText(AccountGroupViewModel group, QuotaAlert alert) => alert.Kind switch
+    {
+        "low" => L.F("{0} 赠送额度偏低，剩余 {1}（{2:0.#}%）。", "{0} promotional credits are low: {1} left ({2:0.#}%).", group.DisplayName, group.FocusWindow?.ApiRemainingText ?? "—", alert.Value),
+        "exhausted" => L.F("{0} 的赠送额度已用尽。", "{0} has used up its promotional credits.", group.DisplayName),
+        "reset" => L.F("{0} 有新发放的赠送额度。", "{0} has received new promotional credits.", group.DisplayName),
+        _ when alert.Value == 0 => L.F("{0} 的下一笔赠送额度今天到期。", "The next grant for {0} expires today.", group.DisplayName),
+        _ => L.F("{0} 的下一笔赠送额度将在 {1} 天内到期。", "The next grant for {0} expires within {1} days.", group.DisplayName, alert.Value)
+    };
 }

@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download the 3.4.0 release](https://github.com/IcebearHound/CodexQuota/releases/tag/v3.4.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download 4.0.0](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -44,6 +44,15 @@ Open the issue list from the main window, a status light or the taskbar menu. Re
 After connecting a backup account, enable **Switch accounts when quota runs out** under **Connect accounts** in the first-run guide or under **Settings → Accounts**. It is off by default. When a refresh confirms the active account's Codex quota is exhausted, Codex Quota rechecks the backup before switching. It leaves the account unchanged if no backup has quota, the desktop app cannot close normally, or Codex is running only in the CLI.
 
 When Codex Quota restarts the desktop app, it reopens the most recently running chat. If no chat is running, an automatic switch also looks for a recent chat interrupted by a quota error. Continue unfinished work in that chat; prompts are not sent again automatically.
+
+### Track OpenAI API promotional credits
+
+Enable **Monitor API promotional credits** in the guide’s **API credits** chapter or under **Settings → Quota monitoring**. It is off by default. Choose **Connect API account** and sign in to OpenAI Platform. The app reads billing for the selected organization and returns to the quota panel automatically. Each organization appears once as `API · account name` and is never used for Codex account switching. No API key or payment details are needed. Sign-ins stay in local Microsoft Edge WebView2 profiles.
+
+- Read the promotional USD balance and next expiry date from [OpenAI Platform Billing overview](https://platform.openai.com/settings/organization/billing/overview). If the page shows only a date, the app doesn’t infer a time. If it doesn’t show a separate promotional balance, a mixed or wallet balance is not counted.
+- Open the API account’s **⋯ → Full-cycle API allowance** to set the 100% mark (for example, US$100 for Pro100). The displayed balance still comes from billing, and a prorated first grant is not counted as spending.
+- Low-balance, exhaustion and new-grant alerts use the quota settings. Disable API expiry alerts separately under **Settings → Notifications**. A low-balance percentage requires a confirmed original grant amount. Disabling monitoring stops checks and alerts but keeps your connections.
+- Under **Settings → Widgets → Show API credits**, choose whether the full main panel, simplified widget, taskbar strip and taskbar flyout each show API credits. The strip still defaults to the active Codex account; scroll to show API credits without switching accounts.
 
 ### Quota and status walkthrough
 
@@ -114,7 +123,7 @@ Self-updating starts with the **complete 2.3 portable ZIP**. Users of 2.2 or old
 
 ## Data and upgrades
 
-Accounts and settings are stored in `%LOCALAPPDATA%\CodexQuotaWidget`. Usage is queried through the local Codex app-server. Exit the previous version before starting an upgrade.
+Accounts and settings are stored in `%LOCALAPPDATA%\CodexQuotaWidget`. Codex usage is queried through the local Codex app-server; API promotional credits use separate WebView2 sign-ins. Exit the previous version before starting an upgrade.
 
 **Starting with 2.3, Windows Win+W Widgets board support and its extension package are discontinued. The taskbar widget remains supported.** First verify and back up your accounts and settings in the portable build, then remove the old package from Windows Installed apps. If data is missing, keep the old package until backup and migration are complete. Keep the data directory above.
 

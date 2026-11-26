@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -24,6 +25,8 @@ public partial class MainWindow : Window
     private readonly WidgetSettings settings;
     private readonly ObservableCollection<AccountViewModel> accounts = [];
     private readonly ObservableCollection<AccountGroupViewModel> visibleAccounts = [];
+    private readonly ListCollectionView mainAccounts;
+    private readonly ListCollectionView simplifiedAccounts;
     private readonly HashSet<AccountViewModel> observedSources = [];
     private readonly CancellationTokenSource lifetime = new();
     private readonly SemaphoreSlim concurrency = new(3);
@@ -56,6 +59,8 @@ public partial class MainWindow : Window
         var dataIndex = Array.IndexOf(arguments, "--data-dir");
         var root = dataIndex >= 0 && arguments.Length > dataIndex + 1 ? arguments[dataIndex + 1] : demo ? Path.Combine(Path.GetTempPath(), "CodexQuotaDemo") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexQuotaWidget");
         store = new(root); service = new(store); settings = store.LoadSettings();
+        mainAccounts = new(visibleAccounts) { Filter = item => item is AccountGroupViewModel group && (!group.IsApi || settings.ShowApiInMain) };
+        simplifiedAccounts = new(visibleAccounts) { Filter = item => item is AccountGroupViewModel group && (!group.IsApi || settings.ShowApiInSimplified) };
         Width = settings.Width; Height = settings.Height;
         if (settings.Left is { } l && settings.Top is { } t) { WindowStartupLocation = WindowStartupLocation.Manual; Left = l; Top = t; }
         L.Apply(settings.Language);
@@ -63,11 +68,13 @@ public partial class MainWindow : Window
         accounts.Add(new(new() { Id = "current", Name = settings.CurrentAccountName ?? L.T("当前 Codex 账号"), CustomName = settings.CurrentAccountName is not null }));
         if (!demo) foreach (var record in store.LoadAccounts()) accounts.Add(new(record));
         if (!demo) RestoreImportedNames();
-        foreach (var account in accounts) if (store.LoadCache(account.Record.Id) is { } cached) account.SetSnapshot(cached, fromCache: true);
+        foreach (var account in accounts)
+            if (store.LoadCache(account.Record.Id) is { } cached && (!account.Record.IsApi || cached.AccountId == account.Record.ApiOrganizationId))
+                account.SetSnapshot(cached, fromCache: true);
         accounts.CollectionChanged += (_, _) => RebuildAccountGroups();
         RebuildAccountGroups();
-        AccountList.ItemsSource = visibleAccounts;
-        SimplifiedAccounts.ItemsSource = visibleAccounts;
+        AccountList.ItemsSource = mainAccounts;
+        SimplifiedAccounts.ItemsSource = simplifiedAccounts;
         ApplySimplifiedLayout();
         tray = new Forms.NotifyIcon { Text = L.T("Codex Quota · 额度监控"), Icon = MakeIcon(), Visible = true };
         tray.MouseUp += (_, args) => { if (args.Button == Forms.MouseButtons.Right) Dispatcher.BeginInvoke(ShowTrayMenu); };
@@ -89,12 +96,20 @@ public partial class MainWindow : Window
             {
                 if (store.RecoveryNotice is { } notice) ShowNotice(notice);
                 StartMonitoringQuotaConnection();
-                startupRefresh = RefreshAllAsync(); await startupRefresh;
+                _ = RefreshApiAccountsAsync();
+                startupRefresh = RefreshQuotasAsync(unsyncedOnly: false); await startupRefresh;
             }
         };
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplaySettingsChanged;
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += SystemThemeChanged;
-        timer.Tick += async (_, _) => { foreach (var a in accounts) a.UpdateClock(); UpdateSummary(); CheckNotifications(); if (!demo && DateTimeOffset.UtcNow >= nextRefresh) await RefreshAllAsync(); };
+        timer.Tick += async (_, _) =>
+        {
+            foreach (var a in accounts) a.UpdateClock();
+            UpdateSummary(); CheckNotifications();
+            if (demo) return;
+            if (settings.MonitorApiCredits && DateTimeOffset.UtcNow >= nextApiRefresh) _ = RefreshApiAccountsAsync();
+            if (DateTimeOffset.UtcNow >= nextRefresh) await RefreshQuotasAsync(unsyncedOnly: false);
+        };
         timer.Start();
         Closing += OnClosing;
         Closed += MainClosed;
@@ -118,6 +133,7 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplaySettingsChanged;
         Microsoft.Win32.SystemEvents.UserPreferenceChanged -= SystemThemeChanged;
         trayMenu?.SetCurrentValue(System.Windows.Controls.ContextMenu.IsOpenProperty, false); trayMenuAnchor?.Close();
+        apiLoginWindow?.Close(); apiPollingScope?.Cancel(); apiPollingScope?.Dispose();
         updatePrompt?.Close(); settingsWindow?.Close(); sessionIssuesWindow?.Close(); guideWindow?.Close(); attentionNotification?.Close();
         foreach (var group in visibleAccounts) group.Dispose();
         foreach (var source in observedSources) source.PropertyChanged -= AccountSourceChanged;
@@ -165,12 +181,12 @@ public partial class MainWindow : Window
         else if (noticeIsCli) { NoticeBorder.Visibility = Visibility.Collapsed; noticeIsCli = false; }
         return path;
     }
-    private Task RefreshAllAsync() => RefreshQuotasAsync(unsyncedOnly: false);
+    private Task RefreshAllAsync() => Task.WhenAll(RefreshApiAccountsAsync(), RefreshQuotasAsync(unsyncedOnly: false));
     private async Task RefreshQuotasAsync(bool unsyncedOnly)
     {
         if (demo || refreshing || switching || exiting || appUpdateState.Phase == "installing") return;
         if (!unsyncedOnly) nextRefresh = DateTimeOffset.UtcNow.AddMinutes(settings.RefreshMinutes);
-        var targets = accounts.Where(account => !account.IsRefreshing
+        var targets = accounts.Where(account => !account.Record.IsApi && !account.IsRefreshing
             && (!unsyncedOnly || account.HasError || account.IsCached || account.Snapshot is null)).ToArray();
         if (targets.Length == 0) return;
         var cli = GetCli(); if (cli is null) { foreach (var account in targets) account.SetError("未找到 Codex，请在设置中选择 codex.exe。"); UpdateSummary(); return; }
@@ -233,11 +249,12 @@ public partial class MainWindow : Window
     {
         UpdateCodexStatus();
         UpdateActiveQuotaPace();
-        var busy = visibleAccounts.Count(account => account.IsRefreshing);
-        var low = visibleAccounts.Count(account => account.HasLowQuota);
-        var errors = visibleAccounts.Sum(group => group.Sources.Count(source => source.HasError));
-        Summary.Text = L.F("{0} 个账号", "{0} accounts", visibleAccounts.Count) + (busy > 0 ? L.F(" · {0} 个同步中", " · {0} updating", busy) : errors > 0 ? L.F(" · {0} 个来源需处理", errors == 1 ? " · {0} source needs attention" : " · {0} sources need attention", errors) : low > 0 ? L.F(" · {0} 个额度偏低", " · {0} low", low) : L.F(" · 已同步", " · up to date"));
-        Summary.ToolTip = string.Join(Environment.NewLine, visibleAccounts.SelectMany(group => group.Sources.Where(source => source.HasError).Select(source => group.Name + " · " + AccountGroupViewModel.SourceName(source) + " · " + source.ActionHint)));
+        var shown = mainAccounts.OfType<AccountGroupViewModel>().ToArray();
+        var busy = shown.Count(account => account.IsRefreshing);
+        var low = shown.Count(account => account.HasLowQuota);
+        var errors = shown.Sum(group => group.Sources.Count(source => source.HasError));
+        Summary.Text = L.F("{0} 个账号", "{0} accounts", shown.Length) + (busy > 0 ? L.F(" · {0} 个同步中", " · {0} updating", busy) : errors > 0 ? L.F(" · {0} 个来源需处理", errors == 1 ? " · {0} source needs attention" : " · {0} sources need attention", errors) : low > 0 ? L.F(" · {0} 个额度偏低", " · {0} low", low) : L.F(" · 已同步", " · up to date"));
+        Summary.ToolTip = string.Join(Environment.NewLine, shown.SelectMany(group => group.Sources.Where(source => source.HasError).Select(source => group.DisplayName + " · " + AccountGroupViewModel.SourceName(source) + " · " + source.ActionHint)));
     }
     private void RebuildAccountGroups()
     {
@@ -250,16 +267,24 @@ public partial class MainWindow : Window
             if (observedSources.Add(source)) source.PropertyChanged += AccountSourceChanged;
         foreach (var group in visibleAccounts) group.Dispose();
         visibleAccounts.Clear();
-        foreach (var group in AccountGroupViewModel.Build(accounts)) { group.ShowUsed = settings.ShowUsed; visibleAccounts.Add(group); }
-        var current = visibleAccounts.FirstOrDefault(group => group.Sources.Any(source => source.Record.IsCurrent)) ?? visibleAccounts.FirstOrDefault();
-        FocusAccount.Content = current;
-        OtherAccountList.ItemsSource = visibleAccounts.Where(group => group != current).ToArray();
+        foreach (var group in AccountGroupViewModel.Build(accounts.Where(account => !account.Record.IsApi || settings.MonitorApiCredits)))
+        { group.ShowUsed = settings.ShowUsed; visibleAccounts.Add(group); }
+        ApplyAccountVisibility();
         UpdateSummary();
+    }
+    private void ApplyAccountVisibility()
+    {
+        mainAccounts.Refresh(); simplifiedAccounts.Refresh();
+        var current = mainAccounts.OfType<AccountGroupViewModel>().FirstOrDefault(group => group.Sources.Any(source => source.Record.IsCurrent))
+            ?? mainAccounts.OfType<AccountGroupViewModel>().FirstOrDefault(group => !group.IsApi);
+        FocusAccount.Content = current;
+        OtherAccountList.ItemsSource = mainAccounts.OfType<AccountGroupViewModel>().Where(group => group != current).ToArray();
+        taskbarWidget?.RefreshApiVisibility();
         if (settings.SimplifiedMode) ApplySimplifiedLayout();
     }
     private void AccountSourceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(AccountViewModel.Identity) || sender is not AccountViewModel source) return;
+        if (args.PropertyName != nameof(AccountViewModel.Identity) || sender is not AccountViewModel source || source.Record.IsApi) return;
         var group = visibleAccounts.FirstOrDefault(group => group.Sources.Contains(source));
         if (group?.Key != AccountGroupViewModel.KeyFor(source)) RebuildAccountGroups();
     }
@@ -348,6 +373,7 @@ public partial class MainWindow : Window
     private void AccountMenu(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: AccountGroupViewModel group } button) return;
+        if (group.IsApi) { ShowApiAccountMenu(button, group.Sources[0]); return; }
         var menu = new ContextMenu { Background = (System.Windows.Media.Brush)FindResource("Surface"), Foreground = (System.Windows.Media.Brush)FindResource("Text") };
         void Item(string text, Action action, bool enabled = true) { var item = new MenuItem { Header = text, IsEnabled = enabled }; item.Click += (_, _) => action(); menu.Items.Add(item); }
         Item(L.T("刷新此账号"), async () => { if (GetCli() is { } cli) await Task.WhenAll(group.Sources.Select(source => RefreshAccountAsync(cli, source))); }, !demo && !group.IsRefreshing);
@@ -371,6 +397,7 @@ public partial class MainWindow : Window
     }
     private async Task ReloginAsync(AccountViewModel account)
     {
+        if (account.Record.IsApi) { await ConnectApiAccountAsync(AccountDialogOwner, account); return; }
         var cli = GetCli(); if (cli is null || loggingIn || switching || account.IsRefreshing) return;
         var pending = new AccountRecord(); var committed = false;
         try
@@ -407,7 +434,7 @@ public partial class MainWindow : Window
         {
             DialogLayout.Alert(AccountDialogOwner, L.T("暂时无法移除账号"), L.T("请等待账号更新或切换完成后再移除。")); return;
         }
-        if (!DialogLayout.Confirm(AccountDialogOwner, L.T("移除账号"), L.F(L.T("移除“{0}”及本程序保存的认证和缓存？"), "Remove “{0}” and its credentials and cache saved by this app?", account.Name))) return;
+        if (!DialogLayout.Confirm(AccountDialogOwner, L.T("移除账号"), L.F("移除“{0}”及本程序保存的认证和缓存？", "Remove “{0}” and its sign-in and cache saved by this app?", account.Name))) return;
         try
         {
             store.SaveAccounts(accounts.Where(a => a != account).Select(a => a.Record));
@@ -449,6 +476,7 @@ public partial class MainWindow : Window
         accounts.Add(Sample("current", L.T("日常工作"), 22, 47)); accounts.Add(Sample(Guid.NewGuid().ToString("N"), L.T("个人项目"), 86, 64));
         var offline = Sample(Guid.NewGuid().ToString("N"), L.T("备用账号"), 43, 68); offline.SetError("读取超时。保留上次额度，稍后可重试。", timedOut: true); accounts.Add(offline);
         accounts.Add(Sample(Guid.NewGuid().ToString("N"), "Pro500", 98, 80));
+        if (settings.MonitorApiCredits) AddDemoApiAccount();
         ApplySettings(); UpdateSummary();
     }
 }

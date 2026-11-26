@@ -26,9 +26,10 @@ public sealed class GuideWindow : Window
     private readonly StackPanel body = new();
     private readonly ScrollViewer scroll;
     private readonly CancellationTokenSource lifetime = new();
-    private const int PlacementChapter = 3;
-    private const int LastChapter = 4;
-    private readonly string[] chapterIcons = ["info", "log-in", "sun", "monitor", "power"];
+    private const int ApiCreditChapter = 2;
+    private const int PlacementChapter = 4;
+    private const int LastChapter = 5;
+    private readonly string[] chapterIcons = ["info", "log-in", "layers", "sun", "monitor", "power"];
     private int page;
     private bool busy, closed;
     private AccountConnectionResult? connectionResult;
@@ -115,7 +116,7 @@ public sealed class GuideWindow : Window
         }
     }
 
-    private string[] Chapters => [L.F("额度监测", "Quota monitoring"), L.F("连接账号", "Connect accounts"), L.F("状态灯", "Status lights"), L.F("放置小组件", "Widget placement"), L.F("开机自启", "Start with Windows")];
+    private string[] Chapters => [L.F("额度监测", "Quota monitoring"), L.F("连接账号", "Connect accounts"), L.F("API 赠送额度", "API credits"), L.F("状态灯", "Status lights"), L.F("放置小组件", "Widget placement"), L.F("开机自启", "Start with Windows")];
 
     private void Render()
     {
@@ -136,7 +137,7 @@ public sealed class GuideWindow : Window
         frame.Children.Add(header);
         var navWidth = IsLoaded ? ActualWidth : Width;
         var compactNavigation = navWidth < 460;
-        var navigationColumns = Narrow ? 3 : Chapters.Length;
+        var navigationColumns = navWidth < 830 ? 3 : Chapters.Length;
         var nav = new UniformGrid { Columns = navigationColumns, Margin = new Thickness(28, 0, 21, Short ? 12 : 24) };
         for (var i = 0; i < Chapters.Length; i++)
         {
@@ -150,7 +151,7 @@ public sealed class GuideWindow : Window
                 TextWrapping = TextWrapping.Wrap, MaxWidth = Math.Max(44, (navWidth - 56) / nav.Columns - (compactNavigation ? 20 : 60))
             });
             var choice = new RadioButton { Content = content, IsChecked = page == i, GroupName = "guide-chapters", Style = (Style)FindResource("IntervalChoice"), IsEnabled = !busy };
-            if (Narrow) choice.Margin = new Thickness(0, 0, 7, 6);
+            if (navigationColumns == 3) choice.Margin = new Thickness(0, 0, 7, 6);
             if (compactNavigation) choice.Padding = new Thickness(5, 6, 5, 6);
             AutomationProperties.SetName(choice, Chapters[i]);
             choice.Checked += (_, _) => ShowPage(destination); nav.Children.Add(choice);
@@ -160,8 +161,9 @@ public sealed class GuideWindow : Window
         {
             case 0: QuotaPage(); break;
             case 1: ConnectionPage(); break;
-            case 2: StatusPage(); break;
-            case 3: PlacementPage(); break;
+            case ApiCreditChapter: ApiCreditPage(); break;
+            case 3: StatusPage(); break;
+            case PlacementChapter: PlacementPage(); break;
             case LastChapter: StartupPage(); break;
         }
         var footer = new Grid { Margin = Short ? new Thickness(28, 10, 28, 12) : new Thickness(28, 18, 28, 22) };
@@ -188,6 +190,14 @@ public sealed class GuideWindow : Window
     }
     internal void RefreshMonitoringOptions() { if (page == 0 && !closed) Render(); }
     internal void RefreshAccountSwitchingOptions() { if (page == 1 && !closed) Render(); }
+    internal void RefreshApiCreditOptions() { if (page == ApiCreditChapter && !closed) Render(); }
+    private void ApiCreditPage()
+    {
+        Heading(L.F("把 API 赠送额度单独看", "Track API promotional credits separately"),
+            L.F("查看每个 API 组织的美元余额和最早到期日。Codex 的短期、每周额度不受影响。",
+                "See each API organization’s balance in USD and the next expiry date, separately from Codex quota."));
+        main.BuildApiCreditOptions(body, this, inGuide: true);
+    }
     private void StatusPage()
     {
         Heading(L.F("用一盏灯，了解任务进展", "Follow your work with one light"), L.F("点击任意状态查看演示。任务栏小组件与主面板使用相同状态灯。", "Select a state to preview it. The taskbar widget and main panel share these lights."));

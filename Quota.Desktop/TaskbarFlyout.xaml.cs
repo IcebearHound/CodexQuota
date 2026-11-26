@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Animation;
@@ -14,6 +15,7 @@ public partial class TaskbarFlyout : Window
 {
     private readonly TaskbarWidget strip;
     private readonly MainWindow main;
+    private readonly ListCollectionView displayedAccounts;
     private bool wasActivated;
     private bool transitioning, hiding, closed;
     private bool? appliedBarLayout;
@@ -32,15 +34,17 @@ public partial class TaskbarFlyout : Window
         InitializeComponent();
         Left = -10000;
         Top = -10000;
-        AccountCards.ItemsSource = accounts;
+        displayedAccounts = new(accounts) { Filter = item => item is AccountGroupViewModel group && (!group.IsApi || main.ShowApiInFlyout) };
+        AccountCards.ItemsSource = displayedAccounts;
         SetAccountLayout(main.DetailedTaskbar);
         Activated += (_, _) => wasActivated = true;
         Deactivated += (_, _) => { if (wasActivated && !strip.FlyoutPinned) HideAnimated(); };
         IsVisibleChanged += (_, _) => { if (!IsVisible) { wasActivated = false; ResetTransition(); } };
         SystemParameters.StaticPropertyChanged += AnimationPreferenceChanged;
-        Closed += (_, _) => { closed = true; ResetTransition(); SystemParameters.StaticPropertyChanged -= AnimationPreferenceChanged; };
+        Closed += (_, _) => { closed = true; ResetTransition(); displayedAccounts.DetachFromSourceCollection(); SystemParameters.StaticPropertyChanged -= AnimationPreferenceChanged; };
         PreviewKeyDown += (_, args) => { if (args.Key == Key.Escape) { strip.CloseAccounts(); args.Handled = true; } };
     }
+    internal void RefreshApiVisibility() => displayedAccounts.Refresh();
 
     internal void SetAccountLayout(bool statusBar)
     {

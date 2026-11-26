@@ -85,7 +85,7 @@ public partial class MainWindow
     private void ResizeSimplifiedPanel()
     {
         var rowHeight = settings.SimplifiedLayout == "bar" ? 46 : 72;
-        Height = Math.Min(Math.Max(84, 44 + Math.Max(1, visibleAccounts.Count) * rowHeight), Math.Min(450, SystemParameters.WorkArea.Height - 24));
+        Height = Math.Min(Math.Max(84, 44 + Math.Max(1, simplifiedAccounts.Count) * rowHeight), Math.Min(450, SystemParameters.WorkArea.Height - 24));
     }
 
     private void SimplifiedMenuOpening(object sender, ContextMenuEventArgs args)

@@ -19,17 +19,17 @@
     <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="16"/></Grid.RowDefinitions>
     <Viewbox MaxWidth="27" MaxHeight="27" Stretch="Uniform"><Grid Width="27" Height="27">
      <local:QuotaRing x:Name="ProgressRing" StrokeThickness="2.2" Value="{Binding FocusWindow.Value,Mode=OneWay}" Foreground="{Binding FocusWindow.Color}" Track="{DynamicResource Track}"/>
-     <TextBlock x:Name="PercentText" Foreground="{DynamicResource TaskbarText}" Text="{Binding FocusWindow.Percent,FallbackValue=—,TargetNullValue=—}" FontSize="9.5" FontWeight="Normal" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+     <Viewbox MaxWidth="21" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock x:Name="PercentText" Foreground="{DynamicResource TaskbarText}" Text="{Binding FocusWindow.StripValue,FallbackValue=—,TargetNullValue=—}" FontSize="9.5" FontWeight="Normal"/></Viewbox>
     </Grid></Viewbox>
-    <TextBlock x:Name="ResetText" ToolTip="{Binding FocusWindow.ResetText}" Grid.Row="1" Text="{Binding FocusWindow.CompactResetText,FallbackValue=—,TargetNullValue=—}" FontSize="12" FontWeight="Normal" Foreground="{DynamicResource TaskbarText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
+    <Viewbox Grid.Row="1" MaxWidth="37" MaxHeight="16" StretchDirection="DownOnly" ToolTip="{Binding MetricTooltip}" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock x:Name="ResetText" Text="{Binding StripExpiry,FallbackValue=—,TargetNullValue=—}" FontSize="12" FontWeight="Normal" Foreground="{DynamicResource TaskbarText}" TextOptions.TextFormattingMode="Display"/></Viewbox>
     <local:StatusLamp x:Name="RuntimeLamp" Width="5" Height="5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,0,0"/>
    </Grid>
    <Grid x:Name="FullPanel" Margin="8,0" VerticalAlignment="Center" Visibility="Collapsed">
     <Grid.RowDefinitions><RowDefinition Height="19"/><RowDefinition Height="7"/></Grid.RowDefinitions>
     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="9"/></Grid.ColumnDefinitions>
-     <TextBlock x:Name="FullNameText" Text="{Binding Name,FallbackValue=Codex,TargetNullValue=Codex}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TaskbarText}" VerticalAlignment="Center"/>
-     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,7,0" ToolTip="{Binding FocusWindow.ResetText}"><local:AppIcon Kind="rotate-cw" Width="11" Height="11" Foreground="{DynamicResource TaskbarText}"/><TextBlock x:Name="FullResetText" Text="{Binding FocusWindow.CompactResetText,FallbackValue=—,TargetNullValue=—}" FontSize="12" Foreground="{DynamicResource TaskbarText}" Margin="3,0,0,0" VerticalAlignment="Center"/></StackPanel>
-     <TextBlock x:Name="FullPercentText" Grid.Column="2" Text="{Binding FocusWindow.Percent,FallbackValue=—,TargetNullValue=—}" FontSize="12" Foreground="{DynamicResource TaskbarText}" VerticalAlignment="Center"/>
+     <TextBlock x:Name="FullNameText" Text="{Binding DisplayName,FallbackValue=Codex,TargetNullValue=Codex}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TaskbarText}" VerticalAlignment="Center"/>
+     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,7,0" ToolTip="{Binding MetricTooltip}"><local:AppIcon Kind="rotate-cw" Width="11" Height="11" Foreground="{DynamicResource TaskbarText}"/><TextBlock x:Name="FullResetText" Text="{Binding FocusWindow.CompactResetText,FallbackValue=—,TargetNullValue=—}" FontSize="12" Foreground="{DynamicResource TaskbarText}" Margin="3,0,0,0" VerticalAlignment="Center"/></StackPanel>
+     <TextBlock x:Name="FullPercentText" Grid.Column="2" Text="{Binding FocusWindow.StripValue,FallbackValue=—,TargetNullValue=—}" FontSize="12" Foreground="{DynamicResource TaskbarText}" VerticalAlignment="Center"/>
      <local:StatusLamp x:Name="FullRuntimeLamp" Grid.Column="3" Width="5" Height="5" HorizontalAlignment="Right" VerticalAlignment="Center"/>
     </Grid>
     <ProgressBar x:Name="StatusProgress" Grid.Row="1" Value="{Binding FocusWindow.Value,Mode=OneWay}" Foreground="{Binding Foreground,ElementName=ProgressRing}" Background="{Binding Track,ElementName=ProgressRing}" Height="3"/>

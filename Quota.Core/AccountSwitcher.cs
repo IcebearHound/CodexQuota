@@ -17,7 +17,8 @@ public sealed class AccountSwitcher(AccountStore store)
     }
 
     public Task CommitVerifiedAsync(AccountRecord target, UsageSnapshot usage, CancellationToken cancellationToken, string? expectedCurrentAccountId = null)
-        => CommitAuthenticationAsync(Path.Combine(store.ProfilePath(target.Id), "auth.json"), CurrentHome, store.Root, usage.AccountId, cancellationToken, expectedCurrentAccountId);
+        => target.IsApi ? Task.FromException(new CodexException("API 额度账号不能切换为 Codex 账号。"))
+            : CommitAuthenticationAsync(Path.Combine(store.ProfilePath(target.Id), "auth.json"), CurrentHome, store.Root, usage.AccountId, cancellationToken, expectedCurrentAccountId);
 
     public static Task CommitAuthenticationAsync(string sourceFile, string targetHome, string backupDirectory, string? expectedAccountId, CancellationToken cancellationToken)
         => CommitAuthenticationAsync(sourceFile, targetHome, backupDirectory, expectedAccountId, cancellationToken, null);

@@ -23,12 +23,16 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public string FocusCaption => FocusWindow is { } window ? window.Caption + " · " + window.Label : "";
     public string ResetCardSummary => selected.Length > 1 ? string.Join(Environment.NewLine, selected.Select((source, index) => L.F("工作区 {0} · {1}", "Workspace {0} · {1}", index + 1, source.ResetCardSummary))) : primary.ResetCardSummary;
     public bool HasMetric => FocusWindow is not null;
-    public string MetricTooltip => Identity + Environment.NewLine + SourceSummary + Environment.NewLine + ResetCardSummary + Environment.NewLine + string.Join(Environment.NewLine, Buckets.SelectMany(bucket => bucket.Windows.Select(window => $"{bucket.Name} · {window.Label} · {window.Caption} {window.Percent} · {window.ResetText}"))) + (Error is { } error ? Environment.NewLine + error : "");
+    public string MetricTooltip => Identity + Environment.NewLine + SourceSummary + Environment.NewLine + ResetCardSummary + Environment.NewLine + string.Join(Environment.NewLine, Buckets.SelectMany(bucket => bucket.Windows.Select(window => $"{bucket.Name} · {window.Label} · {window.RingCaption} {window.Percent} · {window.ResetText}"))) + (FocusWindow?.ApiCycleTooltip is { } allowance ? Environment.NewLine + allowance : "") + (Error is { } error ? Environment.NewLine + error : "");
 
     public string Key { get; }
     public IReadOnlyList<AccountViewModel> Sources => sources;
     public ObservableCollection<BucketViewModel> Buckets { get; } = [];
     public string Name => sources.FirstOrDefault(source => source.Record.CustomName)?.Name ?? sources.FirstOrDefault(source => source.Managed)?.Name ?? primary.Name;
+    public bool IsApi => primary.Record.IsApi;
+    public bool ShowCodexSwitch => !IsApi;
+    public string DisplayName => IsApi ? "API · " + Name : Name;
+    public string? StripExpiry => IsApi ? "API " + (FocusWindow?.CompactResetText ?? "—") : FocusWindow?.CompactResetText;
     public string EditableName => sources.FirstOrDefault(source => source.Record.CustomName)?.Record.Name ?? sources.FirstOrDefault(source => source.Managed)?.Record.Name ?? primary.Record.Name;
     public string Initial => Name.Length > 0 ? StringInfo.GetNextTextElement(Name).ToUpperInvariant() : "C";
     public bool ShowDetails => primary.ShowDetails;
@@ -62,7 +66,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public bool NoSnapshot => Buckets.Count == 0;
     public bool Blocked => selected.Any(source => source.Blocked);
     public string BlockMessage => selected.Length > 1 ? L.T("服务端提示：部分工作区包含用量暂不可用。") : L.T("服务端提示：当前包含用量暂不可用。");
-    public bool HasLowQuota => Buckets.SelectMany(bucket => bucket.Windows).Any(window => window.Remaining <= WindowViewModel.AlertThreshold);
+    public bool HasLowQuota => Buckets.SelectMany(bucket => bucket.Windows).Any(window => window.HasAlertMeasure && window.Remaining <= WindowViewModel.AlertThreshold);
     public string Updated => primary.Updated;
     public string UpdatedTooltip => string.Join(Environment.NewLine, selected.Select(source => $"{SourceName(source)} · {source.UpdatedTooltip}"));
     public string StatusColor => IsRefreshing ? ThemeService.AccentColor
@@ -91,6 +95,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
 
     public static string KeyFor(AccountViewModel source)
     {
+        if (source.Record.IsApi) return "api/" + source.Record.ApiOrganizationId;
         var email = source.Snapshot?.Email;
         if (string.IsNullOrWhiteSpace(email) && !source.Record.IsCurrent) email = source.Record.Email;
         return string.IsNullOrWhiteSpace(email) ? "source/" + source.Record.Id : "email/" + email.Trim().ToUpperInvariant();
@@ -100,7 +105,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
         => accounts.GroupBy(KeyFor, StringComparer.Ordinal).Select(group => new AccountGroupViewModel(group.Key, group)).ToList();
 
     public static string SourceName(AccountViewModel source)
-        => source.Record.IsCurrent ? L.T("本机 Codex") : source.Record.ImportKey is not null ? "CC Switch" : L.T("浏览器登录");
+        => source.Record.IsApi ? "OpenAI Platform" : source.Record.IsCurrent ? L.T("本机 Codex") : source.Record.ImportKey is not null ? "CC Switch" : L.T("浏览器登录");
 
     private void SourceChanged(object? sender, PropertyChangedEventArgs args)
     {
@@ -108,7 +113,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
         if (args.PropertyName == nameof(AccountViewModel.Updated))
         {
             foreach (var bucket in Buckets) bucket.UpdateClock();
-            Raise(nameof(Updated)); Raise(nameof(Status)); Raise(nameof(UpdatedTooltip)); Raise(nameof(MetricTooltip));
+            Raise(nameof(Updated)); Raise(nameof(Status)); Raise(nameof(UpdatedTooltip)); Raise(nameof(MetricTooltip)); Raise(nameof(StripExpiry));
             return;
         }
         if (args.PropertyName is nameof(AccountViewModel.Identity) or nameof(AccountViewModel.Status) or nameof(AccountViewModel.Name) or nameof(AccountViewModel.ShowDetails)) Refresh();
@@ -132,10 +137,10 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
         foreach (var bucket in Buckets) foreach (var window in bucket.Windows) window.ShowUsed = showUsed;
         foreach (var property in new[]
         {
-            nameof(Name), nameof(Initial), nameof(ShowDetails), nameof(ShowCompact), nameof(Identity),
+            nameof(Name), nameof(DisplayName), nameof(Initial), nameof(ShowDetails), nameof(ShowCompact), nameof(Identity),
             nameof(SourceSummary), nameof(SourceTooltip), nameof(Plan), nameof(IsRefreshing), nameof(HasError),
             nameof(Error), nameof(NoSnapshot), nameof(Blocked), nameof(BlockMessage), nameof(HasLowQuota), nameof(IsCurrent), nameof(CanSwitch),
-            nameof(Updated), nameof(UpdatedTooltip), nameof(StatusColor), nameof(Status), nameof(FocusWindow), nameof(FocusCaption), nameof(HasMetric), nameof(MetricTooltip), nameof(ActionHint), nameof(ResetCardSummary)
+            nameof(Updated), nameof(UpdatedTooltip), nameof(StatusColor), nameof(Status), nameof(FocusWindow), nameof(FocusCaption), nameof(HasMetric), nameof(MetricTooltip), nameof(ActionHint), nameof(ResetCardSummary), nameof(StripExpiry)
         }) Raise(property);
     }
 

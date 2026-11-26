@@ -10,6 +10,8 @@
 
 支持 CC Switch 一键导入与 Codex 原生浏览器登录。额度查询需要本机 Codex 程序。主面板与任务栏小组件分别支持圆环、状态条。任务栏展开面板跟随任务栏组件的布局；单击组件固定展开，再次单击收起。精简主面板也有实时状态灯，可点击打开异常列表。双击空白处切换精简与完整模式；拖动精简面板靠近当前屏幕工作区的边缘或四角会自动吸附，拖离即可解除。
 
+可在导览的「API 赠送额度」或「设置 → 额度监测」开启 API 赠送额度监控（默认关闭）。此功能需要 Microsoft Edge WebView2 运行时。每个 API 组织独立显示，既不需要 API Key，也不参与 Codex 账号切换。各显示位置可在「设置 → 小组件」独立调整。
+
 2.3 起不再支持 Windows Win+W 内置小组件，也不再发布其扩展包。任务栏小组件不受影响。旧 Win+W 包用户请先退出旧程序，下载完整便携版，确认账号和设置完整并备份后再卸载旧包。若数据未出现，保留旧包并先完成备份与迁移；不要删除 `%LOCALAPPDATA%\CodexQuotaWidget` 数据目录。
 
 [完整界面导览](https://github.com/IcebearHound/CodexQuota) · [English](https://github.com/IcebearHound/CodexQuota/blob/main/README.en.md)

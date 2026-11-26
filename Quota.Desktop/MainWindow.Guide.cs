@@ -19,7 +19,7 @@ public partial class MainWindow
 
     private void ShowUserGuide(int page = 0)
     {
-        if (guideWindow is { } existing) { existing.ShowPage(page); existing.Activate(); return; }
+        if (guideWindow is { } existing) { if (!existing.IsVisible) existing.Show(); existing.ShowPage(page); existing.Activate(); return; }
         var guide = new GuideWindow(this);
         guideWindow = guide;
         guide.Closed += (_, _) =>

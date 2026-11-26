@@ -96,6 +96,17 @@ public sealed class AccountStore
         File.WriteAllText(Path.Combine(path, "config.toml"), "cli_auth_credentials_store = \"file\"\n", new UTF8Encoding(false));
         return path;
     }
+    public string CreateApiBrowserProfile(string id)
+    {
+        var path = ProfilePath(id);
+        Directory.CreateDirectory(path);
+        if (File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint)) throw new IOException("账号目录不能是链接或联接目录。");
+        RestrictDirectory(path);
+        var browser = Path.Combine(path, "api-browser");
+        if (Directory.Exists(browser) && File.GetAttributes(browser).HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("账号目录不能是链接或联接目录。");
+        return browser;
+    }
     internal static void RestrictDirectory(string path)
     {
         if (OperatingSystem.IsWindows())

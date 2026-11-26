@@ -17,19 +17,19 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock x:Name="RingAccountName" Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-      <Button x:Name="RingSwitch" Grid.Column="1" Tag="{Binding}" Click="SwitchAccount" Style="{StaticResource IconButton}" ToolTip="{local:Loc 切换账号}"><local:AppIcon Kind="arrow-right-left" Width="14" Height="14"/></Button>
+      <TextBlock x:Name="RingAccountName" Text="{Binding DisplayName}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding DisplayName}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+      <Button x:Name="RingSwitch" Grid.Column="1" Tag="{Binding}" Click="SwitchAccount" Visibility="{Binding ShowCodexSwitch,Converter={StaticResource Visible}}" Style="{StaticResource IconButton}" ToolTip="{local:Loc 切换账号}"><local:AppIcon Kind="arrow-right-left" Width="14" Height="14"/></Button>
      </Grid>
-     <Button x:Name="RingMetric" Grid.Row="1" Tag="{Binding}" Click="SelectAccount" AutomationProperties.Name="{Binding Name}" ToolTip="{Binding MetricTooltip}" Style="{StaticResource QuietButton}" Padding="0" Margin="0,3,0,5" HorizontalAlignment="Center">
+     <Button x:Name="RingMetric" Grid.Row="1" Tag="{Binding}" Click="SelectAccount" AutomationProperties.Name="{Binding DisplayName}" ToolTip="{Binding MetricTooltip}" Style="{StaticResource QuietButton}" Padding="0" Margin="0,3,0,5" HorizontalAlignment="Center">
       <Grid Width="70" Height="70">
        <local:QuotaRing StrokeThickness="5" Value="{Binding FocusWindow.Value,Mode=OneWay}" Foreground="{Binding FocusWindow.Color}" Track="{DynamicResource Track}"/>
        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-        <TextBlock Text="{Binding FocusWindow.Percent,FallbackValue=—,TargetNullValue=—}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+        <TextBlock Text="{Binding FocusWindow.Percent,FallbackValue=—,TargetNullValue=—}" FontWeight="SemiBold" HorizontalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="FontSize" Value="18"/><Style.Triggers><DataTrigger Binding="{Binding IsApi}" Value="True"><Setter Property="FontSize" Value="13"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
         <TextBlock Text="{Binding FocusWindow.Label}" FontSize="9" Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" MaxWidth="54" TextTrimming="CharacterEllipsis"/>
        </StackPanel>
       </Grid>
      </Button>
-     <TextBlock x:Name="RingReset" Grid.Row="2" Text="{Binding FocusWindow.ResetText,FallbackValue=—}" FontSize="10" Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding FocusWindow.ResetText}"/>
+     <TextBlock x:Name="RingReset" Grid.Row="2" Text="{Binding FocusWindow.ResetText,FallbackValue=—}" FontSize="10" Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding FocusWindow.ResetTooltip}"/>
      <Button x:Name="RingStatus" Grid.Row="3" Tag="{Binding}" Click="ShowIssue" Style="{StaticResource QuietButton}" Padding="4,2" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="{Binding ActionHint}">
       <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{Binding StatusColor}" TextTrimming="CharacterEllipsis"/>
      </Button>
@@ -42,10 +42,10 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <Button x:Name="BarAccountName" Tag="{Binding}" Click="SelectAccount" Style="{StaticResource QuietButton}" Padding="0,2" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Name}" ToolTip="{Binding MetricTooltip}">
-       <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+      <Button x:Name="BarAccountName" Tag="{Binding}" Click="SelectAccount" Style="{StaticResource QuietButton}" Padding="0,2" HorizontalAlignment="Left" AutomationProperties.Name="{Binding DisplayName}" ToolTip="{Binding MetricTooltip}">
+       <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
       </Button>
-      <Button Grid.Column="1" Tag="{Binding}" Click="SwitchAccount" Style="{StaticResource IconButton}" ToolTip="{local:Loc 切换账号}"><local:AppIcon Kind="arrow-right-left" Width="14" Height="14"/></Button>
+      <Button Grid.Column="1" Tag="{Binding}" Click="SwitchAccount" Visibility="{Binding ShowCodexSwitch,Converter={StaticResource Visible}}" Style="{StaticResource IconButton}" ToolTip="{local:Loc 切换账号}"><local:AppIcon Kind="arrow-right-left" Width="14" Height="14"/></Button>
      </Grid>
      <Grid Grid.Row="1" Margin="0,0,0,4">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -55,7 +55,7 @@
      <ProgressBar x:Name="BarMetric" Grid.Row="2" Value="{Binding FocusWindow.Value,Mode=OneWay}" Foreground="{Binding FocusWindow.Color}" Height="4" ToolTip="{Binding MetricTooltip}"/>
      <Grid Grid.Row="3" Margin="0,4,0,0">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock Text="{Binding FocusWindow.ResetText,FallbackValue=—}" FontSize="10" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding FocusWindow.ResetText}"/>
+      <TextBlock Text="{Binding FocusWindow.ResetText,FallbackValue=—}" FontSize="10" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding FocusWindow.ResetTooltip}"/>
       <Button Grid.Column="1" Tag="{Binding}" Click="ShowIssue" Style="{StaticResource QuietButton}" Padding="4,2" ToolTip="{Binding ActionHint}">
        <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{Binding StatusColor}" TextTrimming="CharacterEllipsis" MaxWidth="106"/>
       </Button>
