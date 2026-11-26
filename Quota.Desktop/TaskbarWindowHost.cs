@@ -16,6 +16,8 @@ namespace Quota.Desktop;
 
 internal sealed class TaskbarWindowHost : IDisposable
 {
+    private const uint GaRoot = 2;
+    private const uint SwpNoSize = 0x0001, SwpNoMove = 0x0002, SwpNoActivate = 0x0010, SwpNoOwnerZOrder = 0x0200;
     private nint taskbar;
     private nint handle;
     private int probing;
@@ -31,7 +33,7 @@ internal sealed class TaskbarWindowHost : IDisposable
     public bool WindowAlive => handle != 0 && IsWindow(handle);
     public bool Visible => WindowAlive && IsWindowVisible(handle);
     public bool Layered => WindowAlive && (GetWindowLongPtr(handle, -20).ToInt64() & 0x00080000) != 0;
-    public bool HitTestVisible => Visible && WindowFromPoint(new NativePoint { X = (int)Bounds.CenterX, Y = (int)Bounds.CenterY }) == handle;
+    public bool HitTestVisible => Visible && WindowAtCenter(Bounds) == handle;
     public bool LayoutReady { get; private set; }
     public bool Suppressed { get; private set; }
     public bool ShowsMetrics { get; private set; }
@@ -135,7 +137,16 @@ internal sealed class TaskbarWindowHost : IDisposable
         var newBackground = ownerChanged || moved || resized ? SampleBackground(target) : null;
         // A top-level owned window has its own DWM surface over the taskbar.
         if (ownerChanged || moved || resized || !Visible)
-            if (!SetWindowPos(handle, -1, target.Left, target.Top, target.Width, target.Height, (uint)(0x0010 | 0x0040 | (ownerChanged ? 0x0020 : 0)))) throw new Win32Exception(Marshal.GetLastPInvokeError());
+        {
+            if (!SetWindowPos(handle, -1, target.Left, target.Top, target.Width, target.Height, (uint)(SwpNoActivate | 0x0040 | (ownerChanged ? 0x0020 : 0)))) throw new Win32Exception(Marshal.GetLastPInvokeError());
+        }
+        else if (GetAncestor(WindowAtCenter(target), GaRoot) == parent)
+        {
+            // Capture can leave the taskbar above a still-visible widget. Restore only
+            // when Explorer itself covers the strip, not while another overlay is on top.
+            if (!SetWindowPos(handle, -1, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpNoActivate | SwpNoOwnerZOrder))
+                throw new Win32Exception(Marshal.GetLastPInvokeError());
+        }
         GetWindowRect(handle, out var actual);
         Bounds = new(actual.Left, actual.Top, actual.Right - actual.Left, actual.Bottom - actual.Top);
         BackgroundColor = newBackground ?? SampleBackground(Bounds) ?? BackgroundColor;
@@ -254,6 +265,7 @@ internal sealed class TaskbarWindowHost : IDisposable
     }
 
     private static PixelRect Pixels(Rect rect) => new((int)Math.Floor(rect.Left), (int)Math.Floor(rect.Top), (int)Math.Ceiling(rect.Right) - (int)Math.Floor(rect.Left), (int)Math.Ceiling(rect.Bottom) - (int)Math.Floor(rect.Top));
+    private static nint WindowAtCenter(PixelRect bounds) => WindowFromPoint(new NativePoint { X = (int)bounds.CenterX, Y = (int)bounds.CenterY });
 
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] private static extern nint GetDC(nint window);
@@ -281,6 +293,7 @@ internal sealed class TaskbarWindowHost : IDisposable
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool IsIconic(nint window);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(nint window, StringBuilder className, int length);
+    [DllImport("user32.dll")] private static extern nint GetAncestor(nint window, uint flags);
     [DllImport("user32.dll")] private static extern nint WindowFromPoint(NativePoint point);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern nint FindWindow(string className, string? name);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern nint FindWindowEx(nint parent, nint after, string className, string? name);
