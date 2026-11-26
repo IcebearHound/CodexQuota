@@ -34,8 +34,15 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null) : O
     public double Value => ShowUsed ? Math.Clamp(window.UsedPercent, 0, 100) : Remaining;
     public string Caption => ShowUsed ? L.T("已用") : L.T("剩余");
     public string Percent => $"{Value:0}%";
-    private double? CurrentPace => window.ResetsAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() ? pace : null;
-    public string QuotaPaceText => CurrentPace is { } rate ? rate.ToString("0.00", CultureInfo.InvariantCulture) + "/h" : "—";
+    public string QuotaPaceText
+    {
+        get
+        {
+            if (pace is not { } rate || window.ResetsAt is not { } reset || reset <= DateTimeOffset.UtcNow.ToUnixTimeSeconds()) return "—";
+            var hourly = rate.ToString("0.00", CultureInfo.InvariantCulture);
+            return hourly == "0.00" ? (rate * 24).ToString("0.00", CultureInfo.InvariantCulture) + "/d" : hourly + "/h";
+        }
+    }
     public string Color => Remaining <= AlertThreshold ? ThemeService.DangerColor : Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
     public string ResetText
     {

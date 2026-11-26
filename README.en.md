@@ -54,7 +54,7 @@ After a network or Windows system proxy change, accounts that are not synced ret
 Two rates appear beside the status heartbeat by default. Turn either off in the guide’s **Quota monitoring** chapter or **Settings → Quota monitoring**:
 
 - **Local output rate (TPS)**: The dashboard shows the average output tokens per second logged by local Codex sessions over the last 60 seconds. Logs update in batches, so this is not live generation speed.
-- **Quota consumption rate**: Shows the signed-in local account’s most constrained quota window. The rate uses two consecutive successful readings of the same window, with no extra requests. `2.00/h` means two percentage points consumed per hour. A dash appears after a reset or when there is insufficient data.
+- **Quota consumption rate**: Shows the signed-in local account’s most constrained quota window. The rate uses two consecutive successful readings of the same window, with no extra requests. `2.00/h` means two percentage points consumed per hour. If the hourly value would round to `0.00/h`, the rate is shown per day instead (for example, `0.10/d`). A dash appears after a reset or when there is insufficient data.
 
 The full dashboard, compact widget, and expanded taskbar panel show rates in their headers, not on account cards. The pinned widget also shows them when there is room. Browsing another account does not change the active account’s rate.
 

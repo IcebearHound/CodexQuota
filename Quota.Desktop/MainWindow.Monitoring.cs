@@ -13,8 +13,8 @@ public partial class MainWindow
         var section = SettingsControls.Section(parent, L.F("顶栏速率", "Header metrics"), "activity",
             L.F("两项默认开启，显示在顶栏状态心跳右侧。任务栏空间不足时，展开面板仍可查看。", "Both are on by default and appear beside the status heartbeat. Open the taskbar panel if the taskbar is crowded."));
         var tokenHint = TokenRateViewModel.Explanation + (inGuide ? L.F(" 例如：12.5 token/s。", " Example: 12.5 tokens/s.") : "");
-        var quotaHint = L.F("仅统计本机当前登录账号。按同一额度窗口连续两次成功刷新的差值计算，重置或采样不足时显示「—」。",
-            "Only for the active local account. Calculated from two successful readings of the same quota window. A dash indicates a reset or too few samples.")
+        var quotaHint = L.F("仅统计本机当前登录账号。按同一额度窗口连续两次成功刷新的差值计算；每小时显示为 0.00 时改为按天显示。重置或采样不足时显示「—」。",
+            "Only for the active local account, using two successful readings of the same quota window. Switches to per day when the hourly value rounds to 0.00. A dash indicates a reset or too few samples.")
             + (inGuide ? L.F(" 例如：2.00/h。", " Example: 2.00/h.") : "");
         SettingsControls.Toggle(section, L.F("本机输出速率（TPS）", "Local output rate (TPS)"), "activity", settings.ShowTokenRate,
             on => SetMonitoringOption(true, on, inGuide), tokenHint);

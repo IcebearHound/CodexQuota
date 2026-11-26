@@ -174,6 +174,7 @@ internal static class GuideSmoke
             token = Toggle(guide, "Local output rate (TPS)");
             pace = Toggle(guide, "Quota consumption rate");
         }
+        await CheckDailyRate(main, header, output);
         await CheckWidgetMonitoring(main, token, pace, output);
 
         ((Button)main.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -221,6 +222,30 @@ internal static class GuideSmoke
         Toggle(guide, "本机输出速率（TPS）").IsChecked = false; await Settle(main);
         Check(!RateBadge(header, "HeaderTps").IsVisible && !store.LoadSettings().ShowTokenRate, "TPS can be switched off again");
         Console.WriteLine("PASS default rates beside the heartbeat, independent preferences, and startup guide previews");
+    }
+
+    private static async Task CheckDailyRate(MainWindow main, ContentControl header, string? output)
+    {
+        var group = (AccountGroupViewModel)((ContentControl)main.FindName("FocusAccount")).Content;
+        var current = group.Sources.Single(source => source.Record.IsCurrent);
+        var sample = new AccountViewModel(new() { Id = "current", Name = "Slow usage" });
+        var now = DateTimeOffset.UtcNow;
+        UsageSnapshot Reading(DateTimeOffset time, double used) => new()
+        {
+            AccountId = "slow", FetchedAt = time,
+            Buckets = [new() { Windows = [new() { UsedPercent = used, ResetsAt = now.AddHours(2).ToUnixTimeSeconds() }] }]
+        };
+        sample.SetSnapshot(Reading(now.AddHours(-1), 24));
+        sample.SetSnapshot(Reading(now, 24.004));
+        var metric = main.HeaderMetrics.QuotaPace;
+        try
+        {
+            metric.Update(true, sample);
+            await Settle(main);
+            CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "0.10/d");
+            if (output is not null) Capture(main, output, "dashboard-monitoring-daily.png");
+        }
+        finally { metric.Update(true, current); }
     }
 
     private static Border RateBadge(ContentControl header, string name) => (Border)header.Template.FindName(name, header);
