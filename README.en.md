@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download 4.0.0](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download 4.0.1](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.1)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -52,7 +52,7 @@ Enable **Monitor API promotional credits** in the guide’s **API credits** chap
 - Read the promotional USD balance and next expiry date from [OpenAI Platform Billing overview](https://platform.openai.com/settings/organization/billing/overview). If the page shows only a date, the app doesn’t infer a time. If it doesn’t show a separate promotional balance, a mixed or wallet balance is not counted.
 - Open the API account’s **⋯ → Full-cycle API allowance** to set the 100% mark (for example, US$100 for Pro100). The displayed balance still comes from billing, and a prorated first grant is not counted as spending.
 - Low-balance, exhaustion and new-grant alerts use the quota settings. Disable API expiry alerts separately under **Settings → Notifications**. A low-balance percentage requires a confirmed original grant amount. Disabling monitoring stops checks and alerts but keeps your connections.
-- Under **Settings → Widgets → Show API credits**, choose whether the full main panel, simplified widget, taskbar strip and taskbar flyout each show API credits. The strip still defaults to the active Codex account; scroll to show API credits without switching accounts.
+- Under **Settings → Widgets → Show API credits**, choose whether the full main panel, simplified widget, taskbar strip and taskbar flyout each show API credits. The strip shows the API balance and expiry beside Codex when space allows. Scroll over the API section to change only the displayed API account. In tight layouts, the flyout still shows API credits if enabled.
 
 ### Quota and status walkthrough
 

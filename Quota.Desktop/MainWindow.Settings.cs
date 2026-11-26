@@ -169,11 +169,13 @@ public partial class MainWindow
         body.Children.Add(SettingsControls.Action("展开任务栏账号面板", "chevron-right", () => taskbarWidget?.ShowAccounts()));
         var api = SettingsControls.Section(body, L.F("显示 API 额度", "Show API credits"), "layers",
             L.F("分别控制各组件显示，不影响账单查询或提醒。", "Choose where API credits appear without changing billing checks or alerts."));
-        void Toggle(string zh, string en, bool value, Action<bool> set) => SettingsControls.Toggle(api, L.F(zh, en), "monitor", value,
-            on => { set(on); ApplyAccountVisibility(); UpdateSummary(); SaveSettings(); });
+        void Toggle(string zh, string en, bool value, Action<bool> set, string hint = "") => SettingsControls.Toggle(api, L.F(zh, en), "monitor", value,
+            on => { set(on); ApplyAccountVisibility(); UpdateSummary(); SaveSettings(); }, hint);
         Toggle("完整主面板", "Full main panel", settings.ShowApiInMain, value => settings.ShowApiInMain = value);
         Toggle("精简小组件", "Simplified widget", settings.ShowApiInSimplified, value => settings.ShowApiInSimplified = value);
-        Toggle("任务栏常驻组件", "Taskbar strip", settings.ShowApiInTaskbar, value => settings.ShowApiInTaskbar = value);
+        Toggle("任务栏常驻组件", "Taskbar strip", settings.ShowApiInTaskbar, value => settings.ShowApiInTaskbar = value,
+            L.F("有空位时并排显示 Codex 与 API。将鼠标移到 API 区域后滚动，可切换 API 账号。",
+                "Show Codex and API side by side when space allows. Scroll over the API section to change API accounts."));
         Toggle("任务栏展开面板", "Taskbar flyout", settings.ShowApiInFlyout, value => settings.ShowApiInFlyout = value);
     }
 

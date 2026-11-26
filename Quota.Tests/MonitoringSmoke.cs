@@ -24,6 +24,19 @@ internal static class MonitoringSmoke
         Check(!showsMetrics && fallback?.Width == 44, "crowded taskbars keep the original widget instead of hiding it");
         var (shortFallback, shortMetrics) = TaskbarLayout.FindWidgetSpace(narrow with { Height = 32 }, 1, false, null, null, [], 44, true, "left");
         Check(!shortMetrics && shortFallback?.Width == 44, "short taskbars do not clip the metrics");
+
+        var (both, bothMetrics, bothApi) = TaskbarLayout.FindWidgetSpace(taskbar, 1.5, false, weather, tray, occupied, 44, true, "left", includeApi: true);
+        Check(bothMetrics && bothApi && both?.Width == (44 + TaskbarLayout.WidgetApiWidth + TaskbarLayout.WidgetMetricsWidth) * 1.5,
+            "a roomy taskbar fits Codex, API and metrics without changing either quota's display");
+        var (apiOnly, noMetrics, api) = TaskbarLayout.FindWidgetSpace(narrow, 1, false, null, null, [new(154, 1000, 66, 40)],
+            44, true, "left", includeApi: true);
+        Check(api && !noMetrics && apiOnly?.Width == 44 + TaskbarLayout.WidgetApiWidth,
+            "when only one addition fits, API takes priority over metrics");
+        var (baseOnly, noRates, noApi) = TaskbarLayout.FindWidgetSpace(narrow, 1, false, null, null, [new(80, 1000, 140, 40)],
+            44, true, "left", includeApi: true);
+        Check(!noRates && !noApi && baseOnly?.Width == 44, "a crowded taskbar always keeps the Codex slot");
+        var (_, _, shortApi) = TaskbarLayout.FindWidgetSpace(narrow with { Height = 32 }, 1, false, null, null, [], 44, true, "left", includeApi: true);
+        Check(!shortApi, "a short taskbar does not clip the API amount or expiry");
     }
 
     public static void CheckQuotaPace()

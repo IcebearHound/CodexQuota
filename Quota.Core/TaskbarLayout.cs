@@ -3,15 +3,31 @@ namespace Quota.Core;
 public static class TaskbarLayout
 {
     public const double WidgetMetricsWidth = 88;
+    public const double WidgetApiWidth = 80;
 
     public static (PixelRect? Bounds, bool ShowsMetrics) FindWidgetSpace(PixelRect taskbar, double scale, bool startAlignedLeft, PixelRect? widgets, PixelRect? tray, IEnumerable<PixelRect> occupied, double baseWidth, bool includeMetrics, string placement)
     {
-        var expandedWidth = baseWidth + WidgetMetricsWidth;
-        // Keep the original widget visible if the two readable lines cannot fit.
-        if (includeMetrics && taskbar.Height >= 36 * scale && taskbar.Width >= Math.Round(expandedWidth * scale)
-            && FindAutomaticSpace(taskbar, scale, startAlignedLeft, widgets, tray, occupied, expandedWidth, fillHeight: true, placement: placement) is { } expanded)
-            return (expanded, true);
-        return (FindAutomaticSpace(taskbar, scale, startAlignedLeft, widgets, tray, occupied, baseWidth, fillHeight: true, placement: placement), false);
+        var result = FindWidgetSpace(taskbar, scale, startAlignedLeft, widgets, tray, occupied, baseWidth, includeMetrics, placement, includeApi: false);
+        return (result.Bounds, result.ShowsMetrics);
+    }
+
+    public static (PixelRect? Bounds, bool ShowsMetrics, bool ShowsApi) FindWidgetSpace(PixelRect taskbar, double scale, bool startAlignedLeft,
+        PixelRect? widgets, PixelRect? tray, IEnumerable<PixelRect> occupied, double baseWidth, bool includeMetrics, string placement, bool includeApi)
+    {
+        PixelRect? Fit(double width) => taskbar.Width >= Math.Round(width * scale)
+            ? FindAutomaticSpace(taskbar, scale, startAlignedLeft, widgets, tray, occupied, width, fillHeight: true, placement: placement)
+            : null;
+        if (taskbar.Height >= 36 * scale)
+        {
+            if (includeApi && includeMetrics && Fit(baseWidth + WidgetApiWidth + WidgetMetricsWidth) is { } complete)
+                return (complete, true, true);
+            // When space is tight, preserve the two distinct quotas before optional rates.
+            if (includeApi && Fit(baseWidth + WidgetApiWidth) is { } api)
+                return (api, false, true);
+            if (includeMetrics && Fit(baseWidth + WidgetMetricsWidth) is { } metrics)
+                return (metrics, true, false);
+        }
+        return (FindAutomaticSpace(taskbar, scale, startAlignedLeft, widgets, tray, occupied, baseWidth, fillHeight: true, placement: placement), false, false);
     }
 
     public static PixelRect? FindAutomaticSpace(PixelRect taskbar, double scale, bool startAlignedLeft, PixelRect? widgets, PixelRect? tray, IEnumerable<PixelRect> occupied, double desiredWidth = 44, bool fillHeight = false, string placement = "auto")

@@ -37,6 +37,7 @@ internal sealed class TaskbarWindowHost : IDisposable
     public bool LayoutReady { get; private set; }
     public bool Suppressed { get; private set; }
     public bool ShowsMetrics { get; private set; }
+    public bool ShowsApi { get; private set; }
     public PixelRect Bounds { get; private set; }
     public PixelRect TaskbarBounds { get; private set; }
     public PixelRect FlyoutBounds { get; private set; }
@@ -83,11 +84,12 @@ internal sealed class TaskbarWindowHost : IDisposable
         FlyoutBounds = new(actual.Left, actual.Top, actual.Right - actual.Left, actual.Bottom - actual.Top);
     }
 
-    public bool Dock(Window window, bool detailed = false, string position = "auto", bool includeMetrics = false)
+    public bool Dock(Window window, bool detailed = false, string position = "auto", bool includeMetrics = false, bool includeApi = false)
     {
         LayoutReady = false;
         Suppressed = false;
         ShowsMetrics = false;
+        ShowsApi = false;
         var parent = FindWindow("Shell_TrayWnd", null);
         handle = new WindowInteropHelper(window).Handle;
         if (parent == 0 || handle == 0 || !IsWindow(handle)) { Hide(); return false; }
@@ -121,8 +123,8 @@ internal sealed class TaskbarWindowHost : IDisposable
         if (!LayoutReady) { Hide(); return false; }
         OccupiedBounds = measured!.Occupied;
         if (measured.Widgets is { Width: > 0 } widgets && widgets.Width / scale >= 96) weatherWidth = widgets.Width / scale;
-        var (placement, showsMetrics) = TaskbarLayout.FindWidgetSpace(TaskbarBounds, scale, measured.StartAlignedLeft, measured.Widgets, measured.Tray, OccupiedBounds,
-            detailed ? weatherWidth : 44, includeMetrics, position);
+        var (placement, showsMetrics, showsApi) = TaskbarLayout.FindWidgetSpace(TaskbarBounds, scale, measured.StartAlignedLeft, measured.Widgets, measured.Tray, OccupiedBounds,
+            detailed ? weatherWidth : 44, includeMetrics, position, includeApi);
         if (placement is null) { Hide(); return false; }
         var target = placement.Value;
         if (Math.Abs(window.Width - target.Width / scale) > 0.1) window.Width = target.Width / scale;
@@ -152,6 +154,7 @@ internal sealed class TaskbarWindowHost : IDisposable
         BackgroundColor = newBackground ?? SampleBackground(Bounds) ?? BackgroundColor;
         var attached = IsAttached && Visible;
         ShowsMetrics = attached && showsMetrics;
+        ShowsApi = attached && showsApi;
         return attached;
     }
 

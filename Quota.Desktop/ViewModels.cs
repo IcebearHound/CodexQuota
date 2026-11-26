@@ -43,6 +43,8 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null, dec
     public string? ApiRemainingText => window.ApiCredit is { } api ? "US$" + api.RemainingUsd.ToString("0.00", CultureInfo.InvariantCulture) : null;
     public string Percent => ApiAmount is { } amount ? "$" + amount.ToString("0.00", CultureInfo.InvariantCulture) : $"{Value:0}%";
     public string StripValue => ApiAmount is { } amount ? "$" + amount.ToString("0.##", CultureInfo.InvariantCulture) : Percent;
+    public string StripApiExpiry => window.ApiCredit?.NextExpiry is { } date
+        ? L.F("{0:MM-dd} 到期", "Expires {0:MM-dd}", date) : "—";
     public string? ApiCycleTooltip => window.ApiCredit is not { } api ? null :
         api.DisplayAllowance(apiCycleAllowanceUsd) is { } allowance
             ? ApiCreditReading.IsCycleAllowanceValid(apiCycleAllowanceUsd)

@@ -32,6 +32,7 @@ public partial class TaskbarWidget : Window
     private readonly DispatcherTimer closeTimer = new() { Interval = TimeSpan.FromMilliseconds(550) };
     private AccountGroupViewModel[] observed = [];
     private string? selectedKey;
+    private string? selectedApiKey;
     private readonly string? proofDirectory;
     private bool proofSaved;
     private TaskbarFlyout? flyout;
@@ -54,7 +55,7 @@ public partial class TaskbarWidget : Window
     public string UnavailableMessage => host.LayoutReady
         ? L.F("任务栏空位不足，额度条已暂停显示。请为任务栏腾出空位，或在外观设置中关闭任务栏额度条。", "There is not enough taskbar space. Free some taskbar space or disable the quota strip in Appearance settings.")
         : L.F("暂时无法读取任务栏布局。请稍候，或在外观设置中重新开关任务栏额度条。", "The taskbar layout is temporarily unavailable. Wait a moment or toggle the taskbar strip in Appearance settings.");
-    public object DockState => new { Attached = host.IsAttached, Hosting = "owned-popup", Detailed = main.DetailedTaskbar, Widget = host.Bounds, Taskbar = host.TaskbarBounds, host.OccupiedBounds, ActualWidth, ActualHeight, Visible = host.Visible, host.HitTestVisible, Layered = host.Layered, TaskbarBackground = host.BackgroundColor?.Hex, TextColor = PercentText.Foreground?.ToString(), RingColor = ProgressRing.Foreground?.ToString(), TrackColor = ProgressRing.Track?.ToString(), host.LayoutReady, host.Suppressed, Signal = main.CodexStatus.Signal.ToString(), ReadIssue = main.CodexStatus.ReadIssue.ToString(), main.CodexStatus.Breathing, main.CodexStatus.NeedsInput, FlyoutVisible = flyout?.IsVisible == true, host.FlyoutBounds, host.FlyoutNativeVisible, host.FlyoutHitTestVisible, AccountCount = accounts.Count };
+    public object DockState => new { Attached = host.IsAttached, Hosting = "owned-popup", Detailed = main.DetailedTaskbar, Widget = host.Bounds, Taskbar = host.TaskbarBounds, host.OccupiedBounds, ActualWidth, ActualHeight, Visible = host.Visible, host.HitTestVisible, Layered = host.Layered, TaskbarBackground = host.BackgroundColor?.Hex, TextColor = PercentText.Foreground?.ToString(), RingColor = ProgressRing.Foreground?.ToString(), TrackColor = ProgressRing.Track?.ToString(), host.LayoutReady, host.Suppressed, host.ShowsApi, Signal = main.CodexStatus.Signal.ToString(), ReadIssue = main.CodexStatus.ReadIssue.ToString(), main.CodexStatus.Breathing, main.CodexStatus.NeedsInput, FlyoutVisible = flyout?.IsVisible == true, host.FlyoutBounds, host.FlyoutNativeVisible, host.FlyoutHitTestVisible, AccountCount = accounts.Count };
     public void ShowAccounts(bool activate = true)
     {
         if (closed) return;
@@ -97,10 +98,17 @@ public partial class TaskbarWidget : Window
     internal void CloseAccounts() { flyoutPinned = false; KeepFlyoutOpen(); openPending = false; flyout?.HideAnimated(); }
     internal void SelectDisplayedAccount(AccountGroupViewModel account)
     {
-        if (!account.IsApi || main.ShowApiInTaskbar) { selectedKey = account.Key; UpdateStatus(); }
+        if (account.IsApi)
+        {
+            if (!main.ShowApiInTaskbar) return;
+            selectedApiKey = account.Key;
+        }
+        else selectedKey = account.Key;
+        UpdateStatus();
     }
-    internal void RefreshApiVisibility() { flyout?.RefreshApiVisibility(); UpdateStatus(); }
-    private IEnumerable<AccountGroupViewModel> StripAccounts => accounts.Where(account => !account.IsApi || main.ShowApiInTaskbar);
+    internal void RefreshApiVisibility() { flyout?.RefreshApiVisibility(); UpdateStatus(); if (IsLoaded) QueueAlignment(); }
+    private IEnumerable<AccountGroupViewModel> CodexAccounts => accounts.Where(account => !account.IsApi);
+    private IEnumerable<AccountGroupViewModel> ApiAccounts => main.ShowApiInTaskbar ? accounts.Where(account => account.IsApi) : [];
 
     public TaskbarWidget(MainWindow main, ObservableCollection<AccountGroupViewModel> accounts, string? proofDirectory)
     {
@@ -137,7 +145,7 @@ public partial class TaskbarWidget : Window
         if (closed) return;
         try
         {
-            var attached = host.Dock(this, main.DetailedTaskbar, main.TaskbarPosition, main.TaskbarMetricsRequested);
+            var attached = host.Dock(this, main.DetailedTaskbar, main.TaskbarPosition, main.TaskbarMetricsRequested, ApiAccounts.Any());
             DockError = null;
             if (!attached) flyout?.HideImmediately();
             if (attached)
@@ -157,7 +165,11 @@ public partial class TaskbarWidget : Window
         }
         UpdateStatus();
     }
-    private void AccountsChanged(object? sender, NotifyCollectionChangedEventArgs args) => ObserveAccounts();
+    private void AccountsChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        ObserveAccounts();
+        if (IsLoaded) QueueAlignment();
+    }
     private void AccountChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is null or "" or nameof(AccountGroupViewModel.FocusWindow) or nameof(AccountGroupViewModel.IsCurrent)) UpdateStatus();
@@ -174,8 +186,11 @@ public partial class TaskbarWidget : Window
         CompactPanel.Visibility = main.DetailedTaskbar ? Visibility.Collapsed : Visibility.Visible;
         FullPanel.Visibility = main.DetailedTaskbar ? Visibility.Visible : Visibility.Collapsed;
         StripMetrics.Visibility = host.ShowsMetrics ? Visibility.Visible : Visibility.Collapsed;
-        var displayed = StripAccounts;
+        var displayed = CodexAccounts;
         DataContext = displayed.FirstOrDefault(account => account.Key == selectedKey) ?? displayed.FirstOrDefault(account => account.IsCurrent) ?? displayed.FirstOrDefault();
+        var api = ApiAccounts.FirstOrDefault(account => account.Key == selectedApiKey) ?? ApiAccounts.FirstOrDefault();
+        StripApi.DataContext = api;
+        StripApi.Visibility = host.ShowsApi && api is not null ? Visibility.Visible : Visibility.Collapsed;
         if (host.BackgroundColor is not { } background) return;
         var sourceColor = (DataContext as AccountGroupViewModel)?.FocusWindow?.Color ?? "#82938D";
         if (lastBackground == background && lastAccent == sourceColor) return;
@@ -205,11 +220,23 @@ public partial class TaskbarWidget : Window
     }
     private void CycleAccount(object sender, MouseWheelEventArgs args)
     {
-        var options = StripAccounts.ToArray();
-        if (options.Length == 0) return;
-        var index = DataContext is AccountGroupViewModel selected ? Array.IndexOf(options, selected) : 0;
-        selectedKey = options[(Math.Max(index, 0) + (args.Delta < 0 ? 1 : options.Length - 1)) % options.Length].Key;
+        if (NextAccount(CodexAccounts, DataContext as AccountGroupViewModel, args.Delta) is not { } next) return;
+        selectedKey = next.Key;
         UpdateStatus(); args.Handled = true;
+    }
+    private void CycleApiAccount(object sender, MouseWheelEventArgs args)
+    {
+        args.Handled = true;
+        if (NextAccount(ApiAccounts, StripApi.DataContext as AccountGroupViewModel, args.Delta) is not { } next) return;
+        selectedApiKey = next.Key;
+        UpdateStatus();
+    }
+    private static AccountGroupViewModel? NextAccount(IEnumerable<AccountGroupViewModel> accounts, AccountGroupViewModel? current, int delta)
+    {
+        var options = accounts.ToArray();
+        if (options.Length == 0) return null;
+        var index = Math.Max(0, Array.IndexOf(options, current));
+        return options[(index + (delta < 0 ? 1 : options.Length - 1)) % options.Length];
     }
     private void SaveProof()
     {

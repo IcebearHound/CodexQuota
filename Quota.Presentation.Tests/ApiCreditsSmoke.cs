@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -70,18 +71,53 @@ internal static class ApiCreditsSmoke
         var strip = new TaskbarWidget(main, groups, null);
         var flyout = new TaskbarFlyout(strip, main, groups);
         var flyoutCards = (ItemsControl)flyout.FindName("AccountCards")!;
-        void Apply() { typeof(MainWindow).GetMethod("ApplyAccountVisibility", Instance)!.Invoke(main, null); strip.RefreshApiVisibility(); flyout.RefreshApiVisibility(); }
+        var apiPanel = (Border)strip.FindName("StripApi")!;
+        var oldPlacement = settings.TaskbarPlacement;
+        void Apply() { typeof(MainWindow).GetMethod("ApplyAccountVisibility", Instance)!.Invoke(main, null); strip.RefreshApiVisibility(); flyout.RefreshApiVisibility(); strip.Align(); }
         try
         {
+            settings.TaskbarPlacement = "right";
+            strip.Show();
+            for (var i = 0; i < 30 && !apiPanel.IsVisible; i++) { await Task.Delay(100); strip.Align(); }
+            Check(strip.DockVisible, "The independent display is tested on a native taskbar");
+            await Settle(strip);
+            var primary = strip.DataContext as AccountGroupViewModel;
+            Check(primary is { IsCurrent: true, IsApi: false } && apiPanel.IsVisible && ReferenceEquals(apiPanel.DataContext, api),
+                $"API is visible by default alongside the active Codex account (current: {primary?.IsCurrent}; panel: {apiPanel.Visibility}/{apiPanel.IsVisible}; API selected: {ReferenceEquals(apiPanel.DataContext, api)}; dock: {System.Text.Json.JsonSerializer.Serialize(strip.DockState)})");
+            Check(((TextBlock)strip.FindName("StripApiAmount")).Text == "$59" &&
+                ((TextBlock)strip.FindName("StripApiExpiry")).Text == "Expires " + api.FocusWindow!.CompactResetText,
+                "The taskbar API slot shows the amount and expiry");
+            Capture(strip, preview, "api-taskbar.png");
             strip.SelectDisplayedAccount(api);
-            Check(ReferenceEquals(strip.DataContext, api) && flyoutCards.Items.Contains(api) && full.Items.Contains(api) && simplified.Items.Contains(api),
-                "Each component can show the API entry");
+            Check(ReferenceEquals(strip.DataContext, primary) && ReferenceEquals(apiPanel.DataContext, api) &&
+                flyoutCards.Items.Contains(api) && full.Items.Contains(api) && simplified.Items.Contains(api),
+                "Selecting an API account in the panel never replaces the primary quota");
+            var otherSource = new AccountViewModel(new() { Name = "Other API", ApiOrganizationId = "org-other-demo" });
+            otherSource.SetSnapshot(new ApiCreditReading(24, 100, DateOnly.FromDateTime(DateTime.Today.AddDays(2)), 24).ToSnapshot("org-other-demo"));
+            using (var other = new AccountGroupViewModel(AccountGroupViewModel.KeyFor(otherSource), [otherSource]))
+            {
+                groups.Add(other);
+                try
+                {
+                    apiPanel.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, -120) { RoutedEvent = Mouse.MouseWheelEvent });
+                    Check(ReferenceEquals(apiPanel.DataContext, other) && ReferenceEquals(strip.DataContext, primary) &&
+                          ((TextBlock)strip.FindName("StripApiAmount")).Text == "$24", "Scrolling over the API slot changes only the API organization");
+                    strip.SelectDisplayedAccount(codex);
+                    Check(ReferenceEquals(strip.DataContext, codex) && ReferenceEquals(apiPanel.DataContext, other),
+                        "Selecting another Codex account does not replace the API selection");
+                }
+                finally { groups.Remove(other); strip.SelectDisplayedAccount(primary!); }
+            }
+            settings.DetailedTaskbar = true; Apply(); await Settle(strip);
+            Check(apiPanel.IsVisible && ((Grid)strip.FindName("FullPanel")).IsVisible, "Both quotas are visible in taskbar bar mode");
+            Capture(strip, preview, "api-taskbar-bar.png");
+            settings.DetailedTaskbar = false; Apply();
             settings.ShowApiInMain = false; Apply();
             Check(!full.Items.Contains(api) && simplified.Items.Contains(api) && flyoutCards.Items.Contains(api), "Full panel toggle is independent");
             settings.ShowApiInSimplified = false; Apply();
             Check(!simplified.Items.Contains(api) && flyoutCards.Items.Contains(api), "Simplified toggle is independent");
             settings.ShowApiInTaskbar = false; Apply();
-            Check(strip.DataContext is AccountGroupViewModel { IsApi: false } && flyoutCards.Items.Contains(api), "Taskbar strip toggle is independent");
+            Check(!apiPanel.IsVisible && strip.DataContext is AccountGroupViewModel { IsApi: false } && flyoutCards.Items.Contains(api), "Taskbar strip toggle is independent");
             settings.ShowApiInFlyout = false; Apply();
             Check(!flyoutCards.Items.Contains(api) && groups.Contains(api), "Flyout toggle hides only the card, not its monitoring");
             (settings.ShowApiInMain, settings.ShowApiInSimplified, settings.ShowApiInTaskbar, settings.ShowApiInFlyout) = (true, true, true, true);
@@ -91,8 +127,8 @@ internal static class ApiCreditsSmoke
             typeof(MainWindow).GetMethod("SetApiMonitoring", Instance)!.Invoke(main, [true]);
             Check(groups.Count(group => group.IsApi) == 1, "Re-enabling restores just one row per organization");
         }
-        finally { flyout.Close(); strip.Close(); }
-        Console.WriteLine("PASS API opt-in guide, distinct account, USD and expiry, and all four visibility controls");
+        finally { settings.TaskbarPlacement = oldPlacement; flyout.Close(); strip.Close(); }
+        Console.WriteLine("PASS API opt-in, side-by-side native taskbar, independent selection, USD and expiry, and all four visibility controls");
     }
 
     private static async Task CheckCycleAllowanceEditor(MainWindow main, AccountViewModel apiSource)
