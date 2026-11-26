@@ -20,7 +20,8 @@ internal static class TaskbarPerformanceSmoke
         var hostType = typeof(MainWindow).Assembly.GetType("Quota.Desktop.TaskbarWindowHost", true)!;
         var panelField = typeof(TaskbarWidget).GetField("flyout", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var close = typeof(TaskbarWidget).GetMethod("CloseAccounts", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var originalLayout = settings.DetailedTaskbar;
+        var (originalLayout, originalPlacement) = (settings.DetailedTaskbar, settings.TaskbarPlacement);
+        settings.TaskbarPlacement = "right";
         var widget = new TaskbarWidget(main, groups, null);
         try
         {
@@ -31,6 +32,7 @@ internal static class TaskbarPerformanceSmoke
             Check(!panel.IsVisible && !IsWindowVisible(new WindowInteropHelper(panel).Handle), "idle preparation leaves its native flyout hidden");
             var host = typeof(TaskbarWidget).GetField("host", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(widget)!;
             var bounds = (PixelRect)hostType.GetProperty("Bounds")!.GetValue(host)!;
+            CheckTaskbarZOrder(widget, bounds);
             var sample = hostType.GetMethod("SampleBackground", BindingFlags.Static | BindingFlags.NonPublic)!;
             var watch = new Stopwatch();
             var samples = new List<double>();
@@ -86,7 +88,41 @@ internal static class TaskbarPerformanceSmoke
             finally { menu.IsOpen = false; }
             Console.WriteLine("PASS prepared native flyout reuse, both taskbar layouts, click latency, sampling resource lifetime and popup fonts");
         }
-        finally { settings.DetailedTaskbar = originalLayout; widget.Close(); }
+        finally { (settings.DetailedTaskbar, settings.TaskbarPlacement) = (originalLayout, originalPlacement); widget.Close(); }
+    }
+
+    private static void CheckTaskbarZOrder(TaskbarWidget widget, PixelRect bounds)
+    {
+        const uint noActivate = 0x0010, noOwnerZOrder = 0x0200, keepBounds = 0x0001 | 0x0002;
+        var handle = new WindowInteropHelper(widget).Handle;
+        var taskbar = GetWindow(handle, 4); // GW_OWNER
+        var center = new NativePoint { X = (int)bounds.CenterX, Y = (int)bounds.CenterY };
+        Check(taskbar != 0 && WindowFromPoint(center) == handle, "widget begins on top of its taskbar owner");
+
+        var overlay = new Window
+        {
+            Width = 40, Height = 40, Left = -10000, Top = -10000,
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false, ShowActivated = false, Background = Brushes.Black
+        };
+        try
+        {
+            overlay.Show();
+            var overlayHandle = new WindowInteropHelper(overlay).Handle;
+            Check(SetWindowPos(overlayHandle, -1, center.X - 20, center.Y - 20, 40, 40, noActivate), "fixture covers the widget with another window");
+            Check(WindowFromPoint(center) == overlayHandle, "fixture overlay is above the widget");
+            widget.Align();
+            Check(WindowFromPoint(center) == overlayHandle, "widget does not raise over an unrelated overlay");
+        }
+        finally { overlay.Close(); }
+
+        var foreground = GetForegroundWindow();
+        Check(SetWindowPos(handle, taskbar, 0, 0, 0, 0, keepBounds | noActivate | noOwnerZOrder), "fixture puts the widget behind Explorer");
+        Check(IsWindowVisible(handle) && GetAncestor(WindowFromPoint(center), 2) == taskbar, "Explorer covers the widget while it still reports visible");
+        widget.Align();
+        Check(WindowFromPoint(center) == handle, "alignment restores the covered widget without clicking the taskbar");
+        Check(GetForegroundWindow() == foreground, "restoring the widget does not steal foreground focus");
+        Console.WriteLine("PASS native taskbar z-order recovery without input or focus changes");
     }
 
     private static async Task WaitForDock(TaskbarWidget widget)
@@ -101,6 +137,12 @@ internal static class TaskbarPerformanceSmoke
         throw new InvalidOperationException("Performance fixture requires a visible taskbar widget.");
     }
     private static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+    [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
+    [DllImport("user32.dll")] private static extern nint GetWindow(nint window, uint relationship);
+    [DllImport("user32.dll")] private static extern nint GetAncestor(nint window, uint relationship);
+    [DllImport("user32.dll")] private static extern nint WindowFromPoint(NativePoint point);
+    [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(nint window, nint after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint window);
     [DllImport("user32.dll")] private static extern uint GetGuiResources(nint process, uint flags);
 }
