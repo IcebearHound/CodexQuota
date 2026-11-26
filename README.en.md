@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download 4.0.1](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.1)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download 4.0.2](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.2)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -63,7 +63,7 @@ After a network or Windows system proxy change, accounts that are not synced ret
 Two rates appear beside the status heartbeat by default. Turn either off in the guide’s **Quota monitoring** chapter or **Settings → Quota monitoring**:
 
 - **Local output rate (TPS)**: The dashboard shows the average output tokens per second logged by local Codex sessions over the last 60 seconds. Logs update in batches, so this is not live generation speed.
-- **Quota consumption rate**: Shows the signed-in local account’s most constrained quota window. The rate uses two consecutive successful readings of the same window, with no extra requests. `2.00/h` means two percentage points consumed per hour. If the hourly value would round to `0.00/h`, the rate is shown per day instead (for example, `0.10/d`). A dash appears after a reset or when there is insufficient data.
+- **Quota consumption rate**: Averages the signed-in local account’s most constrained quota window over the last hour using existing refreshes. Until an hour has been sampled, it uses the available interval; hover to see its length. `2.00/h` means two percentage points consumed per hour on average. Very small positive rates are shown per day. Codex reports whole percentages, so “No change” means the reported value stayed the same. A dash appears after a reset or when there is insufficient data.
 
 The full dashboard, compact widget, and expanded taskbar panel show rates in their headers, not on account cards. The pinned widget also shows them when there is room. Browsing another account does not change the active account’s rate.
 

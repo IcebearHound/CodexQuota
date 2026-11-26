@@ -165,6 +165,11 @@ await Test("quota decline rate isolates account and reset windows", () =>
     MonitoringSmoke.CheckQuotaPace();
     return Task.CompletedTask;
 });
+await Test("rolling quota pace retains reported jumps only within the last hour", () =>
+{
+    MonitoringSmoke.CheckRollingQuotaPace();
+    return Task.CompletedTask;
+});
 await Test("output TPS tracks recent usage and expires without new events", () =>
 {
     MonitoringSmoke.CheckTokenRate(Path.Combine(testRoot, "output-rate"));

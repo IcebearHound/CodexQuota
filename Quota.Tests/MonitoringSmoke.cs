@@ -77,6 +77,34 @@ internal static class MonitoringSmoke
             new() { Kind = kind, DurationMinutes = duration, UsedPercent = used, ResetsAt = reset.ToUnixTimeSeconds() };
     }
 
+    public static void CheckRollingQuotaPace()
+    {
+        var time = DateTimeOffset.UtcNow;
+        UsageSnapshot Snapshot(int minutes, double used, int resetHours = 5, string id = "workspace") => new()
+        {
+            AccountId = id, FetchedAt = time.AddMinutes(minutes),
+            Buckets = [new() { LimitId = "codex", Windows = [new() { Kind = "primary", DurationMinutes = 300,
+                UsedPercent = used, ResetsAt = time.AddHours(resetHours).ToUnixTimeSeconds() }] }]
+        };
+        var roll = new QuotaPaceHistory();
+        QuotaPaceReading? Read(int minutes, double used, int resetHours = 5, string id = "workspace")
+        {
+            var sample = Snapshot(minutes, used, resetHours, id);
+            return roll.Observe(sample).TryGetValue(sample.Buckets[0].Windows[0], out var rate) ? rate : null;
+        }
+        Check(Read(0, 20) is null, "the first sample is only a baseline");
+        Check(Read(5, 20) is { PercentagePointsPerHour: 0 } early && early.ObservedFor == TimeSpan.FromMinutes(5), "a short startup span is not reported as an hour");
+        Check(Read(30, 21) is { PercentagePointsPerHour: 2 }, "measure the observed jump over the sampled span");
+        Check(Read(60, 21) is { PercentagePointsPerHour: 1 } full && full.ObservedFor == TimeSpan.FromHours(1), "a flat latest reading retains an earlier jump");
+        Check(Read(61, 21) is { PercentagePointsPerHour: 1 } jitter && jitter.ObservedFor == TimeSpan.FromHours(1), "irregular polling keeps the last baseline before the cutoff");
+        Check(Read(90, 21) is { PercentagePointsPerHour: 0 } flat && flat.ObservedFor == TimeSpan.FromHours(1), "a jump at the cutoff no longer contributes");
+        Check(Read(151, 22) is null, "do not compare samples across a gap longer than an hour");
+        Check(Read(156, 23) is { PercentagePointsPerHour: 12 }, "measure again after the gap");
+        Check(Read(161, 20) is null && Read(166, 20) is { PercentagePointsPerHour: 0 }, "a lowered counter restarts the baseline");
+        Check(Read(171, 4, resetHours: 6) is null && Read(176, 4, resetHours: 6) is { PercentagePointsPerHour: 0 }, "a reset never inherits the old window's history");
+        Check(Read(181, 90, resetHours: 6, id: "other") is null, "a switched account starts a new history");
+    }
+
     public static void CheckTokenRate(string home)
     {
         var sessions = Path.Combine(home, "sessions");

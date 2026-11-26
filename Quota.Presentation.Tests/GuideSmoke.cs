@@ -175,7 +175,7 @@ internal static class GuideSmoke
             token = Toggle(guide, "Local output rate (TPS)");
             pace = Toggle(guide, "Quota consumption rate");
         }
-        await CheckDailyRate(main, header, output);
+        await CheckPaceStates(main, header, output);
         await CheckWidgetMonitoring(main, token, pace, output);
 
         ((Button)main.FindName("SettingsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -225,7 +225,7 @@ internal static class GuideSmoke
         Console.WriteLine("PASS default rates beside the heartbeat, independent preferences, and startup guide previews");
     }
 
-    private static async Task CheckDailyRate(MainWindow main, ContentControl header, string? output)
+    private static async Task CheckPaceStates(MainWindow main, ContentControl header, string? output)
     {
         var group = (AccountGroupViewModel)((ContentControl)main.FindName("FocusAccount")).Content;
         var current = group.Sources.Single(source => source.Record.IsCurrent);
@@ -239,14 +239,35 @@ internal static class GuideSmoke
         sample.SetSnapshot(Reading(now.AddHours(-1), 24));
         sample.SetSnapshot(Reading(now, 24.004));
         var metric = main.HeaderMetrics.QuotaPace;
+        var width = main.Width;
+        var heartbeat = (Button)main.FindName("SessionIssuesButton");
         try
         {
             metric.Update(true, sample);
             await Settle(main);
-            CheckRates(header, main, (Button)main.FindName("SessionIssuesButton"), "TPS 12.5", "0.10/d");
+            CheckRates(header, main, heartbeat, "TPS 12.5", "0.10/d");
             if (output is not null) Capture(main, output, "dashboard-monitoring-daily.png");
+
+            sample.ClearSnapshot();
+            sample.SetSnapshot(Reading(now.AddHours(-1), 24));
+            sample.SetSnapshot(Reading(now.AddMinutes(-5), 25));
+            sample.SetSnapshot(Reading(now, 25));
+            metric.Update(true, sample);
+            await Settle(main);
+            CheckRates(header, main, heartbeat, "TPS 12.5", "1.00/h");
+
+            sample.ClearSnapshot();
+            sample.SetSnapshot(Reading(now.AddHours(-1), 25));
+            sample.SetSnapshot(Reading(now, 25));
+            main.Width = main.MinWidth;
+            metric.Update(true, sample);
+            await Settle(main);
+            CheckRates(header, main, heartbeat, "TPS 12.5", "No change");
+            Check(metric.Hint.Contains("Last hour: no change observed."), "the tooltip distinguishes a flat reading from zero consumption");
+            Check(Bounds(header, main).Right <= Bounds((Button)main.FindName("PinButton"), main).Left, "the no-change label fits at minimum width");
+            if (output is not null) Capture(main, output, "dashboard-monitoring-no-change.png");
         }
-        finally { metric.Update(true, current); }
+        finally { main.Width = width; metric.Update(true, current); }
     }
 
     private static Border RateBadge(ContentControl header, string name) => (Border)header.Template.FindName(name, header);

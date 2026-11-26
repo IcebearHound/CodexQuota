@@ -20,7 +20,7 @@ public sealed class BoolVisibility : IValueConverter
     public object Convert(object value, Type t, object p, CultureInfo culture) => value is true ? Visibility.Visible : Visibility.Collapsed;
     public object ConvertBack(object value, Type t, object p, CultureInfo culture) => value is Visibility.Visible;
 }
-public sealed class WindowViewModel(QuotaWindow window, double? pace = null, decimal? apiCycleAllowanceUsd = null) : Observable
+public sealed class WindowViewModel(QuotaWindow window, QuotaPaceReading? pace = null, decimal? apiCycleAllowanceUsd = null) : Observable
 {
     public static double AlertThreshold { get; set; } = 5;
     private bool showUsed;
@@ -51,13 +51,13 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null, dec
                 ? L.F("本周期赠送上限：US${0:0.##}", "Full-cycle allowance: US${0:0.##}", allowance)
                 : L.F("账单已发放额度：US${0:0.##}", "Grants issued by billing: US${0:0.##}", allowance)
             : L.F("周期上限未知。可在 API 账号菜单设置。", "Cycle allowance unknown. Set it in the API account menu.");
-    public string QuotaPaceText
+    internal QuotaPaceReading? CurrentQuotaPace
     {
         get
         {
-            if (pace is not { } rate || window.ResetsAt is not { } reset || reset <= DateTimeOffset.UtcNow.ToUnixTimeSeconds()) return "—";
-            var hourly = rate.ToString("0.00", CultureInfo.InvariantCulture);
-            return hourly == "0.00" ? (rate * 24).ToString("0.00", CultureInfo.InvariantCulture) + "/d" : hourly + "/h";
+            var now = DateTimeOffset.UtcNow;
+            return pace is { } reading && window.ResetsAt > now.ToUnixTimeSeconds()
+                && now - reading.SampledAt < QuotaPaceHistory.Lookback ? reading : null;
         }
     }
     public string Color => HasAlertMeasure && Remaining <= AlertThreshold ? ThemeService.DangerColor : HasAlertMeasure && Remaining <= 20 ? ThemeService.WarningColor : ThemeService.AccentColor;
@@ -95,7 +95,7 @@ public sealed class WindowViewModel(QuotaWindow window, double? pace = null, dec
     }
     public void UpdateClock() { Raise(nameof(ResetText)); Raise(nameof(CompactResetText)); }
 }
-public sealed class BucketViewModel(QuotaBucket bucket, string? displayName = null, IReadOnlyDictionary<QuotaWindow, double>? quotaPace = null,
+public sealed class BucketViewModel(QuotaBucket bucket, string? displayName = null, IReadOnlyDictionary<QuotaWindow, QuotaPaceReading>? quotaPace = null,
     decimal? apiCycleAllowanceUsd = null)
 {
     public string Name => displayName ?? (bucket.Name.Equals("codex", StringComparison.OrdinalIgnoreCase) ? "CODEX" : bucket.Name);
@@ -133,7 +133,8 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public string Initial => Name.Length > 0 ? StringInfo.GetNextTextElement(Name).ToUpperInvariant() : "C";
     private bool privacy = true, compact, refreshing, loadedFromCache, syncTimedOut;
     private string? error;
-    private Dictionary<QuotaWindow, double>? quotaPace;
+    private QuotaPaceHistory? quotaPaceHistory;
+    private IReadOnlyDictionary<QuotaWindow, QuotaPaceReading>? quotaPace;
     public bool Privacy { set { privacy = value; Raise(nameof(Name)); Raise(nameof(Identity)); } }
     public bool Compact { set { compact = value; Raise(nameof(ShowDetails)); Raise(nameof(ShowCompact)); } }
     public bool ShowDetails => !compact;
@@ -196,15 +197,17 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     public string UpdatedTooltip => Snapshot is null ? L.T("尚无成功读取记录") : L.F("最后成功读取 {0:yyyy-MM-dd HH:mm:ss zzz}", "Last successful update {0:yyyy-MM-dd HH:mm:ss zzz}", Snapshot.FetchedAt.ToLocalTime());
     public void SetSnapshot(UsageSnapshot snapshot, bool fromCache = false)
     {
-        quotaPace = !Record.IsCurrent || fromCache || loadedFromCache || HasError ? null : QuotaPace.Measure(Snapshot, snapshot);
+        if (Record.IsCurrent && !fromCache) quotaPace = (quotaPaceHistory ??= new()).Observe(snapshot);
+        else ClearQuotaPace();
         Snapshot = snapshot;
         loadedFromCache = fromCache;
         error = null; syncTimedOut = false;
         if (!string.IsNullOrWhiteSpace(snapshot.Email)) Record.Email = snapshot.Email;
         RefreshDerived();
     }
-    public void SetError(string message, bool timedOut = false) { error = message; syncTimedOut = timedOut; quotaPace = null; RefreshDerived(); }
-    public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; syncTimedOut = false; quotaPace = null; RefreshDerived(); }
+    private void ClearQuotaPace() { quotaPaceHistory = null; quotaPace = null; }
+    public void SetError(string message, bool timedOut = false) { error = message; syncTimedOut = timedOut; ClearQuotaPace(); RefreshDerived(); }
+    public void ClearSnapshot() { Snapshot = null; loadedFromCache = false; error = null; syncTimedOut = false; ClearQuotaPace(); RefreshDerived(); }
     internal BucketViewModel BuildBucket(QuotaBucket bucket, string? displayName = null) => new(bucket, displayName, quotaPace, Record.ApiCycleAllowanceUsd);
     public void Rename(string name) { Record.Name = AccountStore.CleanName(name); Raise(nameof(Name)); Raise(nameof(Initial)); }
     public void RefreshDerived()

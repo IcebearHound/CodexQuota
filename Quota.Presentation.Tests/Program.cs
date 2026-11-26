@@ -125,12 +125,16 @@ var cases = new (string Name, Action Verify)[]
         pace.Update(true, managed); Check(pace.CompactValue == "—");
         vm.SetError("网络不可用"); pace.Update(true, vm); Check(pace.CompactValue == "—");
         vm.SetSnapshot(Sample(-15, 24)); pace.Update(true, vm); Check(pace.CompactValue == "—");
-        vm.SetSnapshot(Sample(-10, 24)); pace.Update(true, vm); Check(pace.CompactValue == "0.00/d");
-        vm.SetSnapshot(Sample(-5, 24 + 0.004 / 12)); pace.Update(true, vm);
+        vm.SetSnapshot(Sample(-10, 24)); pace.Update(true, vm);
+        Check(pace.CompactValue == "未见变化" && pace.Hint.Contains("近 5 分钟：未观测到变化"));
+        vm.SetSnapshot(Sample(-5, 24 + 0.004 / 6)); pace.Update(true, vm);
         Check(pace.CompactValue == "0.10/d" && pace.Hint.Contains("0.10/d"));
-        vm.SetSnapshot(Sample(0, 24 + 0.010 / 12)); pace.Update(true, vm); Check(pace.CompactValue == "0.01/h");
+        vm.SetSnapshot(Sample(0, 24 + 0.006 / 4)); pace.Update(true, vm); Check(pace.CompactValue == "0.01/h");
         var switched = Sample(1, 80); switched.AccountId = "new workspace";
         vm.SetSnapshot(switched); pace.Update(true, vm); Check(pace.CompactValue == "—");
+        vm.ClearSnapshot();
+        vm.SetSnapshot(Sample(-65, 21)); vm.SetSnapshot(Sample(-60, 22)); pace.Update(true, vm);
+        Check(pace.CompactValue == "—");
     }),
     ("current-account email obeys privacy preference", () =>
     {
