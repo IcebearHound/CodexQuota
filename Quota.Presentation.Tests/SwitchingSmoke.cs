@@ -99,6 +99,51 @@ internal static class SwitchingSmoke
         await CheckEarlyDialogClose(main, store, accounts, groups, current);
         Console.WriteLine("PASS duplicate refresh callers share completion and switches leave no pending refresh trackers");
         await CheckAutomaticSwitch(main, store, accounts, current);
+        await CheckApiSwitch(main, store, accounts, groups, current);
+    }
+
+    private static async Task CheckApiSwitch(MainWindow main, AccountStore store, ObservableCollection<AccountViewModel> accounts,
+        ObservableCollection<AccountGroupViewModel> groups, AccountViewModel current)
+    {
+        var settings = (WidgetSettings)Field("settings").GetValue(main)!;
+        settings.MonitorApiCredits = true;
+        var account = new AccountViewModel(new() { Name = "API switch fixture", ApiOrganizationId = "org-switch-fixture" });
+        accounts.Add(account);
+        try
+        {
+            await WithSwitchButton(complete: false);
+            Check(!new AccountSwitcher(store).HasApiKey(account.Record) && ReadAccount(AccountSwitcher.CurrentHome) == "healthy",
+                "Canceling the first key prompt leaves the current login and API profile unchanged");
+            await WithSwitchButton(complete: true);
+            Check(new AccountSwitcher(store).HasApiKey(account.Record) && store.LoadCache("current")?.UsesApiKey == true,
+                "Confirmed API switch saves the project key separately and records API mode in the current-account cache");
+            Console.WriteLine("PASS API card prompts for a masked key and becomes the active API login after switching");
+        }
+        finally { settings.MonitorApiCredits = false; accounts.Remove(account); store.DeleteProfile(account.Record.Id); }
+
+        Task WithSwitchButton(bool complete)
+        {
+            var group = groups.Single(group => group.Sources.Contains(account));
+            var observation = ObserveAsync();
+            typeof(MainWindow).GetMethod("SwitchAccountClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(main, [new Button { Tag = group }, new RoutedEventArgs()]);
+            return observation;
+
+            async Task ObserveAsync()
+            {
+                Window Find(string title) => Application.Current.Windows.OfType<Window>().Single(window => window.Title == title);
+                const string keyTitle = "Set Codex API key";
+                await WaitFor(() => Application.Current.Windows.OfType<Window>().Any(window => window.Title == keyTitle), "API key prompt opens");
+                var prompt = Find(keyTitle);
+                if (!complete) { prompt.Close(); return; }
+                Descendants<PasswordBox>(prompt).Single().Password = "sk-proj-fake-key-for-ui-test";
+                Descendants<Button>(prompt).Single(button => Equals(button.Content, L.T("保存"))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitFor(() => group.IsCurrent && !current.IsRefreshing, "API profile is recognized by current usage refresh");
+                var dialog = Find(L.T("账号已切换"));
+                try { Check(!group.CanSwitch && current.Snapshot is { UsesApiKey: true } && !current.HasError && current.Buckets.Count == 0, "API sign-in clears subscription metrics without treating API mode as a failure"); }
+                finally { dialog.Close(); }
+            }
+        }
     }
 
     private static async Task CheckAutomaticSwitch(MainWindow main, AccountStore store, ObservableCollection<AccountViewModel> accounts, AccountViewModel current)

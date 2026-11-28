@@ -4,7 +4,7 @@
 
 在 Windows 上集中查看 Codex 的多账号额度、重置时间和异常会话。支持 **CC Switch 一键导入账号**和 **Codex 原生登录**。
 
-**[下载 4.0.2](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.2)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
+**[下载 4.1.0](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.1.0)** · [快速开始](#快速开始) · [更新记录](CHANGELOG.md)
 
 以下界面截图使用演示数据。
 
@@ -47,7 +47,9 @@ CodexQuota 发起重启后会打开最近运行的会话。自动切换时，如
 
 ### 监控 OpenAI API 赠送额度
 
-在首次导览的「API 赠送额度」页，或「设置 → 额度监测」，开启 **监控 API 赠送额度**（默认关闭），然后点击「连接 API 账号」。登录 OpenAI Platform 后，应用自动读取当前 API 组织并返回额度面板。每个组织只显示一个「API · 账号名」条目，不参与 Codex 账号切换。无需 API Key 或付款信息；登录状态仅保存在本机的 Microsoft Edge WebView2 配置中。
+在首次导览的「API 赠送额度」页，或「设置 → 额度监测」，开启 **监控 API 赠送额度**（默认关闭），然后点击「连接 API 账号」。登录 OpenAI Platform 后，应用自动读取当前 API 组织并返回额度面板。每个组织只显示一个「API · 账号名」条目。查看额度无需 API Key 或付款信息；网页登录状态仅保存在本机的 Microsoft Edge WebView2 配置中。
+
+- **用赠送额度登录 Codex**：在「API · 账号名」卡片点击「切换账号」，首次切换时粘贴该组织下的项目 API Key，然后重启 Codex。可从卡片的「⋯ → 设置 Codex API Key」更换密钥，或从已连接的 ChatGPT 账号切换回订阅登录。切换使用 Codex 的本地 `auth.json`；API 账号仅支持手动切换。请求按该项目计费，可用赠送额度抵扣，用完后可能产生费用。
 
 - 读取 [OpenAI Platform 账单概览](https://platform.openai.com/settings/organization/billing/overview) 的赠送余额和最早到期日。页面只给出日期时，不推算具体到期时刻；页面没有单列赠送余额时，不把充值或钱包余额算进去。
 - 在 API 账号的「⋯ → 每周期赠送额度」可设置进度环的 100% 刻度，例如 Pro100 设为 US$100。余额仍使用账单实值；首笔按比例少发放的差额不会显示为已用。

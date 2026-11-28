@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings><AssemblyName>CodexQuota</AssemblyName><Version>4.0.2</Version><ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>Assets/app.ico</ApplicationIcon><Product>Codex Quota</Product><Description>Local multi-account Codex quota widget</Description></PropertyGroup>
+  <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings><AssemblyName>CodexQuota</AssemblyName><Version>4.1.0</Version><ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>Assets/app.ico</ApplicationIcon><Product>Codex Quota</Product><Description>Local multi-account Codex quota widget</Description></PropertyGroup>
  <ItemGroup><ProjectReference Include="../Quota.Core/Quota.Core.csproj" /></ItemGroup>
  <ItemGroup><PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3719.77" /></ItemGroup>
  <ItemGroup><InternalsVisibleTo Include="Quota.Presentation.Tests" /></ItemGroup>
  <ItemGroup><Resource Include="Assets/brand.png"/><Resource Include="Assets/app.ico"/></ItemGroup>
  <ItemGroup><EmbeddedResource Include="Strings.en.json" LogicalName="Quota.Desktop.Strings.en.json" WithCulture="false"/><Resource Include="Assets/lucide/*.svg"/><None Include="Assets/lucide/LICENSE" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
- <PropertyGroup><InformationalVersion>4.0.2</InformationalVersion><SatelliteResourceLanguages>en;zh-Hans;zh-Hant</SatelliteResourceLanguages></PropertyGroup>
+  <PropertyGroup><InformationalVersion>4.1.0</InformationalVersion><SatelliteResourceLanguages>en;zh-Hans;zh-Hant</SatelliteResourceLanguages></PropertyGroup>
 </Project>

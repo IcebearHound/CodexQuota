@@ -11,7 +11,7 @@ public sealed class CodexService(AccountStore store, Func<string, string?, Codex
         if (account.IsApi) throw new CodexException("API 额度账号通过 OpenAI Platform 账单刷新。");
         if (!account.IsCurrent && !File.Exists(Path.Combine(store.ProfilePath(account.Id), "config.toml"))) throw new CodexException("此账号的本地登录目录已丢失，请重新登录。");
         await using var client = CreateClient(cli, account.IsCurrent ? null : store.ProfilePath(account.Id));
-        return await client.ReadUsageAsync(ct);
+        return await client.ReadUsageAsync(ct, allowApiKey: account.IsCurrent);
     }
     public async Task<string?> LoginAsync(string cli, string profileId, Action<string> progress, CancellationToken ct)
     {

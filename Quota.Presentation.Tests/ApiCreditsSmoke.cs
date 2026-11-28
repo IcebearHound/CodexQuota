@@ -43,7 +43,8 @@ internal static class ApiCreditsSmoke
         var groups = (ObservableCollection<AccountGroupViewModel>)typeof(MainWindow).GetField("visibleAccounts", Instance)!.GetValue(main)!;
         var api = groups.Single(group => group.IsApi);
         var codex = groups.Single(group => group.Name == api.Name && !group.IsApi);
-        Check(codex.CanSwitch && !api.CanSwitch && !api.IsCurrent && api.DisplayName.StartsWith("API · "), "An identically named API row never merges with or becomes a Codex account");
+        Check(codex.CanSwitch && api.CanSwitch && api.ShowCodexSwitch && !api.IsCurrent && api.DisplayName.StartsWith("API · "),
+            "An identically named API row stays separate and offers its own manual Codex switch");
         Check(api.FocusWindow is { Percent: "$59.00", HasProgress: true } &&
             api.FocusWindow.ResetText.Contains(api.FocusWindow.CompactResetText), "API shows USD and the day of expiry");
         api.ShowUsed = true;

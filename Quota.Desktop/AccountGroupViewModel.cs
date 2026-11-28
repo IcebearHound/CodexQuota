@@ -30,7 +30,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public ObservableCollection<BucketViewModel> Buckets { get; } = [];
     public string Name => sources.FirstOrDefault(source => source.Record.CustomName)?.Name ?? sources.FirstOrDefault(source => source.Managed)?.Name ?? primary.Name;
     public bool IsApi => primary.Record.IsApi;
-    public bool ShowCodexSwitch => !IsApi;
+    public bool ShowCodexSwitch => !IsApi || CanSwitch;
     public string DisplayName => IsApi ? "API · " + Name : Name;
     public string? StripExpiry => IsApi ? "API " + (FocusWindow?.CompactResetText ?? "—") : FocusWindow?.CompactResetText;
     public string EditableName => sources.FirstOrDefault(source => source.Record.CustomName)?.Record.Name ?? sources.FirstOrDefault(source => source.Managed)?.Record.Name ?? primary.Record.Name;
@@ -39,8 +39,8 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     public bool ShowCompact => primary.ShowCompact;
     public string Identity => primary.Identity;
     public bool HasMultipleSources => sources.Length > 1;
-    public bool IsCurrent => sources.Any(source => source.Record.IsCurrent && !source.HasError && !source.IsCached && source.Snapshot is not null);
-    public bool CanSwitch => !IsCurrent && sources.Any(source => source.Managed);
+    public bool IsCurrent => sources.Any(source => source.IsActiveApiLogin || source.Record.IsCurrent && !source.HasError && !source.IsCached && source.Snapshot is not null);
+    public bool CanSwitch => !IsCurrent && (IsApi || sources.Any(source => source.Managed));
     public string ActionHint => HasError ? sources.FirstOrDefault(source => source.HasError)?.ActionHint ?? primary.ActionHint : L.T("已同步");
     public string SourceSummary
     {
@@ -75,6 +75,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
     {
         get
         {
+            if (IsApi && IsCurrent && !HasError && !IsRefreshing) return L.T("使用中");
             if (IsRefreshing) return L.T("更新中");
             if (HasError) return selected.Length > 1
                 ? L.T(selected.Any(source => source.HasError && !source.IsStale) ? "需处理" : "部分过期") : primary.Status;
@@ -116,7 +117,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
             Raise(nameof(Updated)); Raise(nameof(Status)); Raise(nameof(UpdatedTooltip)); Raise(nameof(MetricTooltip)); Raise(nameof(StripExpiry));
             return;
         }
-        if (args.PropertyName is nameof(AccountViewModel.Identity) or nameof(AccountViewModel.Status) or nameof(AccountViewModel.Name) or nameof(AccountViewModel.ShowDetails)) Refresh();
+        if (args.PropertyName is nameof(AccountViewModel.Identity) or nameof(AccountViewModel.Status) or nameof(AccountViewModel.Name) or nameof(AccountViewModel.ShowDetails) or nameof(AccountViewModel.IsActiveApiLogin)) Refresh();
     }
 
     private void Refresh()
@@ -139,7 +140,7 @@ public sealed class AccountGroupViewModel : Observable, IDisposable
         {
             nameof(Name), nameof(DisplayName), nameof(Initial), nameof(ShowDetails), nameof(ShowCompact), nameof(Identity),
             nameof(SourceSummary), nameof(SourceTooltip), nameof(Plan), nameof(IsRefreshing), nameof(HasError),
-            nameof(Error), nameof(NoSnapshot), nameof(Blocked), nameof(BlockMessage), nameof(HasLowQuota), nameof(IsCurrent), nameof(CanSwitch),
+            nameof(Error), nameof(NoSnapshot), nameof(Blocked), nameof(BlockMessage), nameof(HasLowQuota), nameof(IsCurrent), nameof(CanSwitch), nameof(ShowCodexSwitch),
             nameof(Updated), nameof(UpdatedTooltip), nameof(StatusColor), nameof(Status), nameof(FocusWindow), nameof(FocusCaption), nameof(HasMetric), nameof(MetricTooltip), nameof(ActionHint), nameof(ResetCardSummary), nameof(StripExpiry)
         }) Raise(property);
     }

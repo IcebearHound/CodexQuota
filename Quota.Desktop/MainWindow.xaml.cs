@@ -234,6 +234,7 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception e) when (e is CodexException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException)
         {
+            if (account.Record.IsCurrent) UpdateCurrentApiAccount(usesApiKey: false);
             if (accounts.Contains(account)) account.SetError(e is CodexException ? e.Message : "读取未完成，请重试或重新登录。",
                 timedOut: e is CodexException { IsTimeout: true });
         }
@@ -242,6 +243,7 @@ public partial class MainWindow : Window
     private void PublishQuotaSnapshot(AccountViewModel account, UsageSnapshot snapshot, bool fromCache = false)
     {
         account.SetSnapshot(snapshot, fromCache);
+        if (account.Record.IsCurrent) UpdateCurrentApiAccount(snapshot.UsesApiKey && !fromCache);
         try { store.SaveCache(account.Record.Id, snapshot); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { ShowNotice(L.T("额度已更新，但本地缓存未能保存。")); }
     }

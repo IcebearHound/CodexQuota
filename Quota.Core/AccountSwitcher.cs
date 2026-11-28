@@ -11,14 +11,70 @@ public sealed class AccountSwitcher(AccountStore store)
     public async Task<UsageSnapshot?> SwitchAsync(string cli, AccountRecord target, CancellationToken cancellationToken)
     {
         if (target.IsCurrent) return null;
+        if (target.IsApi)
+        {
+            var content = await File.ReadAllTextAsync(ApiAuthPath(target), cancellationToken);
+            if (ReadApiKey(content) is null) throw new CodexException("API Key 无效，请重新设置。");
+            await CommitContentAsync(content, CurrentHome, store.Root, cancellationToken, null);
+            return new UsageSnapshot { UsesApiKey = true };
+        }
         var usage = await new CodexService(store).RefreshAsync(cli, target, cancellationToken);
         await CommitVerifiedAsync(target, usage, cancellationToken);
         return usage;
     }
 
     public Task CommitVerifiedAsync(AccountRecord target, UsageSnapshot usage, CancellationToken cancellationToken, string? expectedCurrentAccountId = null)
-        => target.IsApi ? Task.FromException(new CodexException("API 额度账号不能切换为 Codex 账号。"))
+        => target.IsApi ? Task.FromException(new CodexException("请使用 API Key 切换 API 账号。"))
             : CommitAuthenticationAsync(Path.Combine(store.ProfilePath(target.Id), "auth.json"), CurrentHome, store.Root, usage.AccountId, cancellationToken, expectedCurrentAccountId);
+
+    public static bool IsApiKeyFormat(string key) => key.Length is > 3 and <= 512 && key.StartsWith("sk-", StringComparison.Ordinal)
+        && key.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_');
+
+    public void SaveApiKey(AccountRecord account, string key)
+    {
+        if (!IsApiKeyFormat(key)) throw new CodexException("API Key 无效，请重新设置。");
+        var target = ApiAuthPath(account);
+        store.CreateApiBrowserProfile(account.Id); // Create and restrict the shared organization profile.
+        var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(new { auth_mode = "apikey", OPENAI_API_KEY = key }));
+            File.Move(temporary, target, true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    public bool HasApiKey(AccountRecord account) => TryReadApiKey(ApiAuthPath(account)) is not null;
+
+    public string? FindCurrentApiAccount(IEnumerable<AccountRecord> accounts)
+    {
+        var key = TryReadApiKey(Path.Combine(CurrentHome, "auth.json"));
+        if (key is null) return null;
+        var matches = accounts.Where(account => account.IsApi && TryReadApiKey(ApiAuthPath(account)) == key).Take(2).ToArray();
+        return matches.Length == 1 ? matches[0].Id : null;
+    }
+
+    private string ApiAuthPath(AccountRecord account)
+    {
+        if (!account.IsApi) throw new ArgumentException("An API organization is required.", nameof(account));
+        var profile = store.ProfilePath(account.Id);
+        if (Directory.Exists(profile) && File.GetAttributes(profile).HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("账号目录不能是链接或联接目录。");
+        return Path.Combine(profile, "api-codex-auth.json");
+    }
+
+    private static string? ReadApiKey(string content)
+    {
+        using var document = JsonDocument.Parse(content);
+        var auth = document.RootElement;
+        return auth.Str("auth_mode") == "apikey" && auth.Str("OPENAI_API_KEY") is { } key && IsApiKeyFormat(key) ? key : null;
+    }
+
+    private static string? TryReadApiKey(string path)
+    {
+        try { return ReadApiKey(File.ReadAllText(path)); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
 
     public static Task CommitAuthenticationAsync(string sourceFile, string targetHome, string backupDirectory, string? expectedAccountId, CancellationToken cancellationToken)
         => CommitAuthenticationAsync(sourceFile, targetHome, backupDirectory, expectedAccountId, cancellationToken, null);
@@ -33,6 +89,12 @@ public sealed class AccountSwitcher(AccountStore store)
             throw new CodexException("账号认证尚未就绪，请重新登录后切换。");
         if (expectedAccountId is not null && tokens.Str("account_id") != expectedAccountId) throw new CodexException("账号认证与额度身份不一致，请刷新后重试。");
 
+        await CommitContentAsync(content, targetHome, backupDirectory, cancellationToken, expectedCurrentAccountId);
+    }
+
+    private static async Task CommitContentAsync(string content, string targetHome, string backupDirectory,
+        CancellationToken cancellationToken, string? expectedCurrentAccountId)
+    {
         Directory.CreateDirectory(targetHome);
         Directory.CreateDirectory(backupDirectory);
         AccountStore.RestrictDirectory(backupDirectory);
