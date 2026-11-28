@@ -117,13 +117,6 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         return separator > 0 ? StringInfo.GetNextTextElement(name) + "•••" + name[separator..] : name;
     }
     public bool Managed => !Record.IsCurrent && !Record.IsApi;
-    public bool IsActiveApiLogin { get; private set; }
-    internal void SetActiveApiLogin(bool value)
-    {
-        if (IsActiveApiLogin == value) return;
-        IsActiveApiLogin = value;
-        Raise(nameof(IsActiveApiLogin));
-    }
     public string ResetCardSummary
     {
         get
@@ -153,7 +146,6 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
         {
             if (Record.IsApi) return L.F("OpenAI Platform 组织 · {0}", "OpenAI Platform organization · {0}",
                 privacy ? MaskEmail(Record.ApiOrganizationName ?? Record.Name) : Record.ApiOrganizationName ?? Record.Name);
-            if (Snapshot?.UsesApiKey == true) return L.F("本机 Codex · API Key 登录", "Local Codex · API key sign-in");
             if (Record.IsCurrent && (IsCached || HasError) && Snapshot is not null)
                 return privacy || string.IsNullOrEmpty(Snapshot.Email) ? L.T("上次读取账号 · 当前登录未验证") : L.F("上次账号 {0} · 当前登录未验证", "Previous account {0} · current sign-in unverified", Snapshot.Email);
             if (Record.IsCurrent) return privacy ? L.T("跟随本机 Codex 登录") : Snapshot?.Email ?? Record.Email ?? L.T("跟随本机 Codex 登录");
@@ -164,7 +156,7 @@ public sealed class AccountViewModel(AccountRecord record) : Observable
     {
         get
         {
-            if (Record.IsApi || Snapshot?.UsesApiKey == true) return "API";
+            if (Record.IsApi) return "API";
             var plan = Snapshot?.Buckets.Select(x => x.Plan).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim().ToLowerInvariant();
             if (plan is null or "unknown") return "—";
             if (plan is "prolite" or "pro100") return "Pro100";

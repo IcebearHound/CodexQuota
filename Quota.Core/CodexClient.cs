@@ -102,16 +102,12 @@ public sealed class CodexClient : IAsyncDisposable
         await process.StandardInput.WriteLineAsync("{\"method\":\"initialized\"}");
         await process.StandardInput.FlushAsync(ct);
     }
-    public async Task<UsageSnapshot> ReadUsageAsync(CancellationToken ct, bool allowApiKey = false)
+    public async Task<UsageSnapshot> ReadUsageAsync(CancellationToken ct)
     {
         await InitializeAsync(ct);
         var account = await RequestAsync("account/read", new { refreshToken = false }, ct);
         if (!account.TryGetProperty("account", out var a) || a.ValueKind == JsonValueKind.Null) throw new CodexException("账号尚未登录，或登录已失效。请重新登录。");
-        if (a.Str("type") == "apiKey")
-        {
-            if (allowApiKey) return new UsageSnapshot { UsesApiKey = true };
-            throw new CodexException("当前使用 API Key。订阅额度仅适用于 ChatGPT 登录账号。");
-        }
+        if (a.Str("type") == "apiKey") throw new CodexException("当前使用 API Key。订阅额度仅适用于 ChatGPT 登录账号。");
         var usage = await RequestAsync("account/rateLimits/read", new { excludeResetCreditDetails = false }, ct);
         if (account.TryGetProperty("workspaceRouting", out var routing) && routing.Str("chatgptAccountId") is { } expectedId && usage.Str("accountId") is { } actualId && expectedId != actualId)
             throw new CodexException("读取时账号发生变化，请刷新后重试。");

@@ -123,34 +123,13 @@ public partial class MainWindow
             detail, "arrow-right-left", CodexStatusViewModel.WarningColor);
     }
 
-    private void SwitchAccountClick(object sender, RoutedEventArgs args)
+    private async void SwitchAccountClick(object sender, RoutedEventArgs args)
     {
-        if (sender is not Button { Tag: AccountGroupViewModel group }) return;
-        SwitchAccount(group.Sources.Where(source => source.Managed || source.Record.IsApi).OrderBy(source => source.HasError)
-            .ThenByDescending(source => source.Snapshot?.FetchedAt).FirstOrDefault(), group.IsCurrent);
-    }
-
-    private void SwitchAccount(AccountViewModel? target, bool isCurrent)
-    {
-        if (appUpdateState.Phase == "installing" || switching || loggingIn || isCurrent || target is null || !accounts.Contains(target)) return;
-        var cli = demo ? null : GetCli();
-        if (!demo && cli is null) return;
-        var switcher = new AccountSwitcher(store);
+        if (appUpdateState.Phase == "installing" || switching || loggingIn || sender is not Button { Tag: AccountGroupViewModel group }) return;
+        if (group.IsCurrent) return;
+        var target = group.Sources.Where(source => source.Managed).OrderBy(source => source.HasError).ThenByDescending(source => source.Snapshot?.FetchedAt).FirstOrDefault();
+        if (target is null || (!demo && GetCli() is null)) return;
         switching = true;
-        try
-        {
-            if (!demo && target.Record.IsApi && !switcher.HasApiKey(target.Record) && !EditApiKey(target)) return;
-            ShowSwitchAccountDialog(target, cli, switcher);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            DialogLayout.Alert(AccountDialogOwner, L.T("切换未完成"), L.F("无法读取 API Key，请检查本地文件权限。", "Could not read the API key. Check local file permissions."));
-        }
-        finally { switching = false; }
-    }
-
-    private void ShowSwitchAccountDialog(AccountViewModel target, string? cli, AccountSwitcher switcher)
-    {
         var dialog = DialogLayout.Create(AccountDialogOwner, L.T("正在切换"), 420);
         var root = new StackPanel { Margin = new Thickness(24, 12, 24, 24) }; DialogLayout.Frame(dialog, root);
         var heading = DialogLayout.Text(L.T("正在切换"), 20); root.Children.Add(heading);
@@ -164,11 +143,12 @@ public partial class MainWindow
         {
             try
             {
+                var cli = demo ? null : GetCli()!;
                 if (demo) await System.Threading.Tasks.Task.Delay(650);
                 else
                 {
                     await Task.WhenAll(accountRefreshes.Where(pair => pair.Key.Record.IsCurrent || ReferenceEquals(pair.Key, target)).Select(pair => pair.Value).ToArray());
-                    var verified = await switcher.SwitchAsync(cli!, target.Record, lifetime.Token);
+                    var verified = await new AccountSwitcher(store).SwitchAsync(cli!, target.Record, lifetime.Token);
                     var local = accounts.FirstOrDefault(source => source.Record.IsCurrent);
                     if (verified is not null && local is not null) PublishQuotaSnapshot(local, verified, fromCache: true);
                 }
@@ -210,12 +190,10 @@ public partial class MainWindow
             catch (Exception error) when (error is CodexException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException or OperationCanceledException)
             {
                 completed = true; progress.Visibility = Visibility.Collapsed;
-                heading.Text = L.T("切换未完成"); message.Text = target.Record.IsApi
-                    ? L.F("请检查 API Key 和本地文件权限后重试。", "Check the API key and local file permissions, then try again.")
-                    : error is CodexException ? L.Error(error.Message) : L.T("请刷新账号或重新登录后再试。");
+                heading.Text = L.T("切换未完成"); message.Text = error is CodexException ? L.Error(error.Message) : L.T("请刷新账号或重新登录后再试。");
                 var close = new Button { Content = L.T("关闭") }; close.Click += (_, _) => dialog.Close(); actions.Children.Add(close);
             }
         };
-        dialog.ShowDialog();
+        try { dialog.ShowDialog(); } finally { switching = false; }
     }
 }

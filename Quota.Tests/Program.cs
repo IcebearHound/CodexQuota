@@ -692,41 +692,6 @@ await Test("switching the current source preserves the existing no-op behavior",
     Check(await new AccountSwitcher(store).SwitchAsync("missing-cli", new() { Id = "current" }, default) is null);
     Check(!Directory.EnumerateFileSystemEntries(store.Root).Any());
 });
-await Test("API organization switch keeps OAuth backup and can switch back to a saved ChatGPT login", async () =>
-{
-    var store = new AccountStore(Path.Combine(testRoot, "switch-api-organization"));
-    var api = new AccountRecord { ApiOrganizationId = "org-a" };
-    var oauth = new AccountRecord();
-    var oauthAuth = JsonSerializer.Serialize(NativeAuth("selected", oauth.Id));
-    File.WriteAllText(Path.Combine(store.CreateProfile(oauth.Id), "auth.json"), oauthAuth);
-    var home = Path.Combine(store.Root, "current-home"); Directory.CreateDirectory(home);
-    var currentAuth = Path.Combine(home, "auth.json"); File.WriteAllText(currentAuth, oauthAuth);
-    File.WriteAllText(Path.Combine(home, ".quota-test-scenario"), "switch-race");
-    var previousHome = Environment.GetEnvironmentVariable("CODEX_HOME");
-    try
-    {
-        Environment.SetEnvironmentVariable("CODEX_HOME", home);
-        var switcher = new AccountSwitcher(store);
-        Check(!switcher.HasApiKey(api));
-        const string testKey = "sk-proj-fake-key-for-switch-test";
-        switcher.SaveApiKey(api, testKey);
-        store.SaveAccounts([api, oauth]);
-        Check(File.ReadAllText(currentAuth) == oauthAuth && !File.ReadAllText(Path.Combine(store.Root, "accounts-v2.json")).Contains(testKey));
-        using var canceled = new CancellationTokenSource(); canceled.Cancel();
-        await Throws<OperationCanceledException>(() => switcher.SwitchAsync(Environment.ProcessPath!, api, canceled.Token));
-        Check(File.ReadAllText(currentAuth) == oauthAuth);
-        Check(await switcher.SwitchAsync(Environment.ProcessPath!, api, default) is { UsesApiKey: true, AccountId: null });
-        Check(File.ReadAllText(Path.Combine(store.Root, "previous-codex-auth.json")) == oauthAuth);
-        using var auth = JsonDocument.Parse(File.ReadAllText(currentAuth));
-        Check(auth.RootElement.Str("auth_mode") == "apikey" && auth.RootElement.Str("OPENAI_API_KEY") == testKey && !auth.RootElement.TryGetProperty("tokens", out _));
-        Check(switcher.FindCurrentApiAccount(store.LoadAccounts()) == api.Id);
-        var active = await new CodexService(store).RefreshAsync(Environment.ProcessPath!, new() { Id = "current" }, default);
-        Check(active.UsesApiKey && active.Buckets.Count == 0);
-        Check(await switcher.SwitchAsync(Environment.ProcessPath!, oauth, default) is { UsesApiKey: false } restored && restored.AccountId == oauth.Id);
-        Check(File.ReadAllText(currentAuth) == oauthAuth && switcher.FindCurrentApiAccount([api]) is null && switcher.HasApiKey(api));
-    }
-    finally { Environment.SetEnvironmentVariable("CODEX_HOME", previousHome); }
-});
 await Test("native switching preserves previous authentication and commits the selected workspace", async () =>
 {
     var root = Path.Combine(testRoot, "native-switch"); Directory.CreateDirectory(root);
@@ -1380,8 +1345,7 @@ static async Task Fake(string mode)
     if (mode == "switch-race")
     {
         using var authentication = JsonDocument.Parse(File.ReadAllText(Path.Combine(profile!, "auth.json")));
-        if (authentication.RootElement.Str("auth_mode") == "apikey") mode = "api-key";
-        else switchAccount = authentication.RootElement.GetProperty("tokens").Str("account_id");
+        switchAccount = authentication.RootElement.GetProperty("tokens").Str("account_id");
     }
     Console.WriteLine("not-json"); Console.WriteLine("[]"); Console.WriteLine("null");
     var writes = new SemaphoreSlim(1);
@@ -1404,7 +1368,6 @@ static async Task Fake(string mode)
                 else if (mode == "api-key") await Send(new { id, result = new { account = new { type = "apiKey" } } });
                 else await Send(new { id, result = new { account = new { type = "chatgpt", email = mode == "per-profile" ? Path.GetFileName(Environment.GetEnvironmentVariable("CODEX_HOME")) + "@example.com" : "test@example.com" }, workspaceRouting = mode == "switched-account" ? new { chatgptAccountId = "first" } : null } }); break;
             case "account/rateLimits/read":
-                if (mode == "api-key") { await Send(new { id, error = new { code = 400, message = "API keys do not have subscription limits" } }); break; }
                 if (mode == "switch-race")
                 {
                     var holdAccount = Path.Combine(profile!, ".quota-test-hold-account");

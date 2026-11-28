@@ -29,7 +29,7 @@ public partial class MainWindow
     internal void BuildApiCreditOptions(Panel body, Window owner, bool inGuide = false)
     {
         var section = SettingsControls.Section(body, L.F("API 赠送额度监控", "API credit monitoring"), "layers",
-            inGuide ? "" : L.F("每个 OpenAI Platform 组织独立显示。可为组织设置项目 API Key，手动切换 Codex 登录。", "Each OpenAI Platform organization appears separately. Set a project API key to switch Codex sign-ins manually."));
+            inGuide ? "" : L.F("只读 OpenAI Platform 账单。每个组织独立显示，不会切换当前 Codex 账号。", "Read OpenAI Platform billing. Each organization appears separately and never switches the active Codex account."));
         SettingsControls.Toggle(section, L.F("监控 API 赠送额度", "Monitor API promotional credits"), "refresh-cw",
             settings.MonitorApiCredits, SetApiMonitoring,
             L.F("默认关闭。开启后，按自动刷新间隔查询账单（最短 5 分钟）。关闭后停止查询和提醒，保留连接。", "Off by default. Checks billing at your auto-refresh interval, at most once every 5 minutes. Turning it off stops checks and alerts but keeps connections."));
@@ -249,9 +249,6 @@ public partial class MainWindow
             item.Click += (_, _) => action();
             menu.Items.Add(item);
         }
-        Item(L.F("切换到此 API 账号", "Switch to this API account"), () => SwitchAccount(account, account.IsActiveApiLogin),
-            !demo && !account.IsActiveApiLogin && !switching && !loggingIn);
-        Item(L.F("设置 Codex API Key…", "Set Codex API key…"), () => EditApiKey(account), !demo && !switching && !loggingIn);
         Item(L.T("刷新此账号"), async () => await RefreshApiAccountAsync(account), settings.MonitorApiCredits && !account.IsRefreshing && !demo);
         Item(L.F("每周期赠送额度…", "Full-cycle API allowance…"), () => EditApiCycleAllowance(account));
         Item(L.T("重命名账号"), () =>
@@ -264,49 +261,6 @@ public partial class MainWindow
             settings.MonitorApiCredits && !account.IsRefreshing && !demo);
         Item(L.T("移除账号") + "…", () => { RemoveAccount(account); QueueSettingsRender(); }, !account.IsRefreshing && !demo);
         menu.IsOpen = true;
-    }
-
-    private bool EditApiKey(AccountViewModel account)
-    {
-        var title = L.F("设置 Codex API Key", "Set Codex API key");
-        var dialog = DialogLayout.Create(AccountDialogOwner, title, 420);
-        var body = new StackPanel { Margin = new Thickness(24, 12, 24, 20) };
-        DialogLayout.Frame(dialog, body);
-        body.Children.Add(DialogLayout.Text(account.Name, 18));
-        body.Children.Add(DialogLayout.Text(L.F("请粘贴此组织内的项目 API Key。Codex 调用按该项目计费；可用赠送额度抵扣，用完后可能产生费用。",
-            "Paste a project API key from this organization. Codex requests are billed to that project. Eligible requests use promotional credits and may incur charges after credits run out."), 12, true));
-        var input = new PasswordBox { MaxLength = 512, Margin = new Thickness(0, 8, 0, 12) };
-        AutomationProperties.SetName(input, "API Key");
-        body.Children.Add(input);
-        var save = new Button { Content = L.T("保存"), IsDefault = true, IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Right };
-        body.Children.Add(save);
-        input.PasswordChanged += (_, _) => save.IsEnabled = AccountSwitcher.IsApiKeyFormat(input.Password.Trim());
-        save.Click += (_, _) => dialog.DialogResult = true;
-        dialog.Loaded += (_, _) => input.Focus();
-        if (dialog.ShowDialog() != true) return false;
-        try
-        {
-            new AccountSwitcher(store).SaveApiKey(account.Record, input.Password.Trim());
-            UpdateCurrentApiAccount(accounts.Any(source => source.Record.IsCurrent && !source.HasError && !source.IsCached && source.Snapshot?.UsesApiKey == true));
-            return true;
-        }
-        catch (Exception error) when (error is CodexException or IOException or UnauthorizedAccessException)
-        {
-            DialogLayout.Alert(AccountDialogOwner, title, L.F("无法保存 API Key，请检查密钥格式和本地文件权限。", "Could not save the API key. Check the key format and local file permissions."));
-            return false;
-        }
-        finally { input.Clear(); }
-    }
-
-    private void UpdateCurrentApiAccount(bool usesApiKey)
-    {
-        string? id = null;
-        if (usesApiKey)
-        {
-            try { id = new AccountSwitcher(store).FindCurrentApiAccount(accounts.Select(source => source.Record)); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
-        }
-        foreach (var source in accounts.Where(source => source.Record.IsApi)) source.SetActiveApiLogin(source.Record.Id == id);
     }
 
     private void EditApiCycleAllowance(AccountViewModel account)

@@ -4,7 +4,7 @@
 
 Monitor Codex account quotas, reset timers and session issues from one Windows app. Connect accounts with **one-click CC Switch import** or **native Codex sign-in**.
 
-**[Download 4.1.0](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.1.0)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+**[Download 4.0.2](https://github.com/IcebearHound/CodexQuota/releases/tag/v4.0.2)** · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
 
 Screenshots use demo data.
 
@@ -47,9 +47,7 @@ When Codex Quota restarts the desktop app, it reopens the most recently running 
 
 ### Track OpenAI API promotional credits
 
-Enable **Monitor API promotional credits** in the guide’s **API credits** chapter or under **Settings → Quota monitoring**. It is off by default. Choose **Connect API account** and sign in to OpenAI Platform. The app reads billing for the selected organization and returns to the quota panel automatically. Each organization appears once as `API · account name`. Monitoring requires no API key or payment details. Web sign-ins stay in local Microsoft Edge WebView2 profiles.
-
-- **Use promotional credits with Codex**: Choose **Switch account** on the API card, paste a project API key from that organization on the first switch, then restart Codex. Use **⋯ → Set Codex API key** to replace it, or switch to a connected ChatGPT account to return to subscription sign-in. Switching uses Codex's local `auth.json`; API accounts are manual-switch only. Requests are billed to the project and may incur charges after eligible credits run out.
+Enable **Monitor API promotional credits** in the guide’s **API credits** chapter or under **Settings → Quota monitoring**. It is off by default. Choose **Connect API account** and sign in to OpenAI Platform. The app reads billing for the selected organization and returns to the quota panel automatically. Each organization appears once as `API · account name` and is never used for Codex account switching. No API key or payment details are needed. Sign-ins stay in local Microsoft Edge WebView2 profiles.
 
 - Read the promotional USD balance and next expiry date from [OpenAI Platform Billing overview](https://platform.openai.com/settings/organization/billing/overview). If the page shows only a date, the app doesn’t infer a time. If it doesn’t show a separate promotional balance, a mixed or wallet balance is not counted.
 - Open the API account’s **⋯ → Full-cycle API allowance** to set the 100% mark (for example, US$100 for Pro100). The displayed balance still comes from billing, and a prorated first grant is not counted as spending.

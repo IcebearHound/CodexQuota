@@ -54,7 +54,6 @@ public sealed class UsageSnapshot
     [JsonRequired] public DateTimeOffset FetchedAt { get; set; } = DateTimeOffset.UtcNow;
     public string? Email { get; set; }
     public string? AccountId { get; set; }
-    public bool UsesApiKey { get; set; }
     public bool? OrdinaryUsageAllowed { get; set; }
     public List<QuotaBucket> Buckets { get; set; } = [];
     public int? ResetCreditAvailableCount { get; set; }

@@ -188,7 +188,7 @@ public partial class TaskbarWidget : Window
         StripMetrics.Visibility = host.ShowsMetrics ? Visibility.Visible : Visibility.Collapsed;
         var displayed = CodexAccounts;
         DataContext = displayed.FirstOrDefault(account => account.Key == selectedKey) ?? displayed.FirstOrDefault(account => account.IsCurrent) ?? displayed.FirstOrDefault();
-        var api = ApiAccounts.FirstOrDefault(account => account.Key == selectedApiKey) ?? ApiAccounts.FirstOrDefault(account => account.IsCurrent) ?? ApiAccounts.FirstOrDefault();
+        var api = ApiAccounts.FirstOrDefault(account => account.Key == selectedApiKey) ?? ApiAccounts.FirstOrDefault();
         StripApi.DataContext = api;
         StripApi.Visibility = host.ShowsApi && api is not null ? Visibility.Visible : Visibility.Collapsed;
         if (host.BackgroundColor is not { } background) return;
